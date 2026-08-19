@@ -1,0 +1,260 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * "High-Octane Kinetic" design system (Stitch-generated), dark-first, no
+ * separate light variant was specified - this palette IS the app's default
+ * appearance, not a `.dark` override of a light theme.
+ *
+ * Two layers below:
+ *   1. `md-*` tokens: the full token ladder as delivered, namespaced to
+ *      avoid colliding with shadcn's own `primary`/`secondary`/`accent`
+ *      names, which mean something different (shadcn's `--primary` is "the
+ *      solid CTA fill color"; the design system's `primary` is a *lighter*
+ *      dark-mode accent tone, with `primary-container` holding the vivid
+ *      #FF5722 the spec's own "Buttons > Primary: Solid #FF5722" calls for -
+ *      this is standard Material-3 dark-scheme token behavior). Use these
+ *      directly (e.g. `bg-md-tertiary-container`) when you need a specific
+ *      semantic tone the shadcn slots don't cover - secondary/cyan for
+ *      hydration & recovery, tertiary/lime for PRs & completion states.
+ *   2. shadcn's standard slots (`--primary`, `--card`, etc.), pointed at
+ *      whichever `md-*` token actually matches their intent, so every
+ *      existing shadcn/ui component (Button, etc.) picks up the new palette
+ *      with no component-level changes.
+ *
+ * Where the spec's YAML color tokens and its prose "Elevation & Depth"
+ * section give slightly different hex values for the same surface levels,
+ * the YAML (below) is treated as authoritative - the prose reads as a
+ * looser human description of the same intent.
+ */
+
+:root {
+  /* --- md-* : full token ladder, as delivered --- */
+  --md-surface: #131313;
+  --md-surface-dim: #131313;
+  --md-surface-bright: #393939;
+  --md-surface-container-lowest: #0e0e0e;
+  --md-surface-container-low: #1c1b1b;
+  --md-surface-container: #201f1f;
+  --md-surface-container-high: #2a2a2a;
+  --md-surface-container-highest: #353534;
+  --md-on-surface: #e5e2e1;
+  --md-on-surface-variant: #e4beb4;
+  --md-inverse-surface: #e5e2e1;
+  --md-inverse-on-surface: #313030;
+  --md-outline: #ab8980;
+  --md-outline-variant: #5b4039;
+  --md-surface-tint: #ffb5a0;
+  --md-primary: #ffb5a0;
+  --md-on-primary: #5f1500;
+  --md-primary-container: #ff5722;
+  --md-on-primary-container: #541200;
+  --md-inverse-primary: #b02f00;
+  --md-secondary: #bdf4ff;
+  --md-on-secondary: #00363d;
+  --md-secondary-container: #00e3fd;
+  --md-on-secondary-container: #00616d;
+  --md-tertiary: #67e100;
+  --md-on-tertiary: #153800;
+  --md-tertiary-container: #4aa500;
+  --md-on-tertiary-container: #113100;
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+  --md-error-container: #93000a;
+  --md-on-error-container: #ffdad6;
+  --md-primary-fixed: #ffdbd1;
+  --md-primary-fixed-dim: #ffb5a0;
+  --md-on-primary-fixed: #3b0900;
+  --md-on-primary-fixed-variant: #862200;
+  --md-secondary-fixed: #9cf0ff;
+  --md-secondary-fixed-dim: #00daf3;
+  --md-on-secondary-fixed: #001f24;
+  --md-on-secondary-fixed-variant: #004f58;
+  --md-tertiary-fixed: #80ff2c;
+  --md-tertiary-fixed-dim: #67e100;
+  --md-on-tertiary-fixed: #092100;
+  --md-on-tertiary-fixed-variant: #215100;
+  --md-background: #131313;
+  --md-on-background: #e5e2e1;
+  --md-surface-variant: #353534;
+
+  /* --- shadcn slots, mapped onto the ladder above by actual intent --- */
+  --radius: 0.5rem;
+  --background: var(--md-background);
+  --foreground: var(--md-on-background);
+  --card: var(--md-surface-container-low);
+  --card-foreground: var(--md-on-surface);
+  --popover: var(--md-surface-container-high);
+  --popover-foreground: var(--md-on-surface);
+  --primary: var(--md-primary-container);
+  --primary-foreground: var(--md-on-primary-container);
+  --secondary: var(--md-secondary-container);
+  --secondary-foreground: var(--md-on-secondary-container);
+  --muted: var(--md-surface-container);
+  --muted-foreground: var(--md-on-surface-variant);
+  --accent: var(--md-tertiary-container);
+  --accent-foreground: var(--md-on-tertiary-container);
+  --destructive: var(--md-error);
+  --border: var(--md-outline-variant);
+  --input: var(--md-surface-container-high);
+  --ring: var(--md-primary-container);
+  --chart-1: var(--md-primary-container);
+  --chart-2: var(--md-secondary-container);
+  --chart-3: var(--md-tertiary-container);
+  --chart-4: var(--md-error);
+  --chart-5: var(--md-primary-fixed-dim);
+  --sidebar: var(--md-surface-container-low);
+  --sidebar-foreground: var(--md-on-surface);
+  --sidebar-primary: var(--md-primary-container);
+  --sidebar-primary-foreground: var(--md-on-primary-container);
+  --sidebar-accent: var(--md-surface-container);
+  --sidebar-accent-foreground: var(--md-on-surface);
+  --sidebar-border: var(--md-outline-variant);
+  --sidebar-ring: var(--md-primary-container);
+}
+
+@theme inline {
+  /* Fonts. Font-family utilities (font-heading / font-sans / font-mono)
+     apply the family; pair with a --text-* token below for size/weight/
+     leading/tracking, e.g. class="font-heading text-display-stat". Actual
+     font files are self-hosted via @nuxt/fonts (see nuxt.config.ts). */
+  --font-heading: "Anybody", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Named text styles from the design system's typography scale. */
+  --text-display-stat: 48px;
+  --text-display-stat--line-height: 48px;
+  --text-display-stat--font-weight: 800;
+  --text-display-stat--letter-spacing: -0.04em;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--font-weight: 700;
+  --text-headline-lg-mobile: 28px;
+  --text-headline-lg-mobile--line-height: 34px;
+  --text-headline-lg-mobile--font-weight: 700;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 600;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-lg--font-weight: 400;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-md--font-weight: 400;
+  --text-label-caps: 12px;
+  --text-label-caps--line-height: 16px;
+  --text-label-caps--font-weight: 700;
+  --text-label-caps--letter-spacing: 0.1em;
+  --text-button-text: 16px;
+  --text-button-text--line-height: 20px;
+  --text-button-text--font-weight: 600;
+
+  /* Radii, as literal values from the spec (not derived via calc() from a
+     single base - the spec's steps aren't evenly spaced). */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Named spacing aliases for the two values the spec calls out by name.
+     Its base/xs/sm/md/lg/xl steps (4/8/16/24/32/48px) already match
+     Tailwind's default numeric scale 1:1 (spacing-1/2/4/6/8/12) - no need
+     to redefine those, just use the numeric utilities directly. */
+  --spacing-edge-margin: 20px;
+  --spacing-stack-gutter: 12px;
+
+  /* --- md-* palette, exposed as Tailwind color utilities (bg-md-*, text-md-*, border-md-*) --- */
+  --color-md-surface: var(--md-surface);
+  --color-md-surface-dim: var(--md-surface-dim);
+  --color-md-surface-bright: var(--md-surface-bright);
+  --color-md-surface-container-lowest: var(--md-surface-container-lowest);
+  --color-md-surface-container-low: var(--md-surface-container-low);
+  --color-md-surface-container: var(--md-surface-container);
+  --color-md-surface-container-high: var(--md-surface-container-high);
+  --color-md-surface-container-highest: var(--md-surface-container-highest);
+  --color-md-on-surface: var(--md-on-surface);
+  --color-md-on-surface-variant: var(--md-on-surface-variant);
+  --color-md-inverse-surface: var(--md-inverse-surface);
+  --color-md-inverse-on-surface: var(--md-inverse-on-surface);
+  --color-md-outline: var(--md-outline);
+  --color-md-outline-variant: var(--md-outline-variant);
+  --color-md-surface-tint: var(--md-surface-tint);
+  --color-md-primary: var(--md-primary);
+  --color-md-on-primary: var(--md-on-primary);
+  --color-md-primary-container: var(--md-primary-container);
+  --color-md-on-primary-container: var(--md-on-primary-container);
+  --color-md-inverse-primary: var(--md-inverse-primary);
+  --color-md-secondary: var(--md-secondary);
+  --color-md-on-secondary: var(--md-on-secondary);
+  --color-md-secondary-container: var(--md-secondary-container);
+  --color-md-on-secondary-container: var(--md-on-secondary-container);
+  --color-md-tertiary: var(--md-tertiary);
+  --color-md-on-tertiary: var(--md-on-tertiary);
+  --color-md-tertiary-container: var(--md-tertiary-container);
+  --color-md-on-tertiary-container: var(--md-on-tertiary-container);
+  --color-md-error: var(--md-error);
+  --color-md-on-error: var(--md-on-error);
+  --color-md-error-container: var(--md-error-container);
+  --color-md-on-error-container: var(--md-on-error-container);
+  --color-md-primary-fixed: var(--md-primary-fixed);
+  --color-md-primary-fixed-dim: var(--md-primary-fixed-dim);
+  --color-md-on-primary-fixed: var(--md-on-primary-fixed);
+  --color-md-on-primary-fixed-variant: var(--md-on-primary-fixed-variant);
+  --color-md-secondary-fixed: var(--md-secondary-fixed);
+  --color-md-secondary-fixed-dim: var(--md-secondary-fixed-dim);
+  --color-md-on-secondary-fixed: var(--md-on-secondary-fixed);
+  --color-md-on-secondary-fixed-variant: var(--md-on-secondary-fixed-variant);
+  --color-md-tertiary-fixed: var(--md-tertiary-fixed);
+  --color-md-tertiary-fixed-dim: var(--md-tertiary-fixed-dim);
+  --color-md-on-tertiary-fixed: var(--md-on-tertiary-fixed);
+  --color-md-on-tertiary-fixed-variant: var(--md-on-tertiary-fixed-variant);
+  --color-md-background: var(--md-background);
+  --color-md-on-background: var(--md-on-background);
+  --color-md-surface-variant: var(--md-surface-variant);
+
+  /* --- shadcn slots --- */
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}

@@ -1,0 +1,31 @@
+{
+  // https://nuxt.com/docs/guide/concepts/typescript
+  // compilerOptions.paths below is NOT used by `tsc --build` (a solution-style
+  // "files": [] config ignores it for compilation - the real path resolution
+  // for the app/server/shared projects comes from the generated
+  // .nuxt/tsconfig.*.json files referenced below). It exists purely so `tsx`
+  // (used to run server/database/seed.ts directly, outside the Nuxt/Nitro
+  // bundler where Nuxt's own ~~/@@ aliases normally get wired in) can resolve
+  // the same ~~ import alias used everywhere else in this codebase.
+  "compilerOptions": {
+    "paths": {
+      "~~/*": ["./*"],
+      "@@/*": ["./*"]
+    }
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./.nuxt/tsconfig.app.json"
+    },
+    {
+      "path": "./.nuxt/tsconfig.server.json"
+    },
+    {
+      "path": "./.nuxt/tsconfig.shared.json"
+    },
+    {
+      "path": "./.nuxt/tsconfig.node.json"
+    }
+  ]
+}

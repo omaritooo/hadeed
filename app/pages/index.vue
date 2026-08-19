@@ -1,0 +1,44 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button'
+
+const exerciseId = ref('Barbell_Squat')
+const queriedId = ref('')
+
+const { data: exercise, error, status, isLoading, refetch } = useExercise(queriedId)
+
+function fetchExercise() {
+  if (queriedId.value === exerciseId.value) {
+    refetch()
+  }
+  else {
+    queriedId.value = exerciseId.value
+  }
+}
+</script>
+
+<template>
+  <main class="mx-auto max-w-xl space-y-4 p-8">
+    <h1 class="text-lg font-semibold">
+      Fetch an exercise
+    </h1>
+
+    <div class="flex gap-2">
+      <input
+        v-model="exerciseId"
+        type="text"
+        placeholder="Exercise id, e.g. Barbell_Squat"
+        class="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+        @keyup.enter="fetchExercise"
+      >
+      <Button :disabled="isLoading" @click="fetchExercise">
+        {{ isLoading ? 'Fetching…' : 'Fetch' }}
+      </Button>
+    </div>
+
+    <p v-if="status === 'error'" class="text-sm text-destructive">
+      {{ error?.data?.statusMessage ?? error?.message }}
+    </p>
+
+    <pre v-if="exercise" class="overflow-auto rounded-md border border-border bg-muted p-4 text-xs">{{ JSON.stringify(exercise, null, 2) }}</pre>
+  </main>
+</template>
