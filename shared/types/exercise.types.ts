@@ -14,6 +14,9 @@ export interface Exercise {
   level: string | null
   mechanic: string | null
   instructions: string[]
+  primaryMuscles: string[]
+  secondaryMuscles: string[]
+  images: string[]
 }
 
 export interface ExerciseMuscle {
