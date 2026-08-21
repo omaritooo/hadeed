@@ -25,6 +25,23 @@ export interface StartSessionInput {
   exercises: StartSessionExerciseInput[]
 }
 
+export interface LogSetInput {
+  id: string
+  exerciseLogId: string
+  setNumber: number
+  weightKg: number | null
+  reps: number | null
+  rpe: number | null
+}
+
+export interface AddFreeformExerciseInput {
+  id: string
+  sessionId: string
+  exerciseId: string
+  position: number
+  setType: SetType
+}
+
 export class SessionRepository {
   constructor(private db: Client) {}
 
@@ -124,5 +141,26 @@ export class SessionRepository {
     )
 
     return { ...session, exercises }
+  }
+
+  async logSet(input: LogSetInput): Promise<SetLog> {
+    const result = await this.db.execute({
+      sql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe) VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
+      args: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe],
+    })
+    const row = result.rows[0]
+    if (!row) throw new Error('Failed to log set')
+    return this.mapSetLog(row as unknown as Record<string, unknown>)
+  }
+
+  async addFreeformExercise(input: AddFreeformExerciseInput): Promise<ExerciseLog> {
+    const result = await this.db.execute({
+      sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
+            VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, NULL) RETURNING *`,
+      args: [input.id, input.sessionId, input.exerciseId, input.position, input.setType],
+    })
+    const row = result.rows[0]
+    if (!row) throw new Error('Failed to add freeform exercise')
+    return this.mapExerciseLog(row as unknown as Record<string, unknown>)
   }
 }

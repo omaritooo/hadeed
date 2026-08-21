@@ -65,3 +65,54 @@ describe('SessionRepository.startSession', () => {
     expect(withLogs?.exercises).toHaveLength(0)
   })
 })
+
+describe('SessionRepository logging', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: 1,
+      exercises: [{
+        id: 'exlog-1',
+        exerciseId: 'bench-press',
+        splitExerciseId: 1,
+        position: 0,
+        setType: 'weight_reps',
+        targetSets: 3,
+        targetReps: 8,
+        targetRpe: 7,
+      }],
+    })
+  })
+
+  it('logs a set against an existing exercise log', async () => {
+    const set = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+    expect(set.version).toBe(1)
+
+    const withLogs = await repo.findWithLogs('session-1')
+    expect(withLogs?.exercises[0].sets).toHaveLength(1)
+    expect(withLogs?.exercises[0].sets[0].weightKg).toBe(60)
+  })
+
+  it('adds a freeform exercise mid-session with no split_exercise_id or targets', async () => {
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+
+    const exerciseLog = await repo.addFreeformExercise({
+      id: 'exlog-2',
+      sessionId: 'session-1',
+      exerciseId: 'plank',
+      position: 1,
+      setType: 'time',
+    })
+    expect(exerciseLog.splitExerciseId).toBeNull()
+    expect(exerciseLog.targetSets).toBeNull()
+
+    const withLogs = await repo.findWithLogs('session-1')
+    expect(withLogs?.exercises).toHaveLength(2)
+  })
+})
