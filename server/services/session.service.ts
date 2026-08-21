@@ -51,11 +51,31 @@ export class SessionService extends BaseService {
       weekEnd.toISOString(),
     )
 
-    await this.gamification.onSessionCompleted(this.ctx.userId, sessionId, {
-      scheduledDaysThisWeek,
-      completedDaysThisWeek,
-      missedScheduledDay: completedDaysThisWeek < scheduledDaysThisWeek,
-    })
+    // missedScheduledDay is a fact about a *closed, past* week ("the week ended and
+    // quota wasn't hit") — it can never be soundly derived from this week's still-open
+    // running count, since completedDaysThisWeek < scheduledDaysThisWeek is true for
+    // every mid-week completion right up until the last one that satisfies the target.
+    // Detecting a genuinely missed week needs a lazy check-on-next-relevant-action
+    // mechanism (analogous to SessionRepository.expireStaleSessions), which this plan
+    // does not build. Deferred, not forgotten — always report false here and let
+    // GamificationService's completedDaysThisWeek === scheduledDaysThisWeek branch be
+    // the only thing that advances the streak.
+    const missedScheduledDay = false
+
+    // Gamification (XP/streaks/achievements) is a non-authoritative bonus layer on top
+    // of session completion, which is already durably committed above. Never let a
+    // failure here surface as an error on an otherwise-successful completion — and
+    // there's no retry path that could re-run this safely, since a retried
+    // completeSession call would just hit the conflict branch.
+    try {
+      await this.gamification.onSessionCompleted(this.ctx.userId, sessionId, {
+        scheduledDaysThisWeek,
+        completedDaysThisWeek,
+        missedScheduledDay,
+      })
+    } catch (error) {
+      console.error('GamificationService.onSessionCompleted failed after session completion', { sessionId, error })
+    }
 
     return result
   }

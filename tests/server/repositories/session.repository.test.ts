@@ -336,18 +336,56 @@ describe('SessionRepository.expireStaleSessions', () => {
 })
 
 describe('SessionRepository.countTrainedDaysInRange', () => {
-  it('counts distinct calendar days with at least one completed session, planned or freeform', async () => {
-    const db = await createTestDb()
-    const repo = new SessionRepository(db)
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
     await seedUserAndBlock(db)
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+  })
 
-    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
-    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
-    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
-    await repo.completeSession('session-1', 1)
+  async function completeFreeformSession(sessionId: string, exlogId: string, setId: string) {
+    await repo.startSession('user-1', { id: sessionId, splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: exlogId, sessionId, exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: setId, exerciseLogId: exlogId, setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession(sessionId, 1)
+  }
+
+  it('counts distinct calendar days with at least one completed session, planned or freeform', async () => {
+    await completeFreeformSession('session-1', 'exlog-1', 'set-1')
 
     const count = await repo.countTrainedDaysInRange('user-1', '2000-01-01', '2100-01-01')
     expect(count).toBe(1)
+  })
+
+  it('dedupes two completed sessions on the same calendar day down to a count of 1', async () => {
+    await completeFreeformSession('session-1', 'exlog-1', 'set-1')
+    await completeFreeformSession('session-2', 'exlog-2', 'set-2')
+
+    const count = await repo.countTrainedDaysInRange('user-1', '2000-01-01', '2100-01-01')
+    expect(count).toBe(1)
+  })
+
+  it('excludes an in-progress session from the count', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    // Never completed.
+
+    const count = await repo.countTrainedDaysInRange('user-1', '2000-01-01', '2100-01-01')
+    expect(count).toBe(0)
+  })
+
+  it('excludes a completed session that falls just outside the [start, end) range', async () => {
+    await completeFreeformSession('session-1', 'exlog-1', 'set-1')
+    await db.execute({
+      sql: `UPDATE workout_sessions SET started_at = ? WHERE id = ?`,
+      args: ['2019-12-31 23:59:59', 'session-1'],
+    })
+
+    const count = await repo.countTrainedDaysInRange('user-1', '2020-01-01T00:00:00.000Z', '2100-01-01T00:00:00.000Z')
+    expect(count).toBe(0)
   })
 })
