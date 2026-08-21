@@ -42,6 +42,14 @@ export interface AddFreeformExerciseInput {
   setType: SetType
 }
 
+export interface ConflictResult {
+  conflict: true
+}
+export interface SessionCompleteResult {
+  conflict: false
+  session: WorkoutSession
+}
+
 export class SessionRepository {
   constructor(private db: Client) {}
 
@@ -195,5 +203,33 @@ export class SessionRepository {
       const logged = r.logged as number
       return logged >= target
     })
+  }
+
+  async completeSession(sessionId: string, expectedVersion: number): Promise<SessionCompleteResult | ConflictResult> {
+    const result = await this.db.execute({
+      sql: `UPDATE workout_sessions
+            SET status = 'completed', completed_at = datetime('now'), version = version + 1
+            WHERE id = ? AND version = ? AND status = 'in_progress'
+            RETURNING *`,
+      args: [sessionId, expectedVersion],
+    })
+    const row = result.rows[0]
+    if (row) return { conflict: false, session: this.mapSession(row as unknown as Record<string, unknown>) }
+
+    const current = await this.findSessionById(sessionId)
+    if (!current) throw new Error('Session not found')
+
+    await this.db.execute({
+      sql: `INSERT INTO sync_conflicts (user_id, entity_table, entity_id, server_value, proposed_value, base_version)
+            VALUES (?, 'workout_sessions', ?, ?, ?, ?)`,
+      args: [
+        current.userId,
+        sessionId,
+        JSON.stringify(current),
+        JSON.stringify({ status: 'completed' }),
+        expectedVersion,
+      ],
+    })
+    return { conflict: true }
   }
 }
