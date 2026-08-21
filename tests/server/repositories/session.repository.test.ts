@@ -256,4 +256,19 @@ describe('SessionRepository.editSetLog', () => {
     expect(conflicts.rows).toHaveLength(1)
     expect(conflicts.rows[0].entity_table).toBe('set_logs')
   })
+
+  it('rejects an empty corrections object instead of building broken SQL', async () => {
+    await expect(repo.editSetLog('set-1', 1, {})).rejects.toThrow('No corrections provided')
+  })
+
+  it('applies corrections to weightKg, reps, and rpe together in one call', async () => {
+    const result = await repo.editSetLog('set-1', 1, { weightKg: 65, reps: 6, rpe: 8.5 })
+    expect(result.conflict).toBe(false)
+    if (!result.conflict) {
+      expect(result.setLog.weightKg).toBe(65)
+      expect(result.setLog.reps).toBe(6)
+      expect(result.setLog.rpe).toBe(8.5)
+      expect(result.setLog.version).toBe(2)
+    }
+  })
 })

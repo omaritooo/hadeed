@@ -244,8 +244,10 @@ export class SessionRepository {
   }
 
   async editSetLog(setLogId: string, expectedVersion: number, corrections: EditSetLogInput): Promise<SetLogEditResult | ConflictResult> {
+    const ALLOWED_KEYS = new Set(['weightKg', 'reps', 'rpe'])
     const keys = Object.keys(corrections)
     if (keys.length === 0) throw new Error('No corrections provided')
+    if (!keys.every(k => ALLOWED_KEYS.has(k))) throw new Error('Invalid correction field')
 
     const columnFor = (key: string) => (key === 'weightKg' ? 'weight_kg' : key)
     const setClause = keys.map(k => `${columnFor(k)} = ?`).join(', ')
