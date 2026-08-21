@@ -116,3 +116,57 @@ describe('SessionRepository logging', () => {
     expect(withLogs?.exercises).toHaveLength(2)
   })
 })
+
+describe('SessionRepository.isComplete', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('a planned session is incomplete until every planned exercise hits its target set count', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: 1,
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+    })
+
+    expect(await repo.isComplete('session-1')).toBe(false)
+
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+    await repo.logSet({ id: 'set-2', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 7 })
+    expect(await repo.isComplete('session-1')).toBe(false)
+
+    await repo.logSet({ id: 'set-3', exerciseLogId: 'exlog-1', setNumber: 3, weightKg: 60, reps: 8, rpe: 7 })
+    expect(await repo.isComplete('session-1')).toBe(true)
+  })
+
+  it('a freeform exercise added mid-session never blocks completion of the planned exercises', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: 1,
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 1, targetReps: 8, targetRpe: 7 }],
+    })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-2', sessionId: 'session-1', exerciseId: 'plank', position: 1, setType: 'time' })
+
+    expect(await repo.isComplete('session-1')).toBe(true)
+  })
+
+  it('a freeform session is complete once it has at least one logged set anywhere', async () => {
+    await repo.startSession('user-1', { id: 'session-2', splitDayId: null, exercises: [] })
+    expect(await repo.isComplete('session-2')).toBe(false)
+
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-3', sessionId: 'session-2', exerciseId: 'plank', position: 0, setType: 'time' })
+    expect(await repo.isComplete('session-2')).toBe(false)
+
+    await repo.logSet({ id: 'set-4', exerciseLogId: 'exlog-3', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    expect(await repo.isComplete('session-2')).toBe(true)
+  })
+})

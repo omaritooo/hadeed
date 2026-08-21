@@ -163,4 +163,36 @@ export class SessionRepository {
     if (!row) throw new Error('Failed to add freeform exercise')
     return this.mapExerciseLog(row as unknown as Record<string, unknown>)
   }
+
+  async isComplete(sessionId: string): Promise<boolean> {
+    const session = await this.findSessionById(sessionId)
+    if (!session) return false
+
+    if (session.splitDayId === null) {
+      const result = await this.db.execute({
+        sql: `SELECT COUNT(*) as count FROM set_logs
+              JOIN exercise_logs ON exercise_logs.id = set_logs.exercise_log_id
+              WHERE exercise_logs.session_id = ?`,
+        args: [sessionId],
+      })
+      return ((result.rows[0]?.count as number) ?? 0) > 0
+    }
+
+    const result = await this.db.execute({
+      sql: `SELECT exercise_logs.target_sets as target_sets, COUNT(set_logs.id) as logged
+            FROM exercise_logs
+            LEFT JOIN set_logs ON set_logs.exercise_log_id = exercise_logs.id
+            WHERE exercise_logs.session_id = ? AND exercise_logs.split_exercise_id IS NOT NULL
+            GROUP BY exercise_logs.id`,
+      args: [sessionId],
+    })
+    if (result.rows.length === 0) return true
+
+    return result.rows.every((row) => {
+      const r = row as unknown as Record<string, unknown>
+      const target = (r.target_sets as number) ?? 0
+      const logged = r.logged as number
+      return logged >= target
+    })
+  }
 }
