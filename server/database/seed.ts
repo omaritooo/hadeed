@@ -35,7 +35,12 @@ interface RawExercise {
 async function main() {
   const schema = readFileSync(resolve(__dirname, 'schema.sql'), 'utf-8')
   for (const statement of schema.split(';').map(s => s.trim()).filter(Boolean)) {
-    await db.execute(statement)
+    try {
+      await db.execute(statement)
+    } catch (err) {
+      const isDuplicateColumn = err instanceof Error && /duplicate column name/i.test(err.message)
+      if (!isDuplicateColumn) throw err
+    }
   }
 
   const dataPath = resolve(__dirname, '../../gym_exercises.json')

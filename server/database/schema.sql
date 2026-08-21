@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS blocks (
   rest_day_macro_target     TEXT
 );
 
+-- Also has an is_rest_day column, added later via ALTER TABLE near the
+-- workout session logging tables below.
 CREATE TABLE IF NOT EXISTS split_days (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   block_id     INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
@@ -269,7 +271,7 @@ CREATE TABLE IF NOT EXISTS set_logs (
 CREATE TABLE IF NOT EXISTS sync_conflicts (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  entity_table   TEXT NOT NULL,
+  entity_table   TEXT NOT NULL CHECK (entity_table IN ('set_logs','workout_sessions')),
   entity_id      TEXT NOT NULL,
   server_value   TEXT NOT NULL,
   proposed_value TEXT NOT NULL,
@@ -279,10 +281,12 @@ CREATE TABLE IF NOT EXISTS sync_conflicts (
   resolution     TEXT CHECK (resolution IN ('kept_mine','kept_server','manual'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_workout_sessions_user ON workout_sessions(user_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_user  ON workout_sessions(user_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_exercise_logs_session  ON exercise_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_exercise_logs_exercise ON exercise_logs(exercise_id);
 CREATE INDEX IF NOT EXISTS idx_set_logs_exercise_log  ON set_logs(exercise_log_id);
 CREATE INDEX IF NOT EXISTS idx_sync_conflicts_user    ON sync_conflicts(user_id, resolved_at);
 
+-- Adds is_rest_day to split_days (declared above) so a Block's schedule can
+-- mark a day as a rest day without string-matching on split_days.name.
 ALTER TABLE split_days ADD COLUMN is_rest_day INTEGER NOT NULL DEFAULT 0;
