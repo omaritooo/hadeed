@@ -50,6 +50,16 @@ export interface SessionCompleteResult {
   session: WorkoutSession
 }
 
+export interface EditSetLogInput {
+  weightKg?: number | null
+  reps?: number | null
+  rpe?: number | null
+}
+export interface SetLogEditResult {
+  conflict: false
+  setLog: SetLog
+}
+
 export class SessionRepository {
   constructor(private db: Client) {}
 
@@ -229,6 +239,42 @@ export class SessionRepository {
         JSON.stringify({ status: 'completed' }),
         expectedVersion,
       ],
+    })
+    return { conflict: true }
+  }
+
+  async editSetLog(setLogId: string, expectedVersion: number, corrections: EditSetLogInput): Promise<SetLogEditResult | ConflictResult> {
+    const keys = Object.keys(corrections)
+    if (keys.length === 0) throw new Error('No corrections provided')
+
+    const columnFor = (key: string) => (key === 'weightKg' ? 'weight_kg' : key)
+    const setClause = keys.map(k => `${columnFor(k)} = ?`).join(', ')
+    const result = await this.db.execute({
+      sql: `UPDATE set_logs SET ${setClause}, version = version + 1
+            WHERE id = ? AND version = ?
+            RETURNING *`,
+      args: [...keys.map(k => (corrections as Record<string, unknown>)[k]), setLogId, expectedVersion],
+    })
+    const row = result.rows[0]
+    if (row) return { conflict: false, setLog: this.mapSetLog(row as unknown as Record<string, unknown>) }
+
+    const currentResult = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [setLogId] })
+    const currentRow = currentResult.rows[0]
+    if (!currentRow) throw new Error('Set log not found')
+    const current = this.mapSetLog(currentRow as unknown as Record<string, unknown>)
+
+    const exerciseLogResult = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [current.exerciseLogId] })
+    const exerciseLogRow = exerciseLogResult.rows[0] as unknown as Record<string, unknown> | undefined
+    if (!exerciseLogRow) throw new Error('Exercise log not found')
+    const sessionId = exerciseLogRow.session_id as string
+
+    const session = await this.findSessionById(sessionId)
+    if (!session) throw new Error('Session not found')
+
+    await this.db.execute({
+      sql: `INSERT INTO sync_conflicts (user_id, entity_table, entity_id, server_value, proposed_value, base_version)
+            VALUES (?, 'set_logs', ?, ?, ?, ?)`,
+      args: [session.userId, setLogId, JSON.stringify(current), JSON.stringify(corrections), expectedVersion],
     })
     return { conflict: true }
   }

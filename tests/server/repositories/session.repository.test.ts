@@ -219,3 +219,41 @@ describe('SessionRepository.completeSession', () => {
     expect(conflicts.rows[0].entity_table).toBe('workout_sessions')
   })
 })
+
+describe('SessionRepository.editSetLog', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press-2', 'Bench', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press-2', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+  })
+
+  it('applies a correction when the expected version matches', async () => {
+    const result = await repo.editSetLog('set-1', 1, { weightKg: 62.5 })
+    expect(result.conflict).toBe(false)
+    if (!result.conflict) {
+      expect(result.setLog.weightKg).toBe(62.5)
+      expect(result.setLog.version).toBe(2)
+    }
+  })
+
+  it('records a conflict instead of silently overwriting when the expected version is stale', async () => {
+    await repo.editSetLog('set-1', 1, { weightKg: 62.5 }) // version is now 2
+
+    const result = await repo.editSetLog('set-1', 1, { weightKg: 999 }) // stale client
+    expect(result.conflict).toBe(true)
+
+    const stillCorrect = await db.execute({ sql: 'SELECT weight_kg FROM set_logs WHERE id = ?', args: ['set-1'] })
+    expect(stillCorrect.rows[0].weight_kg).toBe(62.5) // the stale write never applied
+
+    const conflicts = await db.execute({ sql: 'SELECT * FROM sync_conflicts WHERE entity_id = ?', args: ['set-1'] })
+    expect(conflicts.rows).toHaveLength(1)
+    expect(conflicts.rows[0].entity_table).toBe('set_logs')
+  })
+})
