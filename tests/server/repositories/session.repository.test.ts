@@ -334,3 +334,20 @@ describe('SessionRepository.expireStaleSessions', () => {
     expect(session?.status).toBe('in_progress')
   })
 })
+
+describe('SessionRepository.countTrainedDaysInRange', () => {
+  it('counts distinct calendar days with at least one completed session, planned or freeform', async () => {
+    const db = await createTestDb()
+    const repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession('session-1', 1)
+
+    const count = await repo.countTrainedDaysInRange('user-1', '2000-01-01', '2100-01-01')
+    expect(count).toBe(1)
+  })
+})

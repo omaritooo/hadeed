@@ -292,4 +292,13 @@ export class SessionRepository {
       args: [userId, `-${ABANDON_AFTER_HOURS} hours`],
     })
   }
+
+  async countTrainedDaysInRange(userId: string, startIso: string, endIso: string): Promise<number> {
+    const result = await this.db.execute({
+      sql: `SELECT COUNT(DISTINCT date(started_at)) as count FROM workout_sessions
+            WHERE user_id = ? AND status = 'completed' AND started_at >= ? AND started_at < ?`,
+      args: [userId, startIso, endIso],
+    })
+    return (result.rows[0]?.count as number) ?? 0
+  }
 }
