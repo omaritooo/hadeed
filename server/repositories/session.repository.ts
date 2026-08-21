@@ -175,7 +175,8 @@ export class SessionRepository {
               WHERE exercise_logs.session_id = ?`,
         args: [sessionId],
       })
-      return ((result.rows[0]?.count as number) ?? 0) > 0
+      const countRow = result.rows[0] as unknown as Record<string, unknown> | undefined
+      return ((countRow?.count as number) ?? 0) > 0
     }
 
     const result = await this.db.execute({
@@ -190,7 +191,7 @@ export class SessionRepository {
 
     return result.rows.every((row) => {
       const r = row as unknown as Record<string, unknown>
-      const target = (r.target_sets as number) ?? 0
+      const target = (r.target_sets as number) ?? 1
       const logged = r.logged as number
       return logged >= target
     })

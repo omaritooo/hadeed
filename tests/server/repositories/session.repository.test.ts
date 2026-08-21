@@ -169,4 +169,17 @@ describe('SessionRepository.isComplete', () => {
     await repo.logSet({ id: 'set-4', exerciseLogId: 'exlog-3', setNumber: 1, weightKg: null, reps: null, rpe: null })
     expect(await repo.isComplete('session-2')).toBe(true)
   })
+
+  it('a planned exercise with no prescribed target sets still requires at least one logged set', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-3',
+      splitDayId: 1,
+      exercises: [{ id: 'exlog-4', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: null, targetReps: null, targetRpe: null }],
+    })
+
+    expect(await repo.isComplete('session-3')).toBe(false)
+
+    await repo.logSet({ id: 'set-5', exerciseLogId: 'exlog-4', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+    expect(await repo.isComplete('session-3')).toBe(true)
+  })
 })
