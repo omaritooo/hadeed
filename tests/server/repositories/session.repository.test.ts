@@ -320,4 +320,17 @@ describe('SessionRepository.expireStaleSessions', () => {
     const session = await repo.findSessionById('session-3')
     expect(session?.status).toBe('completed')
   })
+
+  it('does not abandon a session exactly at the 12-hour boundary', async () => {
+    await repo.startSession('user-1', { id: 'session-4', splitDayId: null, exercises: [] })
+    await db.execute({
+      sql: `UPDATE workout_sessions SET started_at = datetime('now', '-12 hours') WHERE id = ?`,
+      args: ['session-4'],
+    })
+
+    await repo.expireStaleSessions('user-1')
+
+    const session = await repo.findSessionById('session-4')
+    expect(session?.status).toBe('in_progress')
+  })
 })
