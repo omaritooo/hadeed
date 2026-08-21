@@ -272,3 +272,52 @@ describe('SessionRepository.editSetLog', () => {
     }
   })
 })
+
+describe('SessionRepository.expireStaleSessions', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('marks an in-progress session older than 12 hours as abandoned', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({
+      sql: `UPDATE workout_sessions SET started_at = datetime('now', '-13 hours') WHERE id = ?`,
+      args: ['session-1'],
+    })
+
+    await repo.expireStaleSessions('user-1')
+
+    const session = await repo.findSessionById('session-1')
+    expect(session?.status).toBe('abandoned')
+  })
+
+  it('leaves a recent in-progress session untouched', async () => {
+    await repo.startSession('user-1', { id: 'session-2', splitDayId: null, exercises: [] })
+    await repo.expireStaleSessions('user-1')
+
+    const session = await repo.findSessionById('session-2')
+    expect(session?.status).toBe('in_progress')
+  })
+
+  it('never touches an already-completed session', async () => {
+    await repo.startSession('user-1', { id: 'session-3', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-3', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession('session-3', 1)
+    await db.execute({
+      sql: `UPDATE workout_sessions SET started_at = datetime('now', '-13 hours') WHERE id = ?`,
+      args: ['session-3'],
+    })
+
+    await repo.expireStaleSessions('user-1')
+
+    const session = await repo.findSessionById('session-3')
+    expect(session?.status).toBe('completed')
+  })
+})

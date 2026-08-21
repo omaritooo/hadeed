@@ -8,6 +8,8 @@ import type {
   WorkoutSessionWithLogs,
 } from '~~/shared/types/session.types'
 
+const ABANDON_AFTER_HOURS = 12
+
 export interface StartSessionExerciseInput {
   id: string
   exerciseId: string
@@ -279,5 +281,15 @@ export class SessionRepository {
       args: [session.userId, setLogId, JSON.stringify(current), JSON.stringify(corrections), expectedVersion],
     })
     return { conflict: true }
+  }
+
+  async expireStaleSessions(userId: string): Promise<void> {
+    await this.db.execute({
+      sql: `UPDATE workout_sessions
+            SET status = 'abandoned', version = version + 1
+            WHERE user_id = ? AND status = 'in_progress'
+              AND started_at < datetime('now', ?)`,
+      args: [userId, `-${ABANDON_AFTER_HOURS} hours`],
+    })
   }
 }
