@@ -75,6 +75,11 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+ALTER TABLE user_profiles ADD COLUMN training_days_per_week INTEGER;
+ALTER TABLE user_profiles ADD COLUMN equipment TEXT CHECK (equipment IN ('gym','home','both'));
+ALTER TABLE user_profiles ADD COLUMN unit_system TEXT NOT NULL DEFAULT 'metric' CHECK (unit_system IN ('metric','imperial'));
+ALTER TABLE user_profiles ADD COLUMN timezone TEXT;
+
 CREATE TABLE IF NOT EXISTS body_metrics (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
