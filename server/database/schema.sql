@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS blocks (
   rest_day_macro_target     TEXT
 );
 
+-- Also has an is_rest_day column, added later via ALTER TABLE near the
+-- workout session logging tables below.
 CREATE TABLE IF NOT EXISTS split_days (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   block_id     INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
@@ -227,3 +229,64 @@ CREATE INDEX IF NOT EXISTS idx_preset_split_days_preset    ON preset_split_days(
 CREATE INDEX IF NOT EXISTS idx_preset_split_exercises_day  ON preset_split_exercises(preset_split_day_id);
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_user              ON xp_ledger(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_achievements_user      ON user_achievements(user_id);
+
+-- Workout session logging: what a user actually did, as opposed to what a
+-- Block/SplitDay/SplitExercise prescribes. TEXT (caller-supplied UUID) ids on
+-- these three tables, not INTEGER AUTOINCREMENT, because the client generates
+-- them before an offline write ever reaches the server.
+
+CREATE TABLE IF NOT EXISTS workout_sessions (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  split_day_id  INTEGER REFERENCES split_days(id) ON DELETE SET NULL,
+  status        TEXT NOT NULL CHECK (status IN ('in_progress','completed','abandoned')) DEFAULT 'in_progress',
+  started_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at  TEXT,
+  version       INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS exercise_logs (
+  id                 TEXT PRIMARY KEY,
+  session_id         TEXT NOT NULL REFERENCES workout_sessions(id) ON DELETE CASCADE,
+  exercise_id        TEXT NOT NULL REFERENCES exercises(id),
+  split_exercise_id  INTEGER REFERENCES split_exercises(id),
+  position           INTEGER NOT NULL,
+  set_type           TEXT NOT NULL CHECK (set_type IN ('weight_reps','bodyweight_reps','time')),
+  target_sets        INTEGER,
+  target_reps        INTEGER,
+  target_rpe         REAL
+);
+
+CREATE TABLE IF NOT EXISTS set_logs (
+  id               TEXT PRIMARY KEY,
+  exercise_log_id  TEXT NOT NULL REFERENCES exercise_logs(id) ON DELETE CASCADE,
+  set_number       INTEGER NOT NULL,
+  weight_kg        REAL,
+  reps             INTEGER,
+  rpe              REAL,
+  logged_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  version          INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS sync_conflicts (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entity_table   TEXT NOT NULL CHECK (entity_table IN ('set_logs','workout_sessions')),
+  entity_id      TEXT NOT NULL,
+  server_value   TEXT NOT NULL,
+  proposed_value TEXT NOT NULL,
+  base_version   INTEGER NOT NULL,
+  detected_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  resolved_at    TEXT,
+  resolution     TEXT CHECK (resolution IN ('kept_mine','kept_server','manual'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_user  ON workout_sessions(user_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_exercise_logs_session  ON exercise_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_logs_exercise ON exercise_logs(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_set_logs_exercise_log  ON set_logs(exercise_log_id);
+CREATE INDEX IF NOT EXISTS idx_sync_conflicts_user    ON sync_conflicts(user_id, resolved_at);
+
+-- Adds is_rest_day to split_days (declared above) so a Block's schedule can
+-- mark a day as a rest day without string-matching on split_days.name.
+ALTER TABLE split_days ADD COLUMN is_rest_day INTEGER NOT NULL DEFAULT 0;

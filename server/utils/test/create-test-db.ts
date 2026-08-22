@@ -10,7 +10,12 @@ export async function createTestDb(): Promise<Client> {
   const db = createClient({ url: ':memory:' })
   const schema = readFileSync(schemaPath, 'utf-8')
   for (const statement of schema.split(';').map(s => s.trim()).filter(Boolean)) {
-    await db.execute(statement)
+    try {
+      await db.execute(statement)
+    } catch (err) {
+      const isDuplicateColumn = err instanceof Error && /duplicate column name/i.test(err.message)
+      if (!isDuplicateColumn) throw err
+    }
   }
   return db
 }
