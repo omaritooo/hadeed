@@ -1,20 +1,10 @@
-import { readBody } from 'h3'
+import { createError, readBody } from 'h3'
 import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 
 export default defineEventHandler(async (event) => {
-  // NOTE: ownership is intentionally not checked on this route. logSet takes only an
-  // exerciseLogId, not a sessionId, so verifying ownership here would require an extra
-  // lookup (exercise_log -> session -> session.userId) on every single set logged — the
-  // highest-frequency write in this feature. This is a real, known gap: a caller who
-  // knows another user's exerciseLogId UUID could currently log a (write-only; this
-  // route returns only the newly-created row, not any other user's existing data) set
-  // into that user's session. IDs are non-guessable UUIDs, which mitigates it, but this
-  // is a deliberate perf-vs-security tradeoff, not an oversight — closing it changes the
-  // performance characteristics of this hot write path and needs an explicit call from
-  // the project owner. Deliberately out of scope here.
-  await getRequestContext(event)
+  const ctx = await getRequestContext(event)
   const body = await readBody(event) as {
     id: string
     exerciseLogId: string
@@ -24,6 +14,15 @@ export default defineEventHandler(async (event) => {
     rpe?: number | null
   }
   const repo = new SessionRepository(useDb())
+
+  // logSet's idempotent-replay path (see session.repository.ts) returns a pre-existing
+  // set log's real weightKg/reps/rpe when the same (id, exerciseLogId) pair is replayed —
+  // that's no longer just a fresh write, so this route can no longer treat itself as
+  // write-only and skip ownership. The lookup costs one indexed query on the hottest
+  // write path in this feature, same as the check editSetLog's route already pays.
+  const ownerId = await repo.findExerciseLogOwnerId(body.exerciseLogId)
+  if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Exercise log not found' })
+  if (ownerId !== ctx.userId) throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
 
   // Normalize omitted fields to null before they reach the repository. A client logging
   // a bodyweight_reps or time set very plausibly omits weightKg/reps rather than sending

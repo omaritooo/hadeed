@@ -370,11 +370,12 @@ export class SessionRepository {
 
     const columnFor = (key: string) => (key === 'weightKg' ? 'weight_kg' : key)
     const setClause = keys.map(k => `${columnFor(k)} = ?`).join(', ')
+    const values: (string | number | null)[] = keys.map(k => corrections[k as keyof EditSetLogInput] ?? null)
     const result = await this.db.execute({
       sql: `UPDATE set_logs SET ${setClause}, version = version + 1
             WHERE id = ? AND version = ?
             RETURNING *`,
-      args: [...keys.map(k => (corrections as Record<string, unknown>)[k]), setLogId, expectedVersion],
+      args: [...values, setLogId, expectedVersion],
     })
     const row = result.rows[0]
     if (row) return { conflict: false, setLog: this.mapSetLog(row as unknown as Record<string, unknown>) }
@@ -408,6 +409,18 @@ export class SessionRepository {
             JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
             WHERE set_logs.id = ?`,
       args: [setLogId],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? (row.user_id as string) : null
+  }
+
+  async findExerciseLogOwnerId(exerciseLogId: string): Promise<string | null> {
+    const result = await this.db.execute({
+      sql: `SELECT workout_sessions.user_id AS user_id
+            FROM exercise_logs
+            JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
+            WHERE exercise_logs.id = ?`,
+      args: [exerciseLogId],
     })
     const row = result.rows[0] as unknown as Record<string, unknown> | undefined
     return row ? (row.user_id as string) : null

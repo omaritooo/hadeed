@@ -479,6 +479,29 @@ describe('SessionRepository.findSetLogOwnerId', () => {
   })
 })
 
+describe('SessionRepository.findExerciseLogOwnerId', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('resolves the owning userId for a given exercise log', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+
+    expect(await repo.findExerciseLogOwnerId('exlog-1')).toBe('user-1')
+  })
+
+  it('returns null for an exercise log that does not exist', async () => {
+    expect(await repo.findExerciseLogOwnerId('nonexistent')).toBeNull()
+  })
+})
+
 describe('SessionRepository.expireStaleSessions', () => {
   let db: Client
   let repo: SessionRepository
