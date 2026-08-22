@@ -14,6 +14,7 @@ export interface CreateSplitDayInput {
   name: string
   dayOfWeek: number
   location: 'gym' | 'home'
+  isRestDay?: boolean
   exercises: CreateSplitExerciseInput[]
 }
 
@@ -78,8 +79,8 @@ export class BlockRepository {
 
     for (const day of input.days) {
       const dayResult = await this.db.execute({
-        sql: 'INSERT INTO split_days (block_id, name, day_of_week, location) VALUES (?, ?, ?, ?) RETURNING *',
-        args: [block.id, day.name, day.dayOfWeek, day.location],
+        sql: 'INSERT INTO split_days (block_id, name, day_of_week, location, is_rest_day) VALUES (?, ?, ?, ?, ?) RETURNING *',
+        args: [block.id, day.name, day.dayOfWeek, day.location, day.isRestDay ? 1 : 0],
       })
       const dayRow = dayResult.rows[0]
       if (!dayRow) throw new Error('Failed to create split day')
@@ -131,6 +132,7 @@ export class BlockRepository {
           name: day.name as string,
           dayOfWeek: day.day_of_week as number,
           location: day.location as 'gym' | 'home',
+          isRestDay: Boolean(day.is_rest_day),
           exercises,
         }
       }),

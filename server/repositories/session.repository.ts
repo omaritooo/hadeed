@@ -105,33 +105,94 @@ export class SessionRepository {
   }
 
   async startSession(userId: string, input: StartSessionInput): Promise<WorkoutSession> {
-    const result = await this.db.execute({
-      sql: 'INSERT INTO workout_sessions (id, user_id, split_day_id) VALUES (?, ?, ?) RETURNING *',
-      args: [input.id, userId, input.splitDayId],
-    })
-    const row = result.rows[0]
-    if (!row) throw new Error('Failed to start session')
-    const session = this.mapSession(row as unknown as Record<string, unknown>)
+    // Idempotent replay must never be a bare "id already exists -> return whatever's there"
+    // check: that would let anyone read back another user's real row just by resubmitting
+    // its (leaked or guessed) id. A replay is only genuine if the existing row's owner
+    // actually matches this caller; anything else is a real id collision and must be
+    // rejected, not silently disclosed.
+    const existing = await this.db.execute({ sql: 'SELECT * FROM workout_sessions WHERE id = ?', args: [input.id] })
+    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
+
+    let session: WorkoutSession
+    if (existingRow) {
+      session = this.assertOwnedSession(existingRow, userId)
+    } else {
+      try {
+        const result = await this.db.execute({
+          sql: 'INSERT INTO workout_sessions (id, user_id, split_day_id) VALUES (?, ?, ?) RETURNING *',
+          args: [input.id, userId, input.splitDayId],
+        })
+        const row = result.rows[0]
+        if (!row) throw new Error('Failed to start session')
+        session = this.mapSession(row as unknown as Record<string, unknown>)
+      } catch (err) {
+        // Two concurrent replays of the same offline mutation can both pass the "not found"
+        // check above and race on this INSERT; the loser hits a raw UNIQUE violation instead
+        // of a clean outcome. Re-resolve it exactly like a sequential replay would have.
+        if (!this.isUniqueConstraintError(err)) throw err
+        const retry = await this.db.execute({ sql: 'SELECT * FROM workout_sessions WHERE id = ?', args: [input.id] })
+        const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
+        if (!retryRow) throw err
+        session = this.assertOwnedSession(retryRow, userId)
+      }
+    }
 
     for (const exercise of input.exercises) {
-      await this.db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          exercise.id,
-          session.id,
-          exercise.exerciseId,
-          exercise.splitExerciseId,
-          exercise.position,
-          exercise.setType,
-          exercise.targetSets,
-          exercise.targetReps,
-          exercise.targetRpe,
-        ],
-      })
+      const existingExerciseLog = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
+      const existingExerciseRow = existingExerciseLog.rows[0] as unknown as Record<string, unknown> | undefined
+      if (existingExerciseRow) {
+        if (existingExerciseRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session')
+        continue // already applied by an earlier attempt at this same call; no-op
+      }
+
+      // Unlike logSet/addFreeformExercise (single-purpose user actions that must report a
+      // definitive success/failure), this loop seeds a batch snapshot at session-start time,
+      // so a genuinely-new exercise that loses the status race (session completed/abandoned
+      // between the check above and here) is silently skipped rather than aborting the rest
+      // of an otherwise-successful start. Logged so a dropped attach is diagnosable later.
+      try {
+        const inserted = await this.db.execute({
+          sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+                WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
+                RETURNING id`,
+          args: [
+            exercise.id,
+            session.id,
+            exercise.exerciseId,
+            exercise.splitExerciseId,
+            exercise.position,
+            exercise.setType,
+            exercise.targetSets,
+            exercise.targetReps,
+            exercise.targetRpe,
+            session.id,
+          ],
+        })
+        if (inserted.rows.length === 0) {
+          console.warn('startSession: dropped exercise attach, session is not in progress', { sessionId: session.id, exerciseLogId: exercise.id })
+        }
+      } catch (err) {
+        // Concurrent replay racing on this exercise-log id: another attempt already applied
+        // it first, which is exactly the no-op outcome this loop wants, so swallow silently
+        // unless the row that won belongs to a different session entirely.
+        if (!this.isUniqueConstraintError(err)) throw err
+        const retry = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
+        const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
+        if (!retryRow || retryRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session', { cause: err })
+      }
     }
 
     return session
+  }
+
+  private assertOwnedSession(row: Record<string, unknown>, userId: string): WorkoutSession {
+    if (row.user_id !== userId) throw new Error('Session id already exists under a different user')
+    return this.mapSession(row)
+  }
+
+  private isUniqueConstraintError(err: unknown): boolean {
+    return err instanceof Error && /UNIQUE constraint failed/i.test(err.message)
   }
 
   async findSessionById(sessionId: string): Promise<WorkoutSession | null> {
@@ -164,24 +225,76 @@ export class SessionRepository {
   }
 
   async logSet(input: LogSetInput): Promise<SetLog> {
-    const result = await this.db.execute({
-      sql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe) VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
-      args: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe],
-    })
-    const row = result.rows[0]
-    if (!row) throw new Error('Failed to log set')
-    return this.mapSetLog(row as unknown as Record<string, unknown>)
+    // Idempotent replay must verify the pre-existing row actually belongs to the exercise
+    // log the caller claims, not just that the id exists — a bare id-exists check would let
+    // a caller "replay" a leaked/guessed id and read back someone else's real set data via
+    // the RETURNING clause of an upsert. A true replay's exerciseLogId always matches; a
+    // real collision does not, and must be rejected rather than treated as a no-op.
+    const existing = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [input.id] })
+    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
+    if (existingRow) {
+      if (existingRow.exercise_log_id !== input.exerciseLogId) throw new Error('Set log id already exists under a different exercise log')
+      return this.mapSetLog(existingRow) // already applied; replay succeeds as a no-op regardless of current session status
+    }
+
+    try {
+      const result = await this.db.execute({
+        sql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe)
+              SELECT ?, ?, ?, ?, ?, ?
+              WHERE EXISTS (
+                SELECT 1 FROM exercise_logs
+                JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
+                WHERE exercise_logs.id = ? AND workout_sessions.status = 'in_progress'
+              )
+              RETURNING *`,
+        args: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.exerciseLogId],
+      })
+      const row = result.rows[0]
+      if (!row) throw new Error('Cannot log a set: exercise log not found or session is not in progress')
+      return this.mapSetLog(row as unknown as Record<string, unknown>)
+    } catch (err) {
+      // Two concurrent replays of the same set can both pass the "not found" check above and
+      // race on this INSERT; the loser hits a raw UNIQUE violation instead of a clean no-op.
+      // Re-resolve it exactly like a sequential replay would have.
+      if (!this.isUniqueConstraintError(err)) throw err
+      const retry = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [input.id] })
+      const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
+      if (!retryRow) throw err
+      if (retryRow.exercise_log_id !== input.exerciseLogId) throw new Error('Set log id already exists under a different exercise log', { cause: err })
+      return this.mapSetLog(retryRow)
+    }
   }
 
   async addFreeformExercise(input: AddFreeformExerciseInput): Promise<ExerciseLog> {
-    const result = await this.db.execute({
-      sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-            VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, NULL) RETURNING *`,
-      args: [input.id, input.sessionId, input.exerciseId, input.position, input.setType],
-    })
-    const row = result.rows[0]
-    if (!row) throw new Error('Failed to add freeform exercise')
-    return this.mapExerciseLog(row as unknown as Record<string, unknown>)
+    // Same idempotent-replay-vs-fresh-write reasoning as logSet above: verify the existing
+    // row's sessionId matches before treating it as a no-op, rather than a bare id check.
+    const existing = await this.db.execute({ sql: 'SELECT * FROM exercise_logs WHERE id = ?', args: [input.id] })
+    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
+    if (existingRow) {
+      if (existingRow.session_id !== input.sessionId) throw new Error('Exercise log id already exists under a different session')
+      return this.mapExerciseLog(existingRow)
+    }
+
+    try {
+      const result = await this.db.execute({
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
+              SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL
+              WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
+              RETURNING *`,
+        args: [input.id, input.sessionId, input.exerciseId, input.position, input.setType, input.sessionId],
+      })
+      const row = result.rows[0]
+      if (!row) throw new Error('Cannot add exercise: session not found or session is not in progress')
+      return this.mapExerciseLog(row as unknown as Record<string, unknown>)
+    } catch (err) {
+      // Same concurrent-replay race as logSet above.
+      if (!this.isUniqueConstraintError(err)) throw err
+      const retry = await this.db.execute({ sql: 'SELECT * FROM exercise_logs WHERE id = ?', args: [input.id] })
+      const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
+      if (!retryRow) throw err
+      if (retryRow.session_id !== input.sessionId) throw new Error('Exercise log id already exists under a different session', { cause: err })
+      return this.mapExerciseLog(retryRow)
+    }
   }
 
   async isComplete(sessionId: string): Promise<boolean> {
@@ -207,7 +320,11 @@ export class SessionRepository {
             GROUP BY exercise_logs.id`,
       args: [sessionId],
     })
-    if (result.rows.length === 0) return true
+    // A planned session with zero split-linked exercise logs has nothing to have completed
+    // (e.g. it was started with an empty/mismatched exercises snapshot) — vacuously "every
+    // planned exercise met its target" is true over an empty set, but that's not a workout
+    // that happened. Mirror the freeform branch above: nothing logged means not complete.
+    if (result.rows.length === 0) return false
 
     return result.rows.every((row) => {
       const r = row as unknown as Record<string, unknown>
@@ -281,6 +398,19 @@ export class SessionRepository {
       args: [session.userId, setLogId, JSON.stringify(current), JSON.stringify(corrections), expectedVersion],
     })
     return { conflict: true }
+  }
+
+  async findSetLogOwnerId(setLogId: string): Promise<string | null> {
+    const result = await this.db.execute({
+      sql: `SELECT workout_sessions.user_id AS user_id
+            FROM set_logs
+            JOIN exercise_logs ON exercise_logs.id = set_logs.exercise_log_id
+            JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
+            WHERE set_logs.id = ?`,
+      args: [setLogId],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? (row.user_id as string) : null
   }
 
   async expireStaleSessions(userId: string): Promise<void> {

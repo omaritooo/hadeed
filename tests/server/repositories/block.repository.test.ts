@@ -41,6 +41,25 @@ describe('BlockRepository', () => {
     expect(full?.days[0]?.exercises[0]?.exerciseId).toBe('bench-press')
   })
 
+  it('defaults isRestDay to false, and persists an explicit true, on each split day', async () => {
+    const block = await repo.createWithDays('user-1', {
+      programId: null,
+      name: 'Push Pull Legs',
+      startDate: '2026-08-18',
+      endDate: null,
+      trainingDayMacroTarget: null,
+      restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 1, location: 'gym', exercises: [] },
+        { name: 'Rest', dayOfWeek: 2, location: 'home', isRestDay: true, exercises: [] },
+      ],
+    })
+
+    const full = await repo.findWithDays(block.id)
+    expect(full?.days[0]?.isRestDay).toBe(false)
+    expect(full?.days[1]?.isRestDay).toBe(true)
+  })
+
   it('creates an implicit program when programId is not provided', async () => {
     const block = await repo.createWithDays('user-1', {
       programId: null,

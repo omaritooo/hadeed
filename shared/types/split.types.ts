@@ -31,6 +31,7 @@ export interface SplitDay {
   name: string
   dayOfWeek: number
   location: DayLocation
+  isRestDay: boolean
 }
 
 export interface SplitExercise {

@@ -117,6 +117,183 @@ describe('SessionRepository logging', () => {
   })
 })
 
+describe('SessionRepository idempotent replay', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('replaying startSession with the same id is a no-op, not a UNIQUE violation', async () => {
+    const first = await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: 1,
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+    })
+    const replay = await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: 1,
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+    })
+
+    expect(replay.id).toBe(first.id)
+    const withLogs = await repo.findWithLogs('session-1')
+    expect(withLogs?.exercises).toHaveLength(1) // not duplicated by the replayed exercise-log insert
+  })
+
+  it('replaying logSet with the same id is a no-op, even after the session was completed', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    const original = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+    await repo.completeSession('session-1', 1)
+
+    const replay = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 999, reps: 1, rpe: 1 })
+
+    expect(replay.weightKg).toBe(original.weightKg) // replay is a no-op, not a second write
+    const sets = await db.execute({ sql: 'SELECT COUNT(*) as count FROM set_logs WHERE id = ?', args: ['set-1'] })
+    expect(sets.rows[0]!.count).toBe(1)
+  })
+
+  it('rejects a genuinely new set logged into a completed session', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession('session-1', 1)
+
+    await expect(
+      repo.logSet({ id: 'set-2', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 7 }),
+    ).rejects.toThrow(/not in progress/i)
+  })
+
+  it('rejects a genuinely new freeform exercise added to a completed session', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession('session-1', 1)
+
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
+    await expect(
+      repo.addFreeformExercise({ id: 'exlog-2', sessionId: 'session-1', exerciseId: 'squat', position: 1, setType: 'weight_reps' }),
+    ).rejects.toThrow(/not in progress/i)
+  })
+
+  it('replaying addFreeformExercise with the same id is a no-op, even after the session was completed', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    const original = await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession('session-1', 1)
+
+    const replay = await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+
+    expect(replay.id).toBe(original.id)
+    const count = await db.execute({ sql: 'SELECT COUNT(*) as count FROM exercise_logs WHERE id = ?', args: ['exlog-1'] })
+    expect(count.rows[0]!.count).toBe(1)
+  })
+
+  it('rejects logSet when the same id already belongs to a different exercise log, instead of disclosing the existing row', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'shared-id', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 137, reps: 3, rpe: 9 })
+
+    await repo.startSession('user-1', { id: 'session-2', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-2', sessionId: 'session-2', exerciseId: 'plank', position: 0, setType: 'time' })
+
+    await expect(
+      repo.logSet({ id: 'shared-id', exerciseLogId: 'exlog-2', setNumber: 1, weightKg: 1, reps: 1, rpe: 1 }),
+    ).rejects.toThrow(/different exercise log/i)
+  })
+
+  it('rejects addFreeformExercise when the same id already belongs to a different session, instead of disclosing the existing row', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'shared-id', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+
+    await repo.startSession('user-1', { id: 'session-2', splitDayId: null, exercises: [] })
+
+    await expect(
+      repo.addFreeformExercise({ id: 'shared-id', sessionId: 'session-2', exerciseId: 'plank', position: 0, setType: 'time' }),
+    ).rejects.toThrow(/different session/i)
+  })
+
+  it('rejects startSession when the same id already belongs to a different user', async () => {
+    await repo.startSession('user-1', { id: 'shared-id', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO users (id, email) VALUES ('user-2', 'b@example.com')" })
+
+    await expect(
+      repo.startSession('user-2', { id: 'shared-id', splitDayId: null, exercises: [] }),
+    ).rejects.toThrow(/different user/i)
+  })
+
+  it('rejects a new exercise added via startSession replay once the session is no longer in progress', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+    await repo.completeSession('session-1', 1)
+
+    // Replaying startSession for the already-completed session, but with an exercise that
+    // was never part of the original call, must not silently attach it after completion.
+    await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: null,
+      exercises: [{ id: 'exlog-injected', exerciseId: 'plank', splitExerciseId: null, position: 1, setType: 'time', targetSets: null, targetReps: null, targetRpe: null }],
+    })
+
+    const withLogs = await repo.findWithLogs('session-1')
+    expect(withLogs?.exercises.map(e => e.id)).toEqual(['exlog-1'])
+  })
+
+  it('two concurrent replays of the same startSession never surface a raw UNIQUE constraint error', async () => {
+    const call = () => repo.startSession('user-1', {
+      id: 'race-session',
+      splitDayId: 1,
+      exercises: [{ id: 'race-exlog', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+    })
+
+    const [first, second] = await Promise.all([call(), call()])
+    expect(first.id).toBe('race-session')
+    expect(second.id).toBe('race-session')
+
+    const withLogs = await repo.findWithLogs('race-session')
+    expect(withLogs?.exercises).toHaveLength(1) // not duplicated by the race
+  })
+
+  it('two concurrent replays of the same logSet never surface a raw UNIQUE constraint error', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    const call = () => repo.logSet({ id: 'race-set', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+
+    const [first, second] = await Promise.all([call(), call()])
+    expect(first.weightKg).toBe(60)
+    expect(second.weightKg).toBe(60)
+
+    const count = await db.execute({ sql: 'SELECT COUNT(*) as count FROM set_logs WHERE id = ?', args: ['race-set'] })
+    expect(count.rows[0]!.count).toBe(1)
+  })
+
+  it('two concurrent replays of the same addFreeformExercise never surface a raw UNIQUE constraint error', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    const call = () => repo.addFreeformExercise({ id: 'race-exlog', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+
+    const [first, second] = await Promise.all([call(), call()])
+    expect(first.id).toBe('race-exlog')
+    expect(second.id).toBe('race-exlog')
+
+    const count = await db.execute({ sql: 'SELECT COUNT(*) as count FROM exercise_logs WHERE id = ?', args: ['race-exlog'] })
+    expect(count.rows[0]!.count).toBe(1)
+  })
+})
+
 describe('SessionRepository.isComplete', () => {
   let db: Client
   let repo: SessionRepository
@@ -125,6 +302,11 @@ describe('SessionRepository.isComplete', () => {
     db = await createTestDb()
     repo = new SessionRepository(db)
     await seedUserAndBlock(db)
+  })
+
+  it('a planned session with no split-linked exercise logs is not vacuously complete', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: 1, exercises: [] })
+    expect(await repo.isComplete('session-1')).toBe(false)
   })
 
   it('a planned session is incomplete until every planned exercise hits its target set count', async () => {
@@ -270,6 +452,30 @@ describe('SessionRepository.editSetLog', () => {
       expect(result.setLog.rpe).toBe(8.5)
       expect(result.setLog.version).toBe(2)
     }
+  })
+})
+
+describe('SessionRepository.findSetLogOwnerId', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('resolves the owning userId for a given set log', async () => {
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
+
+    expect(await repo.findSetLogOwnerId('set-1')).toBe('user-1')
+  })
+
+  it('returns null for a set log that does not exist', async () => {
+    expect(await repo.findSetLogOwnerId('nonexistent')).toBeNull()
   })
 })
 
