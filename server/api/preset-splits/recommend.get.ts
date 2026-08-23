@@ -3,6 +3,7 @@ import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { PresetSplitRepository } from '~~/server/repositories/preset-split.repository'
 import { PresetSplitService } from '~~/server/services/preset-split.service'
+import { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 
@@ -92,17 +93,20 @@ function parseEnum<T extends string>(value: unknown, allowed: readonly T[], fiel
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
   const query = getQuery(event)
+  const db = useDb()
 
-  const daysPerWeek = Number(query.daysPerWeek)
-  if (!Number.isFinite(daysPerWeek) || daysPerWeek <= 0) {
-    throw createError({ statusCode: 400, statusMessage: 'daysPerWeek must be a positive number' })
+  const profile = await new ProfileRepository(db).findByUserId(ctx.userId)
+
+  const rawDaysPerWeek = query.daysPerWeek !== undefined ? Number(query.daysPerWeek) : profile?.trainingDaysPerWeek
+  if (rawDaysPerWeek === null || rawDaysPerWeek === undefined || !Number.isFinite(rawDaysPerWeek) || rawDaysPerWeek <= 0) {
+    throw createError({ statusCode: 400, statusMessage: 'daysPerWeek must be a positive number (as a query param, or set on your profile)' })
   }
 
-  const service = new PresetSplitService(ctx, new PresetSplitRepository(useDb()))
+  const service = new PresetSplitService(ctx, new PresetSplitRepository(db))
   return service.recommend({
-    daysPerWeek,
-    experienceLevel: parseEnum(query.experienceLevel, EXPERIENCE_LEVELS, 'experienceLevel'),
-    goal: parseEnum(query.goal, GOALS, 'goal'),
-    equipment: parseEnum(query.equipment, EQUIPMENT_OPTIONS, 'equipment'),
+    daysPerWeek: rawDaysPerWeek,
+    experienceLevel: parseEnum(query.experienceLevel, EXPERIENCE_LEVELS, 'experienceLevel') ?? profile?.experienceLevel ?? null,
+    goal: parseEnum(query.goal, GOALS, 'goal') ?? profile?.primaryGoal ?? null,
+    equipment: parseEnum(query.equipment, EQUIPMENT_OPTIONS, 'equipment') ?? profile?.equipment ?? null,
   })
 })
