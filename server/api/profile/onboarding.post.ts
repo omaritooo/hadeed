@@ -1,4 +1,4 @@
-import { readBody } from 'h3'
+import { createError, readBody } from 'h3'
 import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
@@ -19,6 +19,9 @@ export default defineEventHandler(async (event) => {
   const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db))
 
   const { height, weight, ...rest } = body
+  if (!Number.isFinite(height) || height <= 0 || !Number.isFinite(weight) || weight <= 0) {
+    throw createError({ statusCode: 400, statusMessage: 'height and weight must be positive numbers' })
+  }
   const isImperial = body.unitSystem === 'imperial'
   // Rounded to 1 decimal unconditionally, not just on the imperial-converted path — an
   // imperial input needs it to avoid inToCm/lbsToKg's raw floating-point tail reaching
