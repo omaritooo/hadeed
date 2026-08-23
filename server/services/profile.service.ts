@@ -63,8 +63,11 @@ export class ProfileService extends BaseService {
     }
   }
 
-  getProfile() {
-    return this.profiles.findByUserId(this.ctx.userId)
+  async getProfile() {
+    const profile = await this.profiles.findByUserId(this.ctx.userId)
+    if (!profile) return null
+    const displayName = await this.users.findDisplayName(this.ctx.userId)
+    return { ...profile, displayName }
   }
 
   async getComputedStats(): Promise<{ bmi: number, tdee: number | null } | null> {

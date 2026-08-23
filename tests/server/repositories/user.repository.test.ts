@@ -24,3 +24,24 @@ describe('UserRepository.updateDisplayName', () => {
     await expect(repo.updateDisplayName('nonexistent', 'Nobody')).resolves.not.toThrow()
   })
 })
+
+describe('UserRepository.findDisplayName', () => {
+  let db: Client
+  let repo: UserRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    repo = new UserRepository(db)
+  })
+
+  it('round-trips a display name set via updateDisplayName', async () => {
+    await repo.updateDisplayName('user-1', 'Jordan')
+
+    expect(await repo.findDisplayName('user-1')).toBe('Jordan')
+  })
+
+  it('returns null for a user who exists but never had a display name set', async () => {
+    expect(await repo.findDisplayName('user-1')).toBeNull()
+  })
+})

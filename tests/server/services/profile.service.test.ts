@@ -89,4 +89,18 @@ describe('ProfileService', () => {
     const userRow = await db.execute({ sql: 'SELECT display_name FROM users WHERE id = ?', args: ['user-1'] })
     expect(userRow.rows[0]?.display_name).toBe('')
   })
+
+  it('includes displayName from users when reading the profile back', async () => {
+    await service.completeOnboarding({ displayName: 'Jordan', dateOfBirth: '1995-06-15', gender: 'male', heightCm: 178, weightKg: 75 })
+
+    const profile = await service.getProfile()
+    expect(profile?.displayName).toBe('Jordan')
+  })
+
+  it('returns null displayName when none was ever set', async () => {
+    await service.completeOnboarding({ dateOfBirth: '1995-06-15', gender: 'male', heightCm: 178, weightKg: 75 })
+
+    const profile = await service.getProfile()
+    expect(profile?.displayName).toBeNull()
+  })
 })
