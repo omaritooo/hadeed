@@ -19,6 +19,22 @@ export function bmi(input: { weightKg: number, heightCm: number }): number {
   return input.weightKg / (heightM * heightM)
 }
 
+export function cmToIn(cm: number): number {
+  return cm / 2.54
+}
+
+export function inToCm(inches: number): number {
+  return inches * 2.54
+}
+
+export function kgToLbs(kg: number): number {
+  return kg * 2.20462262185
+}
+
+export function lbsToKg(lbs: number): number {
+  return lbs / 2.20462262185
+}
+
 function bmrFor(gender: Gender, weightKg: number, heightCm: number, age: number): number {
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age
   if (gender === 'male') return base + 5

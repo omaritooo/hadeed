@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bmi, tdee, xpToLevel } from '~~/shared/lib/formulas'
+import { bmi, cmToIn, inToCm, kgToLbs, lbsToKg, tdee, xpToLevel } from '~~/shared/lib/formulas'
 
 describe('bmi', () => {
   it('computes weight_kg / height_m^2', () => {
@@ -38,6 +38,15 @@ describe('tdee', () => {
     const female = tdee({ weightKg: 70, heightCm: 175, age: 30, gender: 'female', activityLevel: 'sedentary' })
     const other = tdee({ weightKg: 70, heightCm: 175, age: 30, gender: 'other', activityLevel: 'sedentary' })
     expect(other).toBeCloseTo((male + female) / 2, 5)
+  })
+})
+
+describe('unit conversion', () => {
+  it('round-trips cm/in and kg/lbs within floating-point tolerance', () => {
+    expect(cmToIn(180)).toBeCloseTo(70.8661, 3)
+    expect(inToCm(70.8661)).toBeCloseTo(180, 2)
+    expect(kgToLbs(80)).toBeCloseTo(176.37, 1)
+    expect(lbsToKg(176.37)).toBeCloseTo(80, 1)
   })
 })
 
