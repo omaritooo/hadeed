@@ -47,7 +47,7 @@ export class ProfileRepository {
       sql: `INSERT INTO user_profiles
               (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal,
                training_days_per_week, equipment, unit_system, timezone, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'metric'), ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, (SELECT unit_system FROM user_profiles WHERE user_id = ?), 'metric'), ?, datetime('now'))
             ON CONFLICT (user_id) DO UPDATE SET
               date_of_birth = excluded.date_of_birth,
               gender = excluded.gender,
@@ -72,6 +72,7 @@ export class ProfileRepository {
         input.trainingDaysPerWeek ?? null,
         input.equipment ?? null,
         input.unitSystem ?? null,
+        userId,
         input.timezone ?? null,
       ],
     })

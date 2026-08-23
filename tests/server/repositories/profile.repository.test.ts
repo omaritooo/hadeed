@@ -69,4 +69,12 @@ describe('ProfileRepository', () => {
     expect(profile?.equipment).toBeNull()
     expect(profile?.timezone).toBeNull()
   })
+
+  it('preserves the existing unitSystem when a later upsert call omits it', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, unitSystem: 'imperial' })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 181 }) // unitSystem omitted this time
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.unitSystem).toBe('imperial') // must NOT have been reset to 'metric'
+  })
 })
