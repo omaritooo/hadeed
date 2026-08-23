@@ -20,6 +20,11 @@ export default defineEventHandler(async (event) => {
 
   const { height, weight, ...rest } = body
   const isImperial = body.unitSystem === 'imperial'
+  // Rounded to 1 decimal unconditionally, not just on the imperial-converted path — an
+  // imperial input needs it to avoid inToCm/lbsToKg's raw floating-point tail reaching
+  // storage, and applying the same rounding to metric input keeps heightCm/weightKg at a
+  // uniform precision regardless of which branch produced them, rather than one path being
+  // exact-as-typed and the other quietly noisier.
   const input: CompleteOnboardingInput = {
     ...rest,
     heightCm: Math.round((isImperial ? inToCm(height) : height) * 10) / 10,
