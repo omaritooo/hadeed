@@ -1,12 +1,15 @@
 import { BaseService } from '~~/server/services/base.service'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
+import type { UserRepository } from '~~/server/repositories/user.repository'
 import { bmi, tdee } from '~~/shared/lib/formulas'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
-import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
+import type { Equipment } from '~~/shared/types/preset.types'
+import type { ExperienceLevel, Goal, UnitSystem } from '~~/shared/types/profile.types'
 
 export interface CompleteOnboardingInput {
+  displayName?: string
   dateOfBirth: string
   gender: Gender
   heightCm: number
@@ -14,6 +17,10 @@ export interface CompleteOnboardingInput {
   activityLevel?: ActivityLevel
   experienceLevel?: ExperienceLevel
   primaryGoal?: Goal
+  trainingDaysPerWeek?: number
+  equipment?: Equipment
+  unitSystem?: UnitSystem
+  timezone?: string
 }
 
 function ageFromDob(dateOfBirth: string): number {
@@ -27,6 +34,7 @@ export class ProfileService extends BaseService {
     ctx: RequestContext,
     private profiles: ProfileRepository,
     private bodyMetrics: BodyMetricsRepository,
+    private users: UserRepository,
   ) {
     super(ctx)
   }
@@ -39,6 +47,10 @@ export class ProfileService extends BaseService {
       activityLevel: input.activityLevel ?? null,
       experienceLevel: input.experienceLevel ?? null,
       primaryGoal: input.primaryGoal ?? null,
+      trainingDaysPerWeek: input.trainingDaysPerWeek ?? null,
+      equipment: input.equipment ?? null,
+      unitSystem: input.unitSystem,
+      timezone: input.timezone ?? null,
     })
     await this.bodyMetrics.record(this.ctx.userId, {
       recordedAt: new Date().toISOString().slice(0, 10),
@@ -46,6 +58,9 @@ export class ProfileService extends BaseService {
       source: 'manual',
       measurements: [],
     })
+    if (input.displayName) {
+      await this.users.updateDisplayName(this.ctx.userId, input.displayName)
+    }
   }
 
   getProfile() {
