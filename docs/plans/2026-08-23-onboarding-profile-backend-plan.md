@@ -12,10 +12,17 @@ timezone field (capture/persist only).
 `equipment`, `unit_system`, `timezone`), no schema change needed for `display_name` (already
 exists, just unused) or `gender` (DB CHECK already allows `'other'`). A new minimal
 `UserRepository` handles the one `users` table write. `ProfileService.completeOnboarding` grows to
-accept and persist all of it; imperial→metric conversion happens in the API route layer via new
-pure functions in `shared/lib/formulas.ts`, so the service's contract stays "always canonical
-metric in." `GET /api/preset-splits/recommend` falls back to the stored profile for any omitted
-query param.
+accept and persist all of it. `GET /api/preset-splits/recommend` falls back to the stored profile
+for any omitted query param.
+>
+> **Post-implementation note:** the line above originally read "imperial→metric conversion
+> happens in the API route layer... so the service's contract stays 'always canonical metric
+> in.'" A holistic review found that architecture raced with `ProfileRepository.upsert`'s
+> preserve-on-omit logic for `unitSystem`, corrupting height/weight under concurrent requests. The
+> shipped fix (commit `8138aee`) moved unit-system resolution and height conversion inside
+> `upsert`'s own transaction instead, with weight converted afterward using `upsert`'s returned,
+> post-commit `unitSystem`. The route no longer does any conversion — see the amendment note at
+> the top of the design doc for the full account.
 
 **Tech Stack:** Nuxt 4 Nitro server routes, Turso/libSQL (`@libsql/client`), Vitest, TypeScript.
 

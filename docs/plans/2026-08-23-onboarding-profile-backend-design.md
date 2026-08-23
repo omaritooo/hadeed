@@ -3,6 +3,19 @@
 Date: 2026-08-23
 Status: Approved, ready for implementation planning
 
+> **Post-implementation amendment (2026-08-23):** §2 and §6 below describe converting imperial
+> height/weight at the route layer, ahead of a service that only ever sees canonical metric. That
+> is not what shipped. A holistic review found this created a real race: the route's own
+> `unitSystem` resolution (a separate, untransactioned read) could be stale relative to a
+> concurrent `ProfileRepository.upsert` call, silently corrupting `height_cm`. The fix (commit
+> `8138aee`) moved `unitSystem` resolution and height conversion **inside `upsert`'s own
+> transaction** — `CompleteOnboardingInput`/`UpsertProfileInput` now carry a raw `height` (unit
+> determined by the resolved `unitSystem`, not the request alone), and weight is converted in the
+> service *after* `upsert` returns, using its authoritative post-commit `unitSystem` rather than
+> the request's. The route is now a thin validate-and-pass-through layer with no conversion logic
+> at all. See `server/repositories/profile.repository.ts`, `server/services/profile.service.ts`,
+> and `server/api/profile/onboarding.post.ts` for the actual shipped shape.
+
 ## Context
 
 The onboarding UI is currently scaffolding only: one step component (`FirstStep.vue`) whose
