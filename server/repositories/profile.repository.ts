@@ -43,11 +43,21 @@ export class ProfileRepository {
   }
 
   async upsert(userId: string, input: UpsertProfileInput): Promise<UserProfile> {
+    const existing = await this.findByUserId(userId)
+
+    const activityLevel = input.activityLevel !== undefined ? input.activityLevel : (existing?.activityLevel ?? null)
+    const experienceLevel = input.experienceLevel !== undefined ? input.experienceLevel : (existing?.experienceLevel ?? null)
+    const primaryGoal = input.primaryGoal !== undefined ? input.primaryGoal : (existing?.primaryGoal ?? null)
+    const trainingDaysPerWeek = input.trainingDaysPerWeek !== undefined ? input.trainingDaysPerWeek : (existing?.trainingDaysPerWeek ?? null)
+    const equipment = input.equipment !== undefined ? input.equipment : (existing?.equipment ?? null)
+    const unitSystem = input.unitSystem !== undefined ? input.unitSystem : (existing?.unitSystem ?? 'metric')
+    const timezone = input.timezone !== undefined ? input.timezone : (existing?.timezone ?? null)
+
     const result = await this.db.execute({
       sql: `INSERT INTO user_profiles
               (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal,
                training_days_per_week, equipment, unit_system, timezone, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, (SELECT unit_system FROM user_profiles WHERE user_id = ?), 'metric'), ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT (user_id) DO UPDATE SET
               date_of_birth = excluded.date_of_birth,
               gender = excluded.gender,
@@ -66,14 +76,13 @@ export class ProfileRepository {
         input.dateOfBirth,
         input.gender,
         input.heightCm,
-        input.activityLevel ?? null,
-        input.experienceLevel ?? null,
-        input.primaryGoal ?? null,
-        input.trainingDaysPerWeek ?? null,
-        input.equipment ?? null,
-        input.unitSystem ?? null,
-        userId,
-        input.timezone ?? null,
+        activityLevel,
+        experienceLevel,
+        primaryGoal,
+        trainingDaysPerWeek,
+        equipment,
+        unitSystem,
+        timezone,
       ],
     })
     const row = result.rows[0]

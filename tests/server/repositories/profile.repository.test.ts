@@ -77,4 +77,46 @@ describe('ProfileRepository', () => {
     const profile = await repo.findByUserId('user-1')
     expect(profile?.unitSystem).toBe('imperial') // must NOT have been reset to 'metric'
   })
+
+  it('preserves trainingDaysPerWeek, equipment, and timezone when a later upsert call omits them', async () => {
+    await repo.upsert('user-1', {
+      dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180,
+      trainingDaysPerWeek: 4, equipment: 'gym', timezone: 'America/New_York',
+    })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 181 }) // all three omitted
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.trainingDaysPerWeek).toBe(4)
+    expect(profile?.equipment).toBe('gym')
+    expect(profile?.timezone).toBe('America/New_York')
+  })
+
+  it('preserves activityLevel, experienceLevel, and primaryGoal when a later upsert call omits them', async () => {
+    await repo.upsert('user-1', {
+      dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180,
+      activityLevel: 'moderately_active', experienceLevel: 'intermediate', primaryGoal: 'muscle_gain',
+    })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 181 }) // all three omitted
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.activityLevel).toBe('moderately_active')
+    expect(profile?.experienceLevel).toBe('intermediate')
+    expect(profile?.primaryGoal).toBe('muscle_gain')
+  })
+
+  it('overwrites a previously-set field when a later upsert call provides a new value', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: 4 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: 2 })
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.trainingDaysPerWeek).toBe(2)
+  })
+
+  it('explicitly clears a field when a later upsert call passes null for it', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: 4 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: null })
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.trainingDaysPerWeek).toBeNull()
+  })
 })
