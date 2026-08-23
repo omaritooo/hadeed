@@ -41,4 +41,32 @@ describe('ProfileRepository', () => {
   it('returns null for a user with no profile yet', async () => {
     expect(await repo.findByUserId('nobody')).toBeNull()
   })
+
+  it('upserts and reads back trainingDaysPerWeek, equipment, unitSystem, and timezone', async () => {
+    await repo.upsert('user-1', {
+      dateOfBirth: '1995-01-01',
+      gender: 'male',
+      heightCm: 180,
+      trainingDaysPerWeek: 4,
+      equipment: 'gym',
+      unitSystem: 'imperial',
+      timezone: 'America/New_York',
+    })
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.trainingDaysPerWeek).toBe(4)
+    expect(profile?.equipment).toBe('gym')
+    expect(profile?.unitSystem).toBe('imperial')
+    expect(profile?.timezone).toBe('America/New_York')
+  })
+
+  it('defaults unitSystem to metric and leaves the other three null when omitted', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 })
+
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.unitSystem).toBe('metric')
+    expect(profile?.trainingDaysPerWeek).toBeNull()
+    expect(profile?.equipment).toBeNull()
+    expect(profile?.timezone).toBeNull()
+  })
 })

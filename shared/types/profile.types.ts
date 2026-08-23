@@ -1,8 +1,10 @@
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
+import type { Equipment } from '~~/shared/types/preset.types'
 
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced'
 export type Goal = 'fat_loss' | 'muscle_gain' | 'maintenance' | 'general_fitness'
 export type MetricSource = 'manual' | 'inbody' | 'wearable'
+export type UnitSystem = 'metric' | 'imperial'
 
 export interface UserProfile {
   userId: string
@@ -12,6 +14,10 @@ export interface UserProfile {
   activityLevel: ActivityLevel | null
   experienceLevel: ExperienceLevel | null
   primaryGoal: Goal | null
+  trainingDaysPerWeek: number | null
+  equipment: Equipment | null
+  unitSystem: UnitSystem
+  timezone: string | null
   updatedAt: string
 }
 

@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
-import type { ExperienceLevel, Goal, UserProfile } from '~~/shared/types/profile.types'
+import type { Equipment } from '~~/shared/types/preset.types'
+import type { ExperienceLevel, Goal, UnitSystem, UserProfile } from '~~/shared/types/profile.types'
 
 export interface UpsertProfileInput {
   dateOfBirth: string
@@ -9,6 +10,10 @@ export interface UpsertProfileInput {
   activityLevel?: ActivityLevel | null
   experienceLevel?: ExperienceLevel | null
   primaryGoal?: Goal | null
+  trainingDaysPerWeek?: number | null
+  equipment?: Equipment | null
+  unitSystem?: UnitSystem
+  timezone?: string | null
 }
 
 export class ProfileRepository {
@@ -23,6 +28,10 @@ export class ProfileRepository {
       activityLevel: row.activity_level as ActivityLevel | null,
       experienceLevel: row.experience_level as ExperienceLevel | null,
       primaryGoal: row.primary_goal as Goal | null,
+      trainingDaysPerWeek: row.training_days_per_week as number | null,
+      equipment: row.equipment as Equipment | null,
+      unitSystem: row.unit_system as UnitSystem,
+      timezone: row.timezone as string | null,
       updatedAt: row.updated_at as string,
     }
   }
@@ -35,8 +44,10 @@ export class ProfileRepository {
 
   async upsert(userId: string, input: UpsertProfileInput): Promise<UserProfile> {
     const result = await this.db.execute({
-      sql: `INSERT INTO user_profiles (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      sql: `INSERT INTO user_profiles
+              (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal,
+               training_days_per_week, equipment, unit_system, timezone, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'metric'), ?, datetime('now'))
             ON CONFLICT (user_id) DO UPDATE SET
               date_of_birth = excluded.date_of_birth,
               gender = excluded.gender,
@@ -44,6 +55,10 @@ export class ProfileRepository {
               activity_level = excluded.activity_level,
               experience_level = excluded.experience_level,
               primary_goal = excluded.primary_goal,
+              training_days_per_week = excluded.training_days_per_week,
+              equipment = excluded.equipment,
+              unit_system = excluded.unit_system,
+              timezone = excluded.timezone,
               updated_at = datetime('now')
             RETURNING *`,
       args: [
@@ -54,6 +69,10 @@ export class ProfileRepository {
         input.activityLevel ?? null,
         input.experienceLevel ?? null,
         input.primaryGoal ?? null,
+        input.trainingDaysPerWeek ?? null,
+        input.equipment ?? null,
+        input.unitSystem ?? null,
+        input.timezone ?? null,
       ],
     })
     const row = result.rows[0]
