@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
@@ -118,5 +118,78 @@ describe('ProfileRepository', () => {
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBeNull()
+  })
+
+  describe('atomicity of the read-then-write (lost-update fix)', () => {
+    // Genuinely reproducing the race this fix closes -- two concurrent upsert() calls for the same
+    // userId, interleaved so each reads the other's pre-commit snapshot -- turned out not to be
+    // something the *local* sqlite3 test client can demonstrate reliably:
+    //
+    // 1. It was tried by holding a manual `db.transaction('write')` open and asserting that a
+    //    concurrent `repo.upsert()` call gets rejected. That assertion held, but it turned out to
+    //    hold identically against the *pre-fix* code too (the plain, un-transactioned `this.db.execute`
+    //    calls): SQLite serializes ALL writes against a file while another write transaction is open,
+    //    transactional or not, so that shape of test can't tell the fixed code apart from the buggy
+    //    code -- it doesn't actually verify anything about this fix.
+    // 2. It was tried by racing two real `repo.upsert()` calls via `Promise.all` and retrying on
+    //    SQLITE_BUSY. The local driver (`libsql` 0.5.29, via `@libsql/client`'s sqlite3 client) does
+    //    enforce real mutual exclusion between concurrent write transactions on the same file (a
+    //    second `transaction('write')` call while one is open fails with SQLITE_BUSY), which is the
+    //    right underlying guarantee -- but a connection that hits SQLITE_BUSY once was observed to get
+    //    permanently wedged on every subsequent attempt (never recovering, even long after the
+    //    contending transaction committed and closed), which made a retry-based test hang/fail
+    //    unreliably. That's a local-driver quirk, not documented behavior of the remote Turso client
+    //    this code actually runs against in production.
+    //
+    // So instead of a timing-based race test, these tests verify the actual mechanism directly: that
+    // upsert() performs its read AND its write through the SAME transaction handle (not two
+    // independent `this.db.execute` round trips), which is precisely what makes the read+write atomic
+    // and closes the race. This is backed by reading `@libsql/client`'s `Client`/`Transaction` types
+    // (`node_modules/@libsql/core/lib-esm/api.d.ts`) to confirm `transaction('write')`, `tx.execute`,
+    // `tx.commit`, and `tx.close` are used exactly as documented.
+    function createFakeTxClient(existingRow: Record<string, unknown> | undefined) {
+      const calls: string[] = []
+      const txExecute = vi.fn(async (stmt: { sql: string }) => {
+        calls.push(stmt.sql.trim().slice(0, 6).toUpperCase())
+        if (stmt.sql.trim().toUpperCase().startsWith('SELECT')) {
+          return { rows: existingRow ? [existingRow] : [] }
+        }
+        return { rows: [{ user_id: 'user-1', date_of_birth: '1995-01-01', gender: 'male', height_cm: 180, activity_level: null, experience_level: null, primary_goal: null, training_days_per_week: null, equipment: null, unit_system: 'metric', timezone: null, updated_at: 'now' }] }
+      })
+      const commit = vi.fn(async () => { calls.push('COMMIT') })
+      const close = vi.fn(() => { calls.push('CLOSE') })
+      const rollback = vi.fn(async () => { calls.push('ROLLBACK') })
+      const tx = { execute: txExecute, commit, close, rollback, closed: false, batch: vi.fn(), executeMultiple: vi.fn() }
+      const topLevelExecute = vi.fn(async () => { throw new Error('upsert must not use the top-level client.execute for its read/write') })
+      const transaction = vi.fn(async () => tx)
+      const fakeClient = { execute: topLevelExecute, transaction } as unknown as Client
+      return { fakeClient, tx, transaction, topLevelExecute, calls }
+    }
+
+    it('performs the SELECT and the INSERT on the same transaction handle, then commits', async () => {
+      const { fakeClient, transaction, topLevelExecute, calls } = createFakeTxClient(undefined)
+      const fakeRepo = new ProfileRepository(fakeClient)
+
+      await fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 })
+
+      expect(transaction).toHaveBeenCalledExactlyOnceWith('write')
+      expect(topLevelExecute).not.toHaveBeenCalled()
+      // Both statements ran on the transaction handle, in order, followed by a commit -- this is
+      // what makes the read and the write atomic instead of two independent round trips.
+      expect(calls).toEqual(['SELECT', 'INSERT', 'COMMIT', 'CLOSE'])
+    })
+
+    it('closes the transaction without committing if the write fails', async () => {
+      const { fakeClient, tx } = createFakeTxClient(undefined)
+      tx.execute.mockImplementationOnce(async () => ({ rows: [] })) // SELECT: no existing row
+      tx.execute.mockImplementationOnce(async () => { throw new Error('boom') }) // INSERT fails
+      const fakeRepo = new ProfileRepository(fakeClient)
+
+      await expect(fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 }))
+        .rejects.toThrow('boom')
+
+      expect(tx.commit).not.toHaveBeenCalled()
+      expect(tx.close).toHaveBeenCalledOnce()
+    })
   })
 })

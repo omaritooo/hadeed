@@ -43,50 +43,65 @@ export class ProfileRepository {
   }
 
   async upsert(userId: string, input: UpsertProfileInput): Promise<UserProfile> {
-    const existing = await this.findByUserId(userId)
+    // The read (to resolve omitted fields) and the write must happen atomically: useDb() is a
+    // remote libsql/Turso client, so without an explicit transaction the SELECT and the INSERT
+    // are two independent network round trips, and two concurrent upsert calls for the same
+    // userId could each read the same stale snapshot and then lost-update each other.
+    const tx = await this.db.transaction('write')
+    try {
+      const existingResult = await tx.execute({ sql: 'SELECT * FROM user_profiles WHERE user_id = ?', args: [userId] })
+      const existingRow = existingResult.rows[0] as unknown as Record<string, unknown> | undefined
+      const existing = existingRow ? this.mapRow(existingRow) : null
 
-    const activityLevel = input.activityLevel !== undefined ? input.activityLevel : (existing?.activityLevel ?? null)
-    const experienceLevel = input.experienceLevel !== undefined ? input.experienceLevel : (existing?.experienceLevel ?? null)
-    const primaryGoal = input.primaryGoal !== undefined ? input.primaryGoal : (existing?.primaryGoal ?? null)
-    const trainingDaysPerWeek = input.trainingDaysPerWeek !== undefined ? input.trainingDaysPerWeek : (existing?.trainingDaysPerWeek ?? null)
-    const equipment = input.equipment !== undefined ? input.equipment : (existing?.equipment ?? null)
-    const unitSystem = input.unitSystem !== undefined ? input.unitSystem : (existing?.unitSystem ?? 'metric')
-    const timezone = input.timezone !== undefined ? input.timezone : (existing?.timezone ?? null)
+      const activityLevel = input.activityLevel !== undefined ? input.activityLevel : (existing?.activityLevel ?? null)
+      const experienceLevel = input.experienceLevel !== undefined ? input.experienceLevel : (existing?.experienceLevel ?? null)
+      const primaryGoal = input.primaryGoal !== undefined ? input.primaryGoal : (existing?.primaryGoal ?? null)
+      const trainingDaysPerWeek = input.trainingDaysPerWeek !== undefined ? input.trainingDaysPerWeek : (existing?.trainingDaysPerWeek ?? null)
+      const equipment = input.equipment !== undefined ? input.equipment : (existing?.equipment ?? null)
+      const unitSystem = input.unitSystem !== undefined ? input.unitSystem : (existing?.unitSystem ?? 'metric')
+      const timezone = input.timezone !== undefined ? input.timezone : (existing?.timezone ?? null)
 
-    const result = await this.db.execute({
-      sql: `INSERT INTO user_profiles
-              (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal,
-               training_days_per_week, equipment, unit_system, timezone, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            ON CONFLICT (user_id) DO UPDATE SET
-              date_of_birth = excluded.date_of_birth,
-              gender = excluded.gender,
-              height_cm = excluded.height_cm,
-              activity_level = excluded.activity_level,
-              experience_level = excluded.experience_level,
-              primary_goal = excluded.primary_goal,
-              training_days_per_week = excluded.training_days_per_week,
-              equipment = excluded.equipment,
-              unit_system = excluded.unit_system,
-              timezone = excluded.timezone,
-              updated_at = datetime('now')
-            RETURNING *`,
-      args: [
-        userId,
-        input.dateOfBirth,
-        input.gender,
-        input.heightCm,
-        activityLevel,
-        experienceLevel,
-        primaryGoal,
-        trainingDaysPerWeek,
-        equipment,
-        unitSystem,
-        timezone,
-      ],
-    })
-    const row = result.rows[0]
-    if (!row) throw new Error('Failed to upsert profile')
-    return this.mapRow(row as unknown as Record<string, unknown>)
+      const result = await tx.execute({
+        sql: `INSERT INTO user_profiles
+                (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal,
+                 training_days_per_week, equipment, unit_system, timezone, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+              ON CONFLICT (user_id) DO UPDATE SET
+                date_of_birth = excluded.date_of_birth,
+                gender = excluded.gender,
+                height_cm = excluded.height_cm,
+                activity_level = excluded.activity_level,
+                experience_level = excluded.experience_level,
+                primary_goal = excluded.primary_goal,
+                training_days_per_week = excluded.training_days_per_week,
+                equipment = excluded.equipment,
+                unit_system = excluded.unit_system,
+                timezone = excluded.timezone,
+                updated_at = datetime('now')
+              RETURNING *`,
+        args: [
+          userId,
+          input.dateOfBirth,
+          input.gender,
+          input.heightCm,
+          activityLevel,
+          experienceLevel,
+          primaryGoal,
+          trainingDaysPerWeek,
+          equipment,
+          unitSystem,
+          timezone,
+        ],
+      })
+      const row = result.rows[0]
+      if (!row) throw new Error('Failed to upsert profile')
+
+      await tx.commit()
+      return this.mapRow(row as unknown as Record<string, unknown>)
+    } finally {
+      // Safe to call unconditionally: per @libsql/client's docs this is a no-op if the
+      // transaction was already closed by commit(), and rolls back otherwise (error path).
+      tx.close()
+    }
   }
 }
