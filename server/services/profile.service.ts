@@ -58,7 +58,7 @@ export class ProfileService extends BaseService {
       source: 'manual',
       measurements: [],
     })
-    if (input.displayName) {
+    if (input.displayName !== undefined) {
       await this.users.updateDisplayName(this.ctx.userId, input.displayName)
     }
   }

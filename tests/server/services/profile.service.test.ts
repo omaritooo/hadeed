@@ -82,4 +82,11 @@ describe('ProfileService', () => {
     const userRow = await db.execute({ sql: 'SELECT display_name FROM users WHERE id = ?', args: ['user-1'] })
     expect(userRow.rows[0]?.display_name).toBeNull()
   })
+
+  it('writes an explicitly empty displayName instead of silently ignoring it', async () => {
+    await service.completeOnboarding({ dateOfBirth: '1995-06-15', gender: 'male', heightCm: 178, weightKg: 75, displayName: '' })
+
+    const userRow = await db.execute({ sql: 'SELECT display_name FROM users WHERE id = ?', args: ['user-1'] })
+    expect(userRow.rows[0]?.display_name).toBe('')
+  })
 })
