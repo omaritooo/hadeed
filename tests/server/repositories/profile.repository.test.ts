@@ -14,17 +14,17 @@ describe('ProfileRepository', () => {
   })
 
   it('upserts a profile (insert then update, keyed on user_id)', async () => {
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
     const first = await repo.findByUserId('user-1')
     expect(first?.heightCm).toBe(180)
 
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 182 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 182 })
     const second = await repo.findByUserId('user-1')
     expect(second?.heightCm).toBe(182)
   })
 
   it('has the four new profile columns in the schema', async () => {
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
     await db.execute({
       sql: `UPDATE user_profiles SET training_days_per_week = ?, equipment = ?, unit_system = ?, timezone = ?
             WHERE user_id = ?`,
@@ -46,7 +46,7 @@ describe('ProfileRepository', () => {
     await repo.upsert('user-1', {
       dateOfBirth: '1995-01-01',
       gender: 'male',
-      heightCm: 180,
+      height: 180,
       trainingDaysPerWeek: 4,
       equipment: 'gym',
       unitSystem: 'imperial',
@@ -61,7 +61,7 @@ describe('ProfileRepository', () => {
   })
 
   it('defaults unitSystem to metric and leaves the other three null when omitted', async () => {
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.unitSystem).toBe('metric')
@@ -71,19 +71,32 @@ describe('ProfileRepository', () => {
   })
 
   it('preserves the existing unitSystem when a later upsert call omits it', async () => {
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, unitSystem: 'imperial' })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 181 }) // unitSystem omitted this time
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180, unitSystem: 'imperial' })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 }) // unitSystem omitted this time
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.unitSystem).toBe('imperial') // must NOT have been reset to 'metric'
   })
 
+  it('resolves unitSystem before converting height, so a follow-up call that omits unitSystem still converts correctly', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 70, unitSystem: 'imperial' })
+    const first = await repo.findByUserId('user-1')
+    expect(first?.heightCm).toBeCloseTo(177.8, 1)
+
+    // Second call omits unitSystem entirely — must still be interpreted as imperial (preserved),
+    // not misread as already-metric.
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 71 })
+    const second = await repo.findByUserId('user-1')
+    expect(second?.heightCm).toBeCloseTo(180.3, 1) // NOT 71
+    expect(second?.unitSystem).toBe('imperial')
+  })
+
   it('preserves trainingDaysPerWeek, equipment, and timezone when a later upsert call omits them', async () => {
     await repo.upsert('user-1', {
-      dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180,
+      dateOfBirth: '1995-01-01', gender: 'male', height: 180,
       trainingDaysPerWeek: 4, equipment: 'gym', timezone: 'America/New_York',
     })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 181 }) // all three omitted
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 }) // all three omitted
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBe(4)
@@ -93,10 +106,10 @@ describe('ProfileRepository', () => {
 
   it('preserves activityLevel, experienceLevel, and primaryGoal when a later upsert call omits them', async () => {
     await repo.upsert('user-1', {
-      dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180,
+      dateOfBirth: '1995-01-01', gender: 'male', height: 180,
       activityLevel: 'moderately_active', experienceLevel: 'intermediate', primaryGoal: 'muscle_gain',
     })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 181 }) // all three omitted
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 }) // all three omitted
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.activityLevel).toBe('moderately_active')
@@ -105,16 +118,16 @@ describe('ProfileRepository', () => {
   })
 
   it('overwrites a previously-set field when a later upsert call provides a new value', async () => {
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: 4 })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: 2 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180, trainingDaysPerWeek: 4 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180, trainingDaysPerWeek: 2 })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBe(2)
   })
 
   it('explicitly clears a field when a later upsert call passes null for it', async () => {
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: 4 })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180, trainingDaysPerWeek: null })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180, trainingDaysPerWeek: 4 })
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180, trainingDaysPerWeek: null })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBeNull()
@@ -170,7 +183,7 @@ describe('ProfileRepository', () => {
       const { fakeClient, transaction, topLevelExecute, calls } = createFakeTxClient(undefined)
       const fakeRepo = new ProfileRepository(fakeClient)
 
-      await fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 })
+      await fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
 
       expect(transaction).toHaveBeenCalledExactlyOnceWith('write')
       expect(topLevelExecute).not.toHaveBeenCalled()
@@ -185,7 +198,7 @@ describe('ProfileRepository', () => {
       tx.execute.mockImplementationOnce(async () => { throw new Error('boom') }) // INSERT fails
       const fakeRepo = new ProfileRepository(fakeClient)
 
-      await expect(fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', heightCm: 180 }))
+      await expect(fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 }))
         .rejects.toThrow('boom')
 
       expect(tx.commit).not.toHaveBeenCalled()

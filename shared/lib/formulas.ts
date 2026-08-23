@@ -35,6 +35,10 @@ export function lbsToKg(lbs: number): number {
   return lbs / 2.20462262185
 }
 
+export function round1(n: number): number {
+  return Math.round(n * 10) / 10
+}
+
 function bmrFor(gender: Gender, weightKg: number, heightCm: number, age: number): number {
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age
   if (gender === 'male') return base + 5

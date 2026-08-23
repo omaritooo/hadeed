@@ -2,7 +2,7 @@ import { BaseService } from '~~/server/services/base.service'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import type { UserRepository } from '~~/server/repositories/user.repository'
-import { bmi, tdee } from '~~/shared/lib/formulas'
+import { bmi, lbsToKg, round1, tdee } from '~~/shared/lib/formulas'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
@@ -12,8 +12,10 @@ export interface CompleteOnboardingInput {
   displayName?: string
   dateOfBirth: string
   gender: Gender
-  heightCm: number
-  weightKg: number
+  /** Raw value: cm if the resolved unitSystem is metric, inches if imperial. */
+  height: number
+  /** Raw value: kg if the resolved unitSystem is metric, lbs if imperial. */
+  weight: number
   activityLevel?: ActivityLevel
   experienceLevel?: ExperienceLevel
   primaryGoal?: Goal
@@ -40,10 +42,15 @@ export class ProfileService extends BaseService {
   }
 
   async completeOnboarding(input: CompleteOnboardingInput): Promise<void> {
-    await this.profiles.upsert(this.ctx.userId, {
+    // upsert() resolves unitSystem (which may be preserved from the existing row rather than
+    // passed in `input`) and converts height inside its own transaction. Weight conversion
+    // MUST use upsert's returned, post-commit unitSystem -- not input.unitSystem, which can be
+    // undefined or stale relative to what actually got persisted -- otherwise this reintroduces
+    // the same race one layer up.
+    const profile = await this.profiles.upsert(this.ctx.userId, {
       dateOfBirth: input.dateOfBirth,
       gender: input.gender,
-      heightCm: input.heightCm,
+      height: input.height,
       activityLevel: input.activityLevel,
       experienceLevel: input.experienceLevel,
       primaryGoal: input.primaryGoal,
@@ -52,9 +59,10 @@ export class ProfileService extends BaseService {
       unitSystem: input.unitSystem,
       timezone: input.timezone,
     })
+    const weightKg = profile.unitSystem === 'imperial' ? round1(lbsToKg(input.weight)) : round1(input.weight)
     await this.bodyMetrics.record(this.ctx.userId, {
       recordedAt: new Date().toISOString().slice(0, 10),
-      weightKg: input.weightKg,
+      weightKg,
       source: 'manual',
       measurements: [],
     })

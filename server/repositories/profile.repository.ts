@@ -1,12 +1,14 @@
 import type { Client } from '@libsql/client'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
+import { inToCm, round1 } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem, UserProfile } from '~~/shared/types/profile.types'
 
 export interface UpsertProfileInput {
   dateOfBirth: string
   gender: Gender
-  heightCm: number
+  /** Raw value: cm if the resolved unitSystem is metric, inches if imperial. */
+  height: number
   activityLevel?: ActivityLevel | null
   experienceLevel?: ExperienceLevel | null
   primaryGoal?: Goal | null
@@ -61,6 +63,12 @@ export class ProfileRepository {
       const unitSystem = input.unitSystem !== undefined ? input.unitSystem : (existing?.unitSystem ?? 'metric')
       const timezone = input.timezone !== undefined ? input.timezone : (existing?.timezone ?? null)
 
+      // Height conversion MUST happen after unitSystem is resolved (above) and inside this same
+      // transaction: unitSystem may itself be preserved from the existing row rather than passed
+      // explicitly, so converting height against anything read/resolved outside this transaction
+      // would reintroduce the TOCTOU race this method exists to close.
+      const heightCm = unitSystem === 'imperial' ? round1(inToCm(input.height)) : round1(input.height)
+
       const result = await tx.execute({
         sql: `INSERT INTO user_profiles
                 (user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal,
@@ -83,7 +91,7 @@ export class ProfileRepository {
           userId,
           input.dateOfBirth,
           input.gender,
-          input.heightCm,
+          heightCm,
           activityLevel,
           experienceLevel,
           primaryGoal,
