@@ -1,3 +1,9 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/*
+ ---break---
+ */
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -256,5 +262,16 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+  }
+}
+/*
+ ---break---
+ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

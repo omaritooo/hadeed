@@ -21,7 +21,6 @@ const stepper = () => currentStep.value++;
 
 <template>
   <main class="mx-auto max-w-xl space-y-4 p-8">
-    <UiSteps :steps="5" :currentStep />
     <Button @click="stepper"> Stepper </Button>
     <h1 class="text-lg font-semibold">Fetch an exercise</h1>
 

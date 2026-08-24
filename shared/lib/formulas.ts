@@ -1,4 +1,4 @@
-export type Gender = 'male' | 'female' | 'other'
+export type Gender = 'male' | 'female'
 export type ActivityLevel =
   | 'sedentary'
   | 'lightly_active'

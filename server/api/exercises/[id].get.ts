@@ -13,5 +13,6 @@ export default defineEventHandler(async (event) => {
   if (!exercise) {
     throw createError({ statusCode: 404, statusMessage: 'Exercise not found' })
   }
+  console.log(exercise)
   return exercise
 })
