@@ -1,13 +1,15 @@
 import type { FetchError } from 'ofetch'
 import type { CompleteOnboardingInput } from '~~/server/services/profile.service'
-import type { UserProfile } from '~~/shared/types/profile.types'
+import type { UserProfile, UserTarget } from '~~/shared/types/profile.types'
 import { useMutation } from '@pinia/colada'
+
+export type CompletedOnboardingProfile = (UserProfile & { displayName: string | null, targets: UserTarget[] }) | null
 
 export function useCompleteOnboarding() {
   const { $api } = useNuxtApp()
 
-  return useMutation<UserProfile | null, CompleteOnboardingInput, FetchError<{ statusMessage: string }>>({
-    mutation: input => $api<UserProfile | null>('/api/profile/onboarding', {
+  return useMutation<CompletedOnboardingProfile, CompleteOnboardingInput, FetchError<{ statusMessage: string }>>({
+    mutation: input => $api<CompletedOnboardingProfile>('/api/profile/onboarding', {
       method: 'POST',
       body: input,
     }),

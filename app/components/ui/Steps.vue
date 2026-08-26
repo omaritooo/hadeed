@@ -19,28 +19,35 @@ const props = withDefaults(defineProps<Props>(), {
         <button
           v-show="currentStep > 1"
           @click="prevFunction"
-          class="text-3xl absolute top-2 left-3"
+          aria-label="Previous step"
+          class="text-muted-foreground hover:bg-md-surface-container-high hover:text-foreground absolute top-1/2 left-3 flex size-9 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
         >
-          <CircleChevronLeft :size="32" />
+          <CircleChevronLeft :size="20" />
         </button>
         <span
           class="justify-center-safe mx-auto text-muted-foreground font-heading text-2xl"
           >Step {{ currentStep }} out of {{ steps }}</span
         >
         <button
-          v-show="currentStep < 5"
+          v-show="currentStep < steps"
           @click="nextFunction"
-          class="text-3xl absolute top-2 right-3"
+          aria-label="Next step"
+          class="text-muted-foreground hover:bg-md-surface-container-high hover:text-foreground absolute top-1/2 right-3 flex size-9 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
         >
-          <CircleChevronRight :size="32" />
+          <CircleChevronRight :size="20" />
         </button>
       </div>
 
-      <div class="h-12 flex gap-x-2 max-w-5xl mx-auto w-full">
+      <div class="flex gap-x-2 max-w-5xl mx-auto w-full">
         <div
           v-for="(step, index) in steps"
-          class="px-2 py-1 max-h-0.5 w-1/5 rounded-lg"
-          :class="index + 1 <= currentStep ? 'bg-primary' : 'bg-muted'"
+          :key="index"
+          class="flex-1 h-2 rounded-full"
+          :class="
+            index + 1 <= currentStep
+              ? 'bg-primary shadow-[0px_0px_8px_0px_rgba(255,87,34,0.5)]'
+              : 'bg-md-surface-container-high'
+          "
         />
       </div>
     </div>

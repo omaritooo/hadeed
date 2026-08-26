@@ -2,7 +2,15 @@
 import { stepSchemas } from "~~/shared/schemas/onboarding";
 import { FormField } from "@/components/ui/field";
 import { useOnboardingStore } from "@/store/onboarding";
-import { CalendarIcon, LockIcon, Mail, MarsIcon, User, VenusIcon } from "@lucide/vue";
+import {
+  CalendarIcon,
+  CheckIcon,
+  LockIcon,
+  Mail,
+  MarsIcon,
+  User,
+  VenusIcon,
+} from "@lucide/vue";
 import {
   DateFormatter,
   getLocalTimeZone,
@@ -12,7 +20,7 @@ import {
 
 const store = useOnboardingStore();
 
-const { form, errors, validateField, validateAll } = useZodForm(stepSchemas[1], {
+const { form, errors, touched, validateField, validateAll } = useZodForm(stepSchemas[1], {
   fullName: store.form.fullName ?? "",
   dateOfBirth: store.form.dateOfBirth ?? "",
   gender: store.form.gender ?? "male",
@@ -20,6 +28,10 @@ const { form, errors, validateField, validateAll } = useZodForm(stepSchemas[1], 
   password: store.form.password ?? "",
   confirmPassword: store.form.confirmPassword ?? "",
 });
+
+function fieldValid(field: keyof typeof form) {
+  return touched[field] && errors[field].length === 0;
+}
 
 const dateFormatter = new DateFormatter("en-US", { dateStyle: "long" });
 
@@ -50,16 +62,21 @@ defineExpose({
       :errors="errors.fullName"
       v-slot="{ id, ariaInvalid }"
     >
-      <UiInputGroup class="h-auto gap-x-1">
+      <UiInputGroup class="h-auto gap-x-1" :valid="fieldValid('fullName')">
         <UiInputGroupAddon class=""> <User /> </UiInputGroupAddon>
         <UiInputGroupInput
           :id="id"
-          class="h-12"
+          class="h-full"
           v-model="form.fullName"
           placeholder="Enter your full name"
           :aria-invalid="ariaInvalid"
           @blur="validateField('fullName')"
         />
+        <UiInputGroupAddon v-if="fieldValid('fullName')" align="inline-end">
+          <div class="bg-md-tertiary flex size-5 shrink-0 items-center justify-center rounded-full">
+            <CheckIcon class="text-md-on-tertiary size-3" />
+          </div>
+        </UiInputGroupAddon>
       </UiInputGroup>
     </FormField>
     <FormField
@@ -68,16 +85,21 @@ defineExpose({
       :errors="errors.email"
       v-slot="{ id, ariaInvalid }"
     >
-      <UiInputGroup class="h-auto gap-x-1">
+      <UiInputGroup class="h-auto gap-x-1" :valid="fieldValid('email')">
         <UiInputGroupAddon class=""> <Mail /> </UiInputGroupAddon>
         <UiInputGroupInput
           :id="id"
-          class="h-12"
+          class="h-full"
           v-model="form.email"
           placeholder="Enter your email"
           :aria-invalid="ariaInvalid"
           @blur="validateField('email')"
         />
+        <UiInputGroupAddon v-if="fieldValid('email')" align="inline-end">
+          <div class="bg-md-tertiary flex size-5 shrink-0 items-center justify-center rounded-full">
+            <CheckIcon class="text-md-on-tertiary size-3" />
+          </div>
+        </UiInputGroupAddon>
       </UiInputGroup>
     </FormField>
     <FormField
@@ -86,17 +108,22 @@ defineExpose({
       :errors="errors.password"
       v-slot="{ id, ariaInvalid }"
     >
-      <UiInputGroup class="h-auto gap-x-1">
+      <UiInputGroup class="h-auto gap-x-1" :valid="fieldValid('password')">
         <UiInputGroupAddon class=""> <LockIcon /> </UiInputGroupAddon>
         <UiInputGroupInput
           :id="id"
-          class="h-12"
+          class="h-full"
           v-model="form.password"
           placeholder="Enter your password"
           type="password"
           :aria-invalid="ariaInvalid"
           @blur="validateField('password')"
         />
+        <UiInputGroupAddon v-if="fieldValid('password')" align="inline-end">
+          <div class="bg-md-tertiary flex size-5 shrink-0 items-center justify-center rounded-full">
+            <CheckIcon class="text-md-on-tertiary size-3" />
+          </div>
+        </UiInputGroupAddon>
       </UiInputGroup>
     </FormField>
     <FormField
@@ -105,17 +132,22 @@ defineExpose({
       :errors="errors.confirmPassword"
       v-slot="{ id, ariaInvalid }"
     >
-      <UiInputGroup class="h-auto gap-x-1">
+      <UiInputGroup class="h-auto gap-x-1" :valid="fieldValid('confirmPassword')">
         <UiInputGroupAddon class=""> <LockIcon /> </UiInputGroupAddon>
         <UiInputGroupInput
           :id="id"
-          class="h-12"
+          class="h-full"
           v-model="form.confirmPassword"
           type="password"
           placeholder="Confirm your password"
           :aria-invalid="ariaInvalid"
           @blur="validateField('confirmPassword')"
         />
+        <UiInputGroupAddon v-if="fieldValid('confirmPassword')" align="inline-end">
+          <div class="bg-md-tertiary flex size-5 shrink-0 items-center justify-center rounded-full">
+            <CheckIcon class="text-md-on-tertiary size-3" />
+          </div>
+        </UiInputGroupAddon>
       </UiInputGroup>
     </FormField>
 
@@ -127,11 +159,14 @@ defineExpose({
     >
       <UiPopover>
         <UiPopoverTrigger as-child>
-          <UiInputGroup class="h-auto cursor-pointer gap-x-1">
+          <UiInputGroup
+            class="h-auto cursor-pointer gap-x-1"
+            :valid="fieldValid('dateOfBirth')"
+          >
             <UiInputGroupAddon class=""> <CalendarIcon /> </UiInputGroupAddon>
             <UiInputGroupInput
               :id="id"
-              class="h-12 cursor-pointer font-mono"
+              class="h-full cursor-pointer font-mono"
               :model-value="
                 dateOfBirthValue
                   ? dateFormatter.format(dateOfBirthValue.toDate(getLocalTimeZone()))

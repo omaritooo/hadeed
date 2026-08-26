@@ -9,6 +9,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "db:seed": "tsx --env-file=.env server/database/seed.ts",
+    "db:seed:dummy": "tsx --env-file=.env server/database/seed-dummy.ts",
     "test": "vitest run"
   },
   "dependencies": {

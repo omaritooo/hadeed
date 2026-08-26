@@ -26,7 +26,7 @@ const forwardedProps = useForwardProps(delegatedProps);
     v-bind="forwardedProps"
     :class="
       cn(
-        'border-border bg-card group data-[state=checked]:border-primary flex w-full items-center gap-4 rounded-xl border p-4 text-left shadow-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+        ' bg-card group data-[state=checked]:border-primary flex w-full items-center gap-4 rounded-xl border p-4 text-left shadow-xs transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
         props.class
       )
     "

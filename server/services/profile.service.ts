@@ -2,6 +2,7 @@ import { BaseService } from '~~/server/services/base.service'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import type { UserRepository } from '~~/server/repositories/user.repository'
+import type { TargetRepository } from '~~/server/repositories/target.repository'
 import { bmi, lbsToKg, round1, tdee } from '~~/shared/lib/formulas'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
@@ -9,6 +10,8 @@ import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem } from '~~/shared/types/profile.types'
 
 export interface CompleteOnboardingInput {
+  /** Used only to create the `users` row if this is the caller's first authenticated write. */
+  email: string
   displayName?: string
   dateOfBirth: string
   gender: Gender
@@ -16,6 +19,8 @@ export interface CompleteOnboardingInput {
   height: number
   /** Raw value: kg if the resolved unitSystem is metric, lbs if imperial. */
   weight: number
+  /** Raw value, same unit as `weight`. Optional: onboarding doesn't require a goal weight. */
+  targetWeight?: number
   activityLevel?: ActivityLevel
   experienceLevel?: ExperienceLevel
   primaryGoal?: Goal
@@ -37,11 +42,16 @@ export class ProfileService extends BaseService {
     private profiles: ProfileRepository,
     private bodyMetrics: BodyMetricsRepository,
     private users: UserRepository,
+    private targets: TargetRepository,
   ) {
     super(ctx)
   }
 
   async completeOnboarding(input: CompleteOnboardingInput): Promise<void> {
+    // Must happen before profiles.upsert: user_profiles.user_id has a FOREIGN KEY REFERENCES
+    // users(id), and there's no signup flow that creates that row ahead of time.
+    await this.users.ensureExists(this.ctx.userId, input.email, input.displayName)
+
     // upsert() resolves unitSystem (which may be preserved from the existing row rather than
     // passed in `input`) and converts height inside its own transaction. Weight conversion
     // MUST use upsert's returned, post-commit unitSystem -- not input.unitSystem, which can be
@@ -60,8 +70,9 @@ export class ProfileService extends BaseService {
       timezone: input.timezone,
     })
     const weightKg = profile.unitSystem === 'imperial' ? round1(lbsToKg(input.weight)) : round1(input.weight)
+    const recordedAt = new Date().toISOString().slice(0, 10)
     await this.bodyMetrics.record(this.ctx.userId, {
-      recordedAt: new Date().toISOString().slice(0, 10),
+      recordedAt,
       weightKg,
       source: 'manual',
       measurements: [],
@@ -69,13 +80,29 @@ export class ProfileService extends BaseService {
     if (input.displayName !== undefined) {
       await this.users.updateDisplayName(this.ctx.userId, input.displayName)
     }
+    if (input.targetWeight !== undefined) {
+      // Same unitSystem conversion as the weight recorded above, so the target and the body
+      // metric it's measured against are always in the same canonical unit.
+      const targetWeightKg = profile.unitSystem === 'imperial' ? round1(lbsToKg(input.targetWeight)) : round1(input.targetWeight)
+      const existingTargets = await this.targets.findActiveForUser(this.ctx.userId)
+      const hasActiveWeightTarget = existingTargets.some(target => target.metric === 'weight')
+      if (!hasActiveWeightTarget) {
+        await this.targets.create(this.ctx.userId, {
+          metric: 'weight',
+          targetValue: targetWeightKg,
+          startingValue: weightKg,
+          startingRecordedAt: recordedAt,
+        })
+      }
+    }
   }
 
   async getProfile() {
     const profile = await this.profiles.findByUserId(this.ctx.userId)
     if (!profile) return null
     const displayName = await this.users.findDisplayName(this.ctx.userId)
-    return { ...profile, displayName }
+    const targets = await this.targets.findActiveForUser(this.ctx.userId)
+    return { ...profile, displayName, targets }
   }
 
   async getComputedStats(): Promise<{ bmi: number, tdee: number | null } | null> {
