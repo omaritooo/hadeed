@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createClient, type Client } from '@libsql/client'
 import { BlockRepository } from '~~/server/repositories/block.repository'
+import { hashPassword } from '~~/server/utils/password'
 import type { ActivityLevel } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem } from '~~/shared/types/profile.types'
@@ -314,10 +315,10 @@ function generateSessionDates(spec: TestUserSpec, now: Date): Date[] {
   return dates
 }
 
-async function seedUser(spec: TestUserSpec, now: Date): Promise<void> {
+async function seedUser(spec: TestUserSpec, now: Date, dummyPasswordHash: string): Promise<void> {
   await db.execute({
-    sql: 'INSERT INTO users (id, email, display_name) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name',
-    args: [spec.id, spec.email, spec.displayName],
+    sql: 'INSERT INTO users (id, email, display_name, password_hash) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name, password_hash = excluded.password_hash',
+    args: [spec.id, spec.email, spec.displayName, dummyPasswordHash],
   })
 
   for (const roleKey of spec.roles) {
@@ -524,10 +525,10 @@ async function seedUser(spec: TestUserSpec, now: Date): Promise<void> {
   }
 }
 
-async function seedEmptyUser(db: Client): Promise<void> {
+async function seedEmptyUser(db: Client, dummyPasswordHash: string): Promise<void> {
   await db.execute({
-    sql: 'INSERT INTO users (id, email, display_name) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET email = excluded.email',
-    args: ['test-user-empty', 'test-user-empty@hadeed.dev', null],
+    sql: 'INSERT INTO users (id, email, display_name, password_hash) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET email = excluded.email, password_hash = excluded.password_hash',
+    args: ['test-user-empty', 'test-user-empty@hadeed.dev', null, dummyPasswordHash],
   })
   const roleId = await findRoleId('member')
   await db.execute({
@@ -543,21 +544,26 @@ async function main() {
     process.exit(1)
   }
 
+  const DUMMY_PASSWORD = 'password123'
+  const dummyPasswordHash = await hashPassword(DUMMY_PASSWORD)
+
   const now = new Date()
   console.log('Seeding dummy users...')
   for (const spec of TEST_USERS) {
     console.log(`- ${spec.id} (${spec.displayName})`)
-    await seedUser(spec, now)
+    await seedUser(spec, now, dummyPasswordHash)
   }
 
   console.log('- test-user-empty (no profile, for testing onboarding/empty states)')
-  await seedEmptyUser(db)
+  await seedEmptyUser(db, dummyPasswordHash)
 
   console.log('Done. Seeded users: ' + [...TEST_USERS.map(u => u.id), 'test-user-empty'].join(', '))
   console.log('The frontend dev header (app/plugins/api.ts) always sends x-user-id: test-user,')
   console.log('so that account is the one you will see when using the app itself.')
   console.log('Use the others via curl/Postman with a custom x-user-id header, e.g.:')
   console.log('  curl -H "x-user-id: test-user-3" http://localhost:3000/api/profile')
+  console.log(`All seeded users share the password: ${DUMMY_PASSWORD}`)
+  console.log('Log in at /login with e.g. test-user@hadeed.dev / ' + DUMMY_PASSWORD)
 }
 
 main()
