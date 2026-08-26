@@ -95,7 +95,7 @@ const bw = (name: string, targetSets: number, targetReps: number, targetRpe: num
 
 const TEST_USERS: TestUserSpec[] = [
   {
-    id: 'test-user', // matches the hardcoded x-user-id header in app/plugins/api.ts
+    id: 'test-user',
     email: 'test-user@hadeed.dev',
     displayName: 'Alex Morgan',
     roles: ['member'],
@@ -558,12 +558,9 @@ async function main() {
   await seedEmptyUser(db, dummyPasswordHash)
 
   console.log('Done. Seeded users: ' + [...TEST_USERS.map(u => u.id), 'test-user-empty'].join(', '))
-  console.log('The frontend dev header (app/plugins/api.ts) always sends x-user-id: test-user,')
-  console.log('so that account is the one you will see when using the app itself.')
-  console.log('Use the others via curl/Postman with a custom x-user-id header, e.g.:')
-  console.log('  curl -H "x-user-id: test-user-3" http://localhost:3000/api/profile')
   console.log(`All seeded users share the password: ${DUMMY_PASSWORD}`)
   console.log('Log in at /login with e.g. test-user@hadeed.dev / ' + DUMMY_PASSWORD)
+  console.log('For the others, log in with their own @hadeed.dev email and the same password.')
 }
 
 main()
