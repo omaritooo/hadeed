@@ -45,3 +45,22 @@ describe('UserRepository.findDisplayName', () => {
     expect(await repo.findDisplayName('user-1')).toBeNull()
   })
 })
+
+describe('UserRepository schema', () => {
+  let db: Client
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+  })
+
+  it('has the password_hash column and a sessions table in the schema', async () => {
+    await db.execute({ sql: 'UPDATE users SET password_hash = ? WHERE id = ?', args: ['abc:def', 'user-1'] })
+    const userRow = await db.execute({ sql: 'SELECT password_hash FROM users WHERE id = ?', args: ['user-1'] })
+    expect(userRow.rows[0]?.password_hash).toBe('abc:def')
+
+    await db.execute({ sql: "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, datetime('now', '+1 day'))", args: ['sess-1', 'user-1'] })
+    const sessionRow = await db.execute({ sql: 'SELECT user_id FROM sessions WHERE id = ?', args: ['sess-1'] })
+    expect(sessionRow.rows[0]?.user_id).toBe('user-1')
+  })
+})

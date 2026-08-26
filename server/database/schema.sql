@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+ALTER TABLE users ADD COLUMN password_hash TEXT;
+
 CREATE TABLE IF NOT EXISTS roles (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   key          TEXT NOT NULL UNIQUE,
@@ -295,3 +297,14 @@ CREATE INDEX IF NOT EXISTS idx_sync_conflicts_user    ON sync_conflicts(user_id,
 -- Adds is_rest_day to split_days (declared above) so a Block's schedule can
 -- mark a day as a rest day without string-matching on split_days.name.
 ALTER TABLE split_days ADD COLUMN is_rest_day INTEGER NOT NULL DEFAULT 0;
+
+-- Auth sessions: a random opaque token per login, stored server-side so it can be revoked by
+-- deleting the row (unlike a self-contained signed cookie/JWT).
+CREATE TABLE IF NOT EXISTS sessions (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
