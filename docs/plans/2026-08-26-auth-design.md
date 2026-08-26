@@ -96,18 +96,42 @@ comparison.
 
 No separate signup endpoint. `POST /api/profile/onboarding` already creates
 the `users` row on first write (`UserRepository.ensureExists`, added in the
-onboarding/DB-mismatch fix earlier). This design extends that same path:
+onboarding/DB-mismatch fix earlier) — but that logic identified the caller
+via `ctx.userId`, sourced from `getRequestContext(event)`. Once §5 rewrites
+`getRequestContext` to require a valid session, that becomes circular for
+signup specifically: a brand-new account has no session yet, so a call that
+*requires* one first would 401 before ever creating the account.
 
-- `CompleteOnboardingInput` gains `password: string`.
-- `ProfileService.completeOnboarding` hashes it and passes the hash into
-  `ensureExists`, which now also sets `password_hash` on first creation
-  (still `ON CONFLICT (id) DO NOTHING`, so a repeat onboarding call for an
-  already-existing user never overwrites their password here — password
-  changes are explicitly out of scope, see Non-goals).
-- After the existing profile/body-metrics/target writes succeed, the route
-  creates a session row and sets the cookie (see §4), then returns the
-  profile — the client is fully logged in the moment onboarding finishes,
-  no separate login step required.
+So `POST /api/profile/onboarding` stops calling `getRequestContext` and
+becomes the one route that establishes identity itself instead of reading
+it:
+
+1. Look up `users` by the submitted email (`UserRepository.findByEmail`). If
+   found, `409 Conflict` — "An account with this email already exists,"
+   pointing the client at `/login` instead. (Every other field mismatch is
+   the existing `400`/Zod-validation path; this is new because email
+   uniqueness can only be checked against the DB, not the request shape.)
+2. Otherwise generate a fresh `userId` (`crypto.randomUUID()`) — never
+   client-supplied, since there's no prior identity to trust here.
+3. Build a `RequestContext` by hand (`{ userId, roles: [], permissions: [] }`,
+   same shape `getRequestContext` would have produced) and proceed exactly
+   as today: `ProfileService.completeOnboarding` hashes the password
+   (`CompleteOnboardingInput` gains `password: string`) and passes the hash
+   into `ensureExists`, which now also accepts `passwordHash` and sets it on
+   creation. `ensureExists` keeps its `ON CONFLICT (id) DO NOTHING` as a
+   harmless safety net, but with `userId` now always freshly generated
+   per-signup, the id conflict it was originally guarding against (the old
+   client-supplied `x-user-id` reusing an id) can no longer happen through
+   this route — it's only still relevant for direct-SQL seeding
+   (`seed-dummy.ts`), which keeps using fixed ids like `test-user`.
+4. After the existing profile/body-metrics/target writes succeed, the route
+   creates a session row for the new `userId` and sets the cookie (§4), then
+   returns the profile — the client is fully logged in the moment onboarding
+   finishes, no separate login step required.
+
+Every *other* route keeps calling `getRequestContext` unchanged and
+continues to reject unauthenticated requests — onboarding is a deliberate,
+narrow exception because it's the one place identity doesn't exist yet.
 
 `shared/schemas/onboarding.ts` already validates `password`/`confirmPassword`
 (step 1) — `OnboardingForm.vue`'s submit handler adds `password: data.password`
@@ -141,18 +165,19 @@ export async function getRequestContext(event: H3Event): Promise<RequestContext>
   const sessionId = getCookie(event, 'session')
   if (!sessionId) throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
 
-  const session = await findValidSession(useDb(), sessionId) // joins sessions, checks expires_at > now
+  const db = useDb()
+  const session = await new AuthSessionRepository(db).findValid(sessionId) // checks expires_at > now
   if (!session) throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
 
-  return buildRequestContext(useDb(), session.userId)
+  return buildRequestContext(db, session.userId)
 }
 ```
 
-No fallback to `x-user-id` — every existing route already goes through this
-function, so this is the only place that changes. Confirmed no test
-currently depends on the header (`tests/` constructs `RequestContext`
-directly and calls services, never goes through `getRequestContext`), so
-nothing in the suite breaks.
+No fallback to `x-user-id` — every route except `POST /api/profile/onboarding`
+(§3) already goes through this function, so this is the only place that
+changes for them. Confirmed no test currently depends on the header
+(`tests/` constructs `RequestContext` directly and calls services, never
+goes through `getRequestContext`), so nothing in the suite breaks.
 
 `app/plugins/api.ts` drops the hardcoded header entirely; the browser sends
 the httpOnly cookie automatically on same-origin requests.
@@ -191,17 +216,18 @@ testing workaround.
 ```
 server/database/schema.sql          -- password_hash column, sessions table
 server/utils/password.ts            -- hash/verify (new)
-server/repositories/session.repository.ts   -- session CRUD (new; name
-                                     -- collides conceptually with the existing
-                                     -- workout SessionRepository — call it
-                                     -- AuthSessionRepository to disambiguate)
+server/repositories/auth-session.repository.ts -- session CRUD (new; named
+                                     -- to avoid colliding with the existing
+                                     -- workout SessionRepository)
+server/repositories/user.repository.ts -- + findByEmail, ensureExists gains passwordHash
 server/utils/get-request-context.ts -- cookie-based, no header fallback
 server/api/auth/login.post.ts       -- new
 server/api/auth/logout.post.ts      -- new
 server/api/auth/me.get.ts           -- new
-server/services/profile.service.ts  -- CompleteOnboardingInput.password,
-                                     -- hash + session creation on signup
-server/api/profile/onboarding.post.ts -- sets the session cookie on success
+server/services/profile.service.ts  -- CompleteOnboardingInput.password
+server/api/profile/onboarding.post.ts -- generates userId itself (no longer
+                                     -- calls getRequestContext), checks email
+                                     -- uniqueness, sets the session cookie
 app/plugins/api.ts                  -- drop hardcoded x-user-id header
 app/composables/useAuthUser.ts      -- new
 app/composables/useLogin.ts         -- new
