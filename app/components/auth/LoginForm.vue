@@ -2,6 +2,7 @@
 import { loginSchema } from "~~/shared/schemas/login";
 import { FormField } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { useLogin } from "@/composables/useLogin";
 import { ArrowRightIcon, CheckIcon, LockIcon, Mail } from "@lucide/vue";
 
 const { form, errors, touched, validateField, validateAll } = useZodForm(loginSchema, {
@@ -15,9 +16,16 @@ function fieldValid(field: keyof typeof form) {
 
 const rememberMe = ref(false);
 
-function handleSubmit() {
+const { mutateAsync: login, isLoading, error } = useLogin();
+
+async function handleSubmit() {
   if (!validateAll()) return;
-  // No auth backend yet — nothing to call.
+  try {
+    await login({ email: form.email!, password: form.password!, rememberMe: rememberMe.value });
+    await navigateTo("/");
+  } catch {
+    // `error` is already reactive and rendered below.
+  }
 }
 </script>
 
@@ -87,7 +95,10 @@ function handleSubmit() {
         </label>
       </div>
 
-      <Button class="w-full" size="lg" @click="handleSubmit">
+      <p v-if="error" class="mb-2 text-center text-sm text-destructive">
+        {{ error.data?.statusMessage ?? "Something went wrong. Please try again." }}
+      </p>
+      <Button class="w-full" size="lg" :disabled="isLoading" @click="handleSubmit">
         Log In
         <ArrowRightIcon class="size-4" />
       </Button>

@@ -8,10 +8,12 @@ import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem } from '~~/shared/types/profile.types'
+import { hashPassword } from '~~/server/utils/password'
 
 export interface CompleteOnboardingInput {
-  /** Used only to create the `users` row if this is the caller's first authenticated write. */
+  /** Used to create the `users` row -- onboarding is this app's signup flow. */
   email: string
+  password: string
   displayName?: string
   dateOfBirth: string
   gender: Gender
@@ -49,8 +51,10 @@ export class ProfileService extends BaseService {
 
   async completeOnboarding(input: CompleteOnboardingInput): Promise<void> {
     // Must happen before profiles.upsert: user_profiles.user_id has a FOREIGN KEY REFERENCES
-    // users(id), and there's no signup flow that creates that row ahead of time.
-    await this.users.ensureExists(this.ctx.userId, input.email, input.displayName)
+    // users(id), and this call is what creates that row (onboarding.post.ts generates a fresh
+    // userId per signup and calls completeOnboarding as its very first write for that user).
+    const passwordHash = await hashPassword(input.password)
+    await this.users.ensureExists(this.ctx.userId, input.email, passwordHash, input.displayName)
 
     // upsert() resolves unitSystem (which may be preserved from the existing row rather than
     // passed in `input`) and converts height inside its own transaction. Weight conversion

@@ -1,16 +1,32 @@
 import type { Client } from '@libsql/client'
 
+export interface UserWithPasswordHash {
+  id: string
+  email: string
+  passwordHash: string | null
+}
+
 export class UserRepository {
   constructor(private db: Client) {}
 
-  // There's no signup flow yet -- requests are identified purely by the x-user-id header (see
-  // getRequestContext) -- so the first authenticated write for a given userId is what creates
-  // their `users` row. ON CONFLICT (id) DO NOTHING makes this safe to call on every request.
-  async ensureExists(userId: string, email: string, displayName?: string): Promise<void> {
+  // There's no separate signup endpoint -- requests establish identity via a session cookie
+  // (see getRequestContext), except onboarding itself, which creates the account. ON CONFLICT
+  // (id) DO NOTHING makes this safe to call unconditionally on the onboarding path.
+  async ensureExists(userId: string, email: string, passwordHash: string, displayName?: string): Promise<void> {
     await this.db.execute({
-      sql: 'INSERT INTO users (id, email, display_name) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING',
-      args: [userId, email, displayName ?? null],
+      sql: 'INSERT INTO users (id, email, password_hash, display_name) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING',
+      args: [userId, email, passwordHash, displayName ?? null],
     })
+  }
+
+  async findByEmail(email: string): Promise<UserWithPasswordHash | null> {
+    const result = await this.db.execute({
+      sql: 'SELECT id, email, password_hash FROM users WHERE email = ?',
+      args: [email],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    if (!row) return null
+    return { id: row.id as string, email: row.email as string, passwordHash: row.password_hash as string | null }
   }
 
   async updateDisplayName(userId: string, displayName: string): Promise<void> {
