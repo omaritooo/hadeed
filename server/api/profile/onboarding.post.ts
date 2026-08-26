@@ -15,6 +15,12 @@ interface OnboardingRequestBody extends Omit<CompleteOnboardingInput, 'height' |
   weight: number // kg if unitSystem is 'metric' (or unresolved/omitted), lbs if 'imperial'
 }
 
+// Same detection pattern as SessionRepository.isUniqueConstraintError
+// (server/repositories/session.repository.ts).
+function isUniqueConstraintError(err: unknown): boolean {
+  return err instanceof Error && /UNIQUE constraint failed/i.test(err.message)
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) as OnboardingRequestBody
   const db = useDb()
@@ -38,7 +44,29 @@ export default defineEventHandler(async (event) => {
   const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), users, new TargetRepository(db))
 
   const input: CompleteOnboardingInput = { ...rest, height, weight }
-  await service.completeOnboarding(input)
+  try {
+    await service.completeOnboarding(input)
+  } catch (err) {
+    // completeOnboarding isn't transactional end-to-end: ensureExists commits the `users` row
+    // immediately, then profiles.upsert runs its own separate transaction with CHECK constraints
+    // on gender/activityLevel/experienceLevel/primaryGoal/equipment/unitSystem. A failure after
+    // the users row lands (e.g. an invalid enum value) would otherwise leave a ghost `users` row
+    // with no profile -- and since this route hard-blocks on any existing email, that email could
+    // never onboard again. Clean up the just-created row so a corrected retry can succeed; the FK
+    // ON DELETE CASCADE on user_profiles/body_metrics/user_targets etc. cleans up any partial
+    // writes from the same userId.
+    await db.execute({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] })
+
+    // Two concurrent signups with the same email can both pass the findByEmail check above
+    // before either commits; the second ensureExists insert then hits users.email's UNIQUE
+    // constraint directly (its ON CONFLICT only targets id) and throws a raw SQLite error.
+    // Surface that as the same clean 409 the pre-check above gives, instead of an unstructured
+    // 500 leaking the raw SQLite message.
+    if (isUniqueConstraintError(err)) {
+      throw createError({ statusCode: 409, statusMessage: 'An account with this email already exists' })
+    }
+    throw err
+  }
 
   const session = await new AuthSessionRepository(db).create(userId)
   setSessionCookie(event, session.id, { persist: true }) // onboarding always logs the user in persistently; "remember me" only applies at login
