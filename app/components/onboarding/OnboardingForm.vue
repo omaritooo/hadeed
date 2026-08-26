@@ -57,13 +57,12 @@ async function handleContinue() {
   if (onboardingStep.value === steps.length) {
     const data = onboardingStore.submitForm();
 
-    // password/confirmPassword are collected for a future account-signup step but aren't sent
-    // here: there's no auth signup endpoint yet (the backend identifies users purely via the
-    // x-user-id header, by design -- see docs/plans/2026-08-23-onboarding-profile-backend-design.md).
-    // email IS sent -- it's required to create the users row on this caller's first write.
+    // email/password are sent to create the users row and its login credentials on this
+    // caller's first write; confirmPassword was only ever a client-side equality check.
     try {
       await completeOnboarding({
         email: data.email,
+        password: data.password,
         displayName: data.fullName,
         dateOfBirth: data.dateOfBirth,
         gender: data.gender,
