@@ -46,6 +46,36 @@ describe('UserRepository.findDisplayName', () => {
   })
 })
 
+describe('UserRepository.ensureExists / findByEmail', () => {
+  let db: Client
+  let repo: UserRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new UserRepository(db)
+  })
+
+  it('ensureExists creates the row with a password hash when it does not exist yet', async () => {
+    await repo.ensureExists('user-2', 'b@example.com', 'salthex:hashhex', 'Bailey')
+
+    const found = await repo.findByEmail('b@example.com')
+    expect(found?.id).toBe('user-2')
+    expect(found?.passwordHash).toBe('salthex:hashhex')
+  })
+
+  it('ensureExists does not overwrite an existing row (including its password)', async () => {
+    await repo.ensureExists('user-1', 'a@example.com', 'original-hash')
+    await repo.ensureExists('user-1', 'a@example.com', 'different-hash', 'New Name')
+
+    const found = await repo.findByEmail('a@example.com')
+    expect(found?.passwordHash).toBe('original-hash')
+  })
+
+  it('findByEmail returns null for an email with no account', async () => {
+    expect(await repo.findByEmail('nobody@example.com')).toBeNull()
+  })
+})
+
 describe('UserRepository schema', () => {
   let db: Client
 
