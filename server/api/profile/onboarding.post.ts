@@ -23,6 +23,10 @@ function isUniqueConstraintError(err: unknown): boolean {
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) as OnboardingRequestBody
+  if (typeof body.email !== 'string' || typeof body.password !== 'string') {
+    throw createError({ statusCode: 400, statusMessage: 'email and password are required' })
+  }
+
   const db = useDb()
   const users = new UserRepository(db)
 
