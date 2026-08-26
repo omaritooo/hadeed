@@ -11,8 +11,12 @@ export function useZodForm<Schema extends z.ZodObject<z.ZodRawShape>>(
   const errors = reactive(
     Object.fromEntries(Object.keys(initialValues).map(key => [key, [] as string[]])),
   ) as Record<Key, string[]>
+  const touched = reactive(
+    Object.fromEntries(Object.keys(initialValues).map(key => [key, false])),
+  ) as Record<Key, boolean>
 
   function validateField(field: Key) {
+    touched[field] = true
     const result = schema.shape[field as string].safeParse(form[field])
     errors[field] = result.success ? [] : result.error.issues.map(issue => issue.message)
   }
@@ -22,6 +26,7 @@ export function useZodForm<Schema extends z.ZodObject<z.ZodRawShape>>(
     const fieldErrors = result.success ? {} : result.error.flatten().fieldErrors as Record<string, string[] | undefined>
 
     for (const key of Object.keys(errors) as Key[]) {
+      touched[key] = true
       errors[key] = fieldErrors[key as string] ?? []
     }
 
@@ -30,8 +35,11 @@ export function useZodForm<Schema extends z.ZodObject<z.ZodRawShape>>(
 
   function reset() {
     Object.assign(form, structuredClone(initialValues))
-    for (const key of Object.keys(errors) as Key[]) errors[key] = []
+    for (const key of Object.keys(errors) as Key[]) {
+      errors[key] = []
+      touched[key] = false
+    }
   }
 
-  return { form, errors, validateField, validateAll, reset }
+  return { form, errors, touched, validateField, validateAll, reset }
 }

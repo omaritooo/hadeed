@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const props = defineProps<{
   class?: HTMLAttributes["class"];
+  valid?: boolean;
 }>();
 </script>
 
@@ -13,8 +14,9 @@ const props = defineProps<{
     role="group"
     :class="
       cn(
-        'group/input-group border-input font-mono dark:bg-input/30 relative flex w-full items-center rounded-md border shadow-xs transition-[color,box-shadow] outline-none',
-        'h-10 min-w-0 has-[>textarea]:h-auto',
+        'group/input-group border-input bg-md-surface-container-highest font-mono relative flex w-full items-center rounded-lg border shadow-xs transition-[color,box-shadow] outline-none',
+        'h-14 min-w-0 has-[>textarea]:h-auto',
+        props.valid && 'border-md-tertiary/50 ring-1 ring-md-tertiary/20',
 
         // Variants based on alignment.
         'has-[>[data-align=inline-start]]:[&>input]:pl-2',
