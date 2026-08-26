@@ -1,5 +1,35 @@
 # Authentication — design
 
+> **Post-implementation amendment (2026-08-26):** two pieces of this design's own
+> code sketches turned out to be wrong once actually built, caught during
+> per-task review rather than at design time:
+>
+> - **§6 (route guard)** showed `app/middleware/auth.global.ts` calling
+>   `useNuxtApp().$api('/api/auth/me')` directly. `$api` is a universal plugin
+>   with no SSR cookie-forwarding — a route middleware using it directly sees
+>   "logged out" on every SSR pass (hard refresh, direct navigation), bouncing
+>   legitimately logged-in users to `/login`. The shipped middleware uses Nuxt's
+>   `useRequestFetch()` instead, which forwards the incoming request's cookies
+>   during SSR. See `app/middleware/auth.global.ts` and the plan's Task 13 for
+>   the corrected version.
+> - **§4/§6 (`GET /api/auth/me`)** specified returning a bare `null` for the
+>   unauthenticated case. h3 unconditionally serializes a bare `null` return as
+>   HTTP 204 with no body, not 200 with a JSON `null` — and `ofetch` surfaces a
+>   204 as `undefined`, not `null`, to callers. A guard written as `me !== null`
+>   (as originally specified) would misclassify every unauthenticated visitor as
+>   authenticated. The shipped endpoint always returns a real 200 with
+>   `{ userId: string | null }`, and the guard checks `me.userId != null`. See
+>   `server/api/auth/me.get.ts` and the plan's Task 11.
+>
+> Also fixed during implementation, closing real bugs the original design didn't
+> anticipate: a timing side-channel in login (unknown-email responses were
+> faster than wrong-password ones, letting an attacker enumerate accounts by
+> response time — closed by comparing against a fixed dummy hash on the
+> not-found path too), and a ghost-account/race pair in onboarding (a failed
+> signup left an unrecoverable `users` row with no profile, permanently locking
+> that email out; a concurrent duplicate-email signup surfaced as a raw 500
+> instead of a clean 409). See the `fix:` commits on `feature/auth` for detail.
+
 ## Problem
 
 There is no auth anywhere in this app today. `server/utils/get-request-context.ts`
