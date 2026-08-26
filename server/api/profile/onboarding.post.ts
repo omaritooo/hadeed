@@ -55,7 +55,16 @@ export default defineEventHandler(async (event) => {
     // never onboard again. Clean up the just-created row so a corrected retry can succeed; the FK
     // ON DELETE CASCADE on user_profiles/body_metrics/user_targets etc. cleans up any partial
     // writes from the same userId.
-    await db.execute({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] })
+    //
+    // The DELETE itself can fail too (transient DB blip). Don't let that exception replace the
+    // original error -- that would both hide the real root cause and skip the
+    // isUniqueConstraintError(err) check below. Log it so the leftover ghost row is at least
+    // debuggable, then fall through and keep handling the original `err`.
+    try {
+      await db.execute({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] })
+    } catch (cleanupErr) {
+      console.error(`onboarding: failed to clean up ghost users row ${userId} after signup failure`, err, cleanupErr)
+    }
 
     // Two concurrent signups with the same email can both pass the findByEmail check above
     // before either commits; the second ensureExists insert then hits users.email's UNIQUE
