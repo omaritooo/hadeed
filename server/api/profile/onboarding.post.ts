@@ -1,11 +1,14 @@
+import { randomUUID } from 'node:crypto'
 import { createError, readBody } from 'h3'
 import { useDb } from '~~/server/utils/db'
-import { getRequestContext } from '~~/server/utils/get-request-context'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import { UserRepository } from '~~/server/repositories/user.repository'
 import { TargetRepository } from '~~/server/repositories/target.repository'
+import { AuthSessionRepository } from '~~/server/repositories/auth-session.repository'
 import { ProfileService, type CompleteOnboardingInput } from '~~/server/services/profile.service'
+import { setSessionCookie } from '~~/server/utils/session-cookie'
+import type { RequestContext } from '~~/shared/types/rbac.types'
 
 interface OnboardingRequestBody extends Omit<CompleteOnboardingInput, 'height' | 'weight'> {
   height: number // cm if unitSystem is 'metric' (or unresolved/omitted), inches if 'imperial'
@@ -13,18 +16,32 @@ interface OnboardingRequestBody extends Omit<CompleteOnboardingInput, 'height' |
 }
 
 export default defineEventHandler(async (event) => {
-  const ctx = await getRequestContext(event)
   const body = await readBody(event) as OnboardingRequestBody
   const db = useDb()
-  const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db))
+  const users = new UserRepository(db)
+
+  // This route can't call getRequestContext (Task 6): it now requires a valid session, and a
+  // brand-new signup has none yet. So this is the one route that establishes identity itself
+  // instead of reading it back.
+  const existing = await users.findByEmail(body.email)
+  if (existing) {
+    throw createError({ statusCode: 409, statusMessage: 'An account with this email already exists' })
+  }
 
   const { height, weight, ...rest } = body
   if (!Number.isFinite(height) || height <= 0 || !Number.isFinite(weight) || weight <= 0) {
     throw createError({ statusCode: 400, statusMessage: 'height and weight must be positive numbers' })
   }
 
-  const input: CompleteOnboardingInput = { ...rest, height, weight }
+  const userId = randomUUID()
+  const ctx: RequestContext = { userId, roles: [], permissions: [] }
+  const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), users, new TargetRepository(db))
 
+  const input: CompleteOnboardingInput = { ...rest, height, weight }
   await service.completeOnboarding(input)
+
+  const session = await new AuthSessionRepository(db).create(userId)
+  setSessionCookie(event, session.id, { persist: true }) // onboarding always logs the user in persistently; "remember me" only applies at login
+
   return service.getProfile()
 })
