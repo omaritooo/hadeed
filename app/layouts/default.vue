@@ -1,7 +1,9 @@
 <script lang="ts" setup></script>
 
 <template>
-  <main>
+  <main class="pb-20">
+    <UiHeader />
     <NuxtPage />
+    <UiBottomNav />
   </main>
 </template>
