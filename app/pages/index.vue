@@ -1,7 +1,5 @@
 <script setup lang="ts">
-definePageMeta({
-  redirect: "/workouts",
-});
+definePageMeta({});
 </script>
 
 <template>

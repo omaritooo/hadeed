@@ -16,7 +16,7 @@ export interface Streak {
   lastActiveDate: string | null
 }
 
-export type AchievementCriteriaType = 'session_count' | 'streak_length' | 'pr' | 'target_hit'
+export type AchievementCriteriaType = 'session_count' | 'streak_length' | 'pr_count' | 'total_volume_kg' | 'target_hit'
 
 export interface Achievement {
   id: number

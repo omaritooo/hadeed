@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client'
 import type { SetType } from '~~/shared/types/split.types'
 import type {
+  ExerciseHistoryEntry,
   ExerciseLog,
   SessionStatus,
   SetLog,
@@ -426,6 +427,30 @@ export class SessionRepository {
     return row ? (row.user_id as string) : null
   }
 
+  async findExerciseIdForLog(exerciseLogId: string): Promise<string | null> {
+    const result = await this.db.execute({ sql: 'SELECT exercise_id FROM exercise_logs WHERE id = ?', args: [exerciseLogId] })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? (row.exercise_id as string) : null
+  }
+
+  // The heaviest weight this user has ever logged for this exercise, across every session --
+  // used at write time to detect whether a just-logged set is a new PR (see sets.post.ts).
+  // Deliberately the same "heaviest weight wins" rule findExerciseHistory uses for its own PR,
+  // so a set that's flagged as a PR here is the same set findExerciseHistory would later report.
+  async findBestWeightForExercise(userId: string, exerciseId: string): Promise<number | null> {
+    const result = await this.db.execute({
+      sql: `SELECT MAX(sl.weight_kg) AS max_weight
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN workout_sessions ws ON ws.id = el.session_id
+            WHERE ws.user_id = ? AND el.exercise_id = ? AND sl.weight_kg IS NOT NULL`,
+      args: [userId, exerciseId],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    const maxWeight = row?.max_weight
+    return typeof maxWeight === 'number' ? maxWeight : null
+  }
+
   async expireStaleSessions(userId: string): Promise<void> {
     await this.db.execute({
       sql: `UPDATE workout_sessions
@@ -436,6 +461,46 @@ export class SessionRepository {
     })
   }
 
+  // One row per session: its heaviest set for this exercise (weight, then reps, breaks ties)
+  // plus how many sets were logged that session. ROW_NUMBER() rather than a plain MAX(weight_kg)
+  // GROUP BY, because the reps figure has to come from the *same* set as the winning weight, not
+  // an independent MAX(reps) that could belong to a different set entirely.
+  async findExerciseHistory(userId: string, exerciseId: string): Promise<ExerciseHistoryEntry[]> {
+    const result = await this.db.execute({
+      sql: `WITH ranked_sets AS (
+              SELECT
+                ws.id AS session_id,
+                COALESCE(ws.completed_at, ws.started_at) AS session_date,
+                sl.weight_kg AS weight_kg,
+                sl.reps AS reps,
+                ROW_NUMBER() OVER (
+                  PARTITION BY ws.id
+                  ORDER BY sl.weight_kg DESC, sl.reps DESC
+                ) AS rn,
+                COUNT(*) OVER (PARTITION BY ws.id) AS sets_count
+              FROM workout_sessions ws
+              JOIN exercise_logs el ON el.session_id = ws.id
+              JOIN set_logs sl ON sl.exercise_log_id = el.id
+              WHERE ws.user_id = ?
+                AND el.exercise_id = ?
+                AND sl.weight_kg IS NOT NULL
+                AND sl.reps IS NOT NULL
+            )
+            SELECT session_id, session_date, weight_kg, reps, sets_count
+            FROM ranked_sets
+            WHERE rn = 1
+            ORDER BY session_date DESC`,
+      args: [userId, exerciseId],
+    })
+    return result.rows.map(row => ({
+      sessionId: row.session_id as string,
+      date: row.session_date as string,
+      topSetWeightKg: row.weight_kg as number,
+      topSetReps: row.reps as number,
+      setsCount: row.sets_count as number,
+    }))
+  }
+
   async countTrainedDaysInRange(userId: string, startIso: string, endIso: string): Promise<number> {
     const result = await this.db.execute({
       sql: `SELECT COUNT(DISTINCT date(started_at)) as count FROM workout_sessions
@@ -443,5 +508,20 @@ export class SessionRepository {
       args: [userId, startIso, endIso],
     })
     return (result.rows[0]?.count as number) ?? 0
+  }
+
+  // weight_kg * reps per set, summed across every set this user has ever logged -- the "total
+  // volume lifted" figure the total_volume_kg achievement criteria (and any future stats
+  // display) reads against.
+  async totalVolumeKg(userId: string): Promise<number> {
+    const result = await this.db.execute({
+      sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN workout_sessions ws ON ws.id = el.session_id
+            WHERE ws.user_id = ? AND sl.weight_kg IS NOT NULL AND sl.reps IS NOT NULL`,
+      args: [userId],
+    })
+    return (result.rows[0]?.total as number) ?? 0
   }
 }

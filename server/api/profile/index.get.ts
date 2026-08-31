@@ -6,6 +6,16 @@ import { UserRepository } from '~~/server/repositories/user.repository'
 import { TargetRepository } from '~~/server/repositories/target.repository'
 import { ProfileService } from '~~/server/services/profile.service'
 
+defineRouteMeta({
+  openAPI: {
+    summary: 'Get current user profile',
+    description: 'Returns the profile plus computed stats (e.g. targets) for the authenticated user.',
+    responses: {
+      200: { description: 'Profile and computed stats' },
+    },
+  },
+})
+
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
   const db = useDb()

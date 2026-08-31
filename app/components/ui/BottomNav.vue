@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ChartLineIcon, DumbbellIcon, LayoutGridIcon, UserIcon } from "@lucide/vue";
+import {
+  ChartLineIcon,
+  DumbbellIcon,
+  HomeIcon,
+  LayoutGridIcon,
+  UserIcon,
+} from "@lucide/vue";
 import { cn } from "@/lib/utils";
 
 const route = useRoute();
 
 const items = [
+  { to: "/", label: "Home", icon: HomeIcon },
   { to: "/workouts", label: "Workouts", icon: DumbbellIcon },
   { to: "/builder", label: "Builder", icon: LayoutGridIcon },
   { to: "/stats", label: "Stats", icon: ChartLineIcon },
@@ -28,7 +35,11 @@ const items = [
           )
         "
       >
-        <component :is="item.icon" class="size-5" :stroke-width="route.path === item.to ? 2.5 : 2" />
+        <component
+          :is="item.icon"
+          class="size-5"
+          :stroke-width="route.path === item.to ? 2.5 : 2"
+        />
         <span class="font-mono text-[10px] font-bold uppercase tracking-[1px]">{{
           item.label
         }}</span>

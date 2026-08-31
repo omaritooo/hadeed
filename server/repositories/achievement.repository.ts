@@ -38,6 +38,29 @@ export class AchievementRepository {
     return this.mapRow(row as unknown as Record<string, unknown>)
   }
 
+  // Seeding needs update-if-exists, not insert-if-missing -- create() alone means fixing a
+  // seeded achievement's copy or criteria later (e.g. a wrong threshold) never reaches a
+  // database that already has that key, since the seed script only re-runs the insert for
+  // keys it doesn't find.
+  async upsertByKey(input: CreateAchievementInput): Promise<Achievement> {
+    const result = await this.db.execute({
+      sql: `INSERT INTO achievements (key, name, description, icon, criteria_type, criteria_value, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (key) DO UPDATE SET
+              name = excluded.name,
+              description = excluded.description,
+              icon = excluded.icon,
+              criteria_type = excluded.criteria_type,
+              criteria_value = excluded.criteria_value,
+              is_published = excluded.is_published
+            RETURNING *`,
+      args: [input.key, input.name, input.description, input.icon, input.criteriaType, JSON.stringify(input.criteriaValue), input.isPublished ? 1 : 0],
+    })
+    const row = result.rows[0]
+    if (!row) throw new Error('Failed to upsert achievement')
+    return this.mapRow(row as unknown as Record<string, unknown>)
+  }
+
   async findPublished(): Promise<Achievement[]> {
     const result = await this.db.execute('SELECT * FROM achievements WHERE is_published = 1')
     return result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))

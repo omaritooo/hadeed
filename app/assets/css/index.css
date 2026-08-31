@@ -274,4 +274,64 @@
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+/* scrollbar-color has only been Baseline "newly available" since Dec 2025 -- keep the legacy
+   WebKit fallback rather than assuming it everywhere. Colors read from the same --border variable,
+   so there's nothing to duplicate here. */
+@supports not (scrollbar-color: auto) {
+  * {
+    scrollbar-width: initial;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Entrance keyframes for gated `motion-safe:group-data-[state=...]` reveals (e.g. the exercise
+   drawer's execution stepper) -- referenced via Tailwind's arbitrary `animate-[name_...]` syntax,
+   which needs the keyframes to exist somewhere rather than generating them itself. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes line-draw {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes header-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

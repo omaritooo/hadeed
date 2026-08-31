@@ -5,6 +5,33 @@ import { BlockRepository } from '~~/server/repositories/block.repository'
 import { PresetSplitRepository } from '~~/server/repositories/preset-split.repository'
 import { SplitService } from '~~/server/services/split.service'
 
+defineRouteMeta({
+  openAPI: {
+    summary: 'Create a training block from a preset split',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['presetSplitId', 'name', 'startDate'],
+            properties: {
+              presetSplitId: { type: 'number' },
+              name: { type: 'string' },
+              startDate: { type: 'string', format: 'date' },
+              endDate: { type: 'string', format: 'date', nullable: true },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      200: { description: 'The created block' },
+      404: { description: 'Preset not found' },
+    },
+  },
+})
+
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
   const body = await readBody(event) as { presetSplitId: number, name: string, startDate: string, endDate: string | null }

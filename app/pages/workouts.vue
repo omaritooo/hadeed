@@ -134,7 +134,7 @@ function formatHistoryDate(dateString: string): string {
 
           <div
             v-if="personalRecord"
-            class="relative flex items-center h-fit min-h-22 justify-between overflow-hidden rounded-xl border border-md-surface-container-high bg-card p-4.25 shadow-[0_0_20px_0_rgba(255,87,34,0.2)]"
+            class="relative flex items-center h-fit min-h-22 justify-between overflow-hidden rounded-xl border border-md-surface-container-high bg-card p-5 shadow-[0_0_20px_0_rgba(255,87,34,0.2)]"
           >
             <div class="flex items-center gap-4">
               <div
@@ -282,7 +282,7 @@ function formatHistoryDate(dateString: string): string {
             <div
               v-for="entry in history"
               :key="entry.sessionId"
-              class="flex items-center justify-between rounded-xl border border-md-surface-variant bg-card p-4.25"
+              class="flex items-center justify-between rounded-xl border border-md-surface-variant bg-card p-5"
             >
               <div>
                 <p class="mb-1 font-mono text-xs text-muted-foreground">

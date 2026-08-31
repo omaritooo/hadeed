@@ -11,6 +11,37 @@ interface LoginRequestBody {
   rememberMe?: unknown
 }
 
+defineRouteMeta({
+  openAPI: {
+    summary: 'Log in',
+    description: 'Verifies email/password and sets a session cookie.',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['email', 'password'],
+            properties: {
+              email: { type: 'string', format: 'email' },
+              password: { type: 'string' },
+              rememberMe: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Login succeeded',
+        content: { 'application/json': { schema: { type: 'object', properties: { userId: { type: 'string' } } } } },
+      },
+      400: { description: 'email and password are required' },
+      401: { description: 'Invalid email or password' },
+    },
+  },
+})
+
 // A precomputed, valid (salt:hash) pair in the same format hashPassword produces, used only to
 // give the "no such user" path a scrypt call to pay for -- see the comment below.
 const DUMMY_PASSWORD_HASH = '700c5e59c47b134bc71c48e4822a3244:39a7d683bad8503427942bd2ab7b1351465c9d5a61d3063d10bdc846212cd7a92bf4e2e65d5921511b3fa709195d8a5ea81b0c1552cbe14979d71b4169858901'

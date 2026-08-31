@@ -110,18 +110,30 @@ async function main() {
 
   console.log('Seeding starter achievements...')
   const achievements = new AchievementRepository(db)
+  // "first_target_hit" (target_hit criteria) is intentionally not seeded here: GamificationService
+  // doesn't implement that criteria type yet (would need wiring into ProfileService/TargetRepository's
+  // own target-hit detection), and there's no point seeding an achievement that can never unlock.
   const starterAchievements = [
+    // Streaks -- consecutive scheduled training days hit in a row (StreakRepository).
+    { key: 'week_streak', name: '7-Day Streak', description: 'Hit every scheduled day for a week straight.', icon: '🔥', criteriaType: 'streak_length' as const, criteriaValue: { days: 7 }, isPublished: true },
+    { key: 'month_streak', name: '30-Day Streak', description: 'A full month of hitting every scheduled day.', icon: '🏆', criteriaType: 'streak_length' as const, criteriaValue: { days: 30 }, isPublished: true },
+    { key: 'iron_will', name: '100-Day Streak', description: 'Trained every scheduled day for 100 days straight.', icon: '⚡', criteriaType: 'streak_length' as const, criteriaValue: { days: 100 }, isPublished: true },
+    // Session counts -- total completed workout sessions.
     { key: 'first_session', name: 'First Session Logged', description: 'Logged your first workout session.', icon: '🎉', criteriaType: 'session_count' as const, criteriaValue: { count: 1 }, isPublished: true },
-    { key: 'week_streak', name: '7-Day Streak', description: 'Hit every scheduled day for a week straight.', icon: '🔥', criteriaType: 'streak_length' as const, criteriaValue: { days: 1 }, isPublished: true },
-    { key: 'month_streak', name: '30-Day Streak', description: 'A full month of hitting every scheduled day.', icon: '🏆', criteriaType: 'streak_length' as const, criteriaValue: { days: 4 }, isPublished: true },
-    { key: 'first_pr', name: 'First PR', description: 'Logged your first personal record.', icon: '💪', criteriaType: 'pr' as const, criteriaValue: {}, isPublished: true },
-    { key: 'first_target_hit', name: 'Goal Reached', description: 'Hit one of your targets.', icon: '🎯', criteriaType: 'target_hit' as const, criteriaValue: {}, isPublished: true },
+    { key: 'ten_sessions', name: 'Regular', description: 'Completed 10 workout sessions.', icon: '💪', criteriaType: 'session_count' as const, criteriaValue: { count: 10 }, isPublished: true },
+    { key: 'fifty_sessions', name: 'Gym Rat', description: 'Completed 50 workout sessions.', icon: '🐀', criteriaType: 'session_count' as const, criteriaValue: { count: 50 }, isPublished: true },
+    { key: 'hundred_sessions', name: 'Iron Veteran', description: 'Completed 100 workout sessions.', icon: '🛡️', criteriaType: 'session_count' as const, criteriaValue: { count: 100 }, isPublished: true },
+    // Personal records -- a set that beats your previous best weight on that exercise.
+    { key: 'first_pr', name: 'First PR', description: 'Logged your first personal record.', icon: '🥇', criteriaType: 'pr_count' as const, criteriaValue: { count: 1 }, isPublished: true },
+    { key: 'pr_five', name: 'Personal Best Club', description: 'Set 5 personal records.', icon: '📈', criteriaType: 'pr_count' as const, criteriaValue: { count: 5 }, isPublished: true },
+    { key: 'pr_twenty', name: 'Record Breaker', description: 'Set 20 personal records.', icon: '🚀', criteriaType: 'pr_count' as const, criteriaValue: { count: 20 }, isPublished: true },
+    // Total volume -- cumulative weight_kg x reps across every set ever logged.
+    { key: 'volume_car', name: 'Lifted a Car', description: 'Lifted a cumulative 1,500 kg -- about the weight of a small car.', icon: '🚗', criteriaType: 'total_volume_kg' as const, criteriaValue: { kg: 1500 }, isPublished: true },
+    { key: 'volume_elephant', name: 'Lifted an Elephant', description: 'Lifted a cumulative 5,400 kg -- about the weight of an African elephant.', icon: '🐘', criteriaType: 'total_volume_kg' as const, criteriaValue: { kg: 5400 }, isPublished: true },
+    { key: 'volume_bus', name: 'Lifted a School Bus', description: 'Lifted a cumulative 12,000 kg -- about the weight of a school bus.', icon: '🚌', criteriaType: 'total_volume_kg' as const, criteriaValue: { kg: 12000 }, isPublished: true },
   ]
   for (const achievement of starterAchievements) {
-    const existing = await db.execute({ sql: 'SELECT id FROM achievements WHERE key = ?', args: [achievement.key] })
-    if (existing.rows.length === 0) {
-      await achievements.create(achievement)
-    }
+    await achievements.upsertByKey(achievement)
   }
 
   console.log('Seeding preset splits...')

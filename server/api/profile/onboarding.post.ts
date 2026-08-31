@@ -21,6 +21,46 @@ function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Error && /UNIQUE constraint failed/i.test(err.message)
 }
 
+defineRouteMeta({
+  openAPI: {
+    summary: 'Complete onboarding (signup)',
+    description: 'Creates the user and profile in one step, then logs the new user in. This is the app\'s signup flow.',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['email', 'password', 'dateOfBirth', 'gender', 'height', 'weight'],
+            properties: {
+              email: { type: 'string', format: 'email' },
+              password: { type: 'string' },
+              displayName: { type: 'string' },
+              dateOfBirth: { type: 'string', format: 'date' },
+              gender: { type: 'string', enum: ['male', 'female'] },
+              height: { type: 'number', description: 'cm if unitSystem is metric (or omitted), inches if imperial' },
+              weight: { type: 'number', description: 'kg if unitSystem is metric (or omitted), lbs if imperial' },
+              targetWeight: { type: 'number', description: 'same unit as weight' },
+              activityLevel: { type: 'string', enum: ['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extremely_active'] },
+              experienceLevel: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+              primaryGoal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'] },
+              trainingDaysPerWeek: { type: 'number' },
+              equipment: { type: 'string', enum: ['gym', 'home', 'both'] },
+              unitSystem: { type: 'string', enum: ['metric', 'imperial'] },
+              timezone: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      200: { description: 'Newly created profile' },
+      400: { description: 'email/password missing, or height/weight not positive numbers' },
+      409: { description: 'An account with this email already exists' },
+    },
+  },
+})
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) as OnboardingRequestBody
   if (typeof body.email !== 'string' || typeof body.password !== 'string') {

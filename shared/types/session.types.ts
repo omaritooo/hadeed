@@ -39,6 +39,14 @@ export interface WorkoutSessionWithLogs extends WorkoutSession {
   exercises: (ExerciseLog & { sets: SetLog[] })[]
 }
 
+export interface ExerciseHistoryEntry {
+  sessionId: string
+  date: string
+  topSetWeightKg: number
+  topSetReps: number
+  setsCount: number
+}
+
 export type SyncEntityTable = 'set_logs' | 'workout_sessions'
 export type SyncConflictResolution = 'kept_mine' | 'kept_server' | 'manual'
 
