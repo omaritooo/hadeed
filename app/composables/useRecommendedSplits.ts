@@ -4,7 +4,7 @@ import type { RecommendationInput, SplitRecommendation } from '~~/shared/types/p
 import { useQuery } from '@pinia/colada'
 import { toValue } from 'vue'
 
-export function useRecommendedSplits(input: MaybeRefOrGetter<RecommendationInput>) {
+export const useRecommendedSplits = (input: MaybeRefOrGetter<RecommendationInput>) => {
   const { $api } = useNuxtApp()
 
   return useQuery<SplitRecommendation[], FetchError<{ statusMessage: string }>>({

@@ -1,5 +1,6 @@
 import type { Client } from '@libsql/client'
 import type { Achievement, AchievementCriteriaType } from '~~/shared/types/gamification.types'
+import type { UnlockedAchievementSummary } from '~~/shared/types/home.types'
 
 export interface CreateAchievementInput {
   key: string
@@ -38,10 +39,6 @@ export class AchievementRepository {
     return this.mapRow(row as unknown as Record<string, unknown>)
   }
 
-  // Seeding needs update-if-exists, not insert-if-missing -- create() alone means fixing a
-  // seeded achievement's copy or criteria later (e.g. a wrong threshold) never reaches a
-  // database that already has that key, since the seed script only re-runs the insert for
-  // keys it doesn't find.
   async upsertByKey(input: CreateAchievementInput): Promise<Achievement> {
     const result = await this.db.execute({
       sql: `INSERT INTO achievements (key, name, description, icon, criteria_type, criteria_value, is_published)
@@ -80,6 +77,27 @@ export class AchievementRepository {
     await this.db.execute({
       sql: 'INSERT OR IGNORE INTO user_achievements (user_id, achievement_id) VALUES (?, ?)',
       args: [userId, achievementId],
+    })
+  }
+
+  async findRecentlyUnlocked(userId: string, limit: number): Promise<UnlockedAchievementSummary[]> {
+    const result = await this.db.execute({
+      sql: `SELECT a.key, a.name, a.icon, ua.unlocked_at
+            FROM user_achievements ua
+            JOIN achievements a ON a.id = ua.achievement_id
+            WHERE ua.user_id = ?
+            ORDER BY ua.unlocked_at DESC
+            LIMIT ?`,
+      args: [userId, limit],
+    })
+    return result.rows.map((row) => {
+      const r = row as unknown as Record<string, unknown>
+      return {
+        key: r.key as string,
+        name: r.name as string,
+        icon: r.icon as string | null,
+        unlockedAt: r.unlocked_at as string,
+      }
     })
   }
 }

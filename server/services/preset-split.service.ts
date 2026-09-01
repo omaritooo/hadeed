@@ -3,13 +3,13 @@ import type { CreatePresetSplitInput, PresetSplitRepository } from '~~/server/re
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { PresetSplit, RecommendationInput, SplitRecommendation } from '~~/shared/types/preset.types'
 
-function frequencyScore(daysPerWeek: number, min: number, max: number): number {
+const frequencyScore = (daysPerWeek: number, min: number, max: number): number => {
   if (daysPerWeek >= min && daysPerWeek <= max) return 3
   const distance = daysPerWeek < min ? min - daysPerWeek : daysPerWeek - max
   return distance === 1 ? 1 : 0
 }
 
-function scorePreset(preset: PresetSplit, input: RecommendationInput): { score: number, reasons: string[] } {
+const scorePreset = (preset: PresetSplit, input: RecommendationInput): { score: number, reasons: string[] } => {
   let score = 0
   const reasons: string[] = []
 

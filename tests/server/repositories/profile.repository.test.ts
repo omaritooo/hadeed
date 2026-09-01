@@ -72,10 +72,10 @@ describe('ProfileRepository', () => {
 
   it('preserves the existing unitSystem when a later upsert call omits it', async () => {
     await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180, unitSystem: 'imperial' })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 }) // unitSystem omitted this time
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 })
 
     const profile = await repo.findByUserId('user-1')
-    expect(profile?.unitSystem).toBe('imperial') // must NOT have been reset to 'metric'
+    expect(profile?.unitSystem).toBe('imperial')
   })
 
   it('resolves unitSystem before converting height, so a follow-up call that omits unitSystem still converts correctly', async () => {
@@ -83,11 +83,9 @@ describe('ProfileRepository', () => {
     const first = await repo.findByUserId('user-1')
     expect(first?.heightCm).toBeCloseTo(177.8, 1)
 
-    // Second call omits unitSystem entirely — must still be interpreted as imperial (preserved),
-    // not misread as already-metric.
     await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 71 })
     const second = await repo.findByUserId('user-1')
-    expect(second?.heightCm).toBeCloseTo(180.3, 1) // NOT 71
+    expect(second?.heightCm).toBeCloseTo(180.3, 1)
     expect(second?.unitSystem).toBe('imperial')
   })
 
@@ -96,7 +94,7 @@ describe('ProfileRepository', () => {
       dateOfBirth: '1995-01-01', gender: 'male', height: 180,
       trainingDaysPerWeek: 4, equipment: 'gym', timezone: 'America/New_York',
     })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 }) // all three omitted
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBe(4)
@@ -109,7 +107,7 @@ describe('ProfileRepository', () => {
       dateOfBirth: '1995-01-01', gender: 'male', height: 180,
       activityLevel: 'moderately_active', experienceLevel: 'intermediate', primaryGoal: 'muscle_gain',
     })
-    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 }) // all three omitted
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.activityLevel).toBe('moderately_active')
@@ -134,32 +132,6 @@ describe('ProfileRepository', () => {
   })
 
   describe('atomicity of the read-then-write (lost-update fix)', () => {
-    // Genuinely reproducing the race this fix closes -- two concurrent upsert() calls for the same
-    // userId, interleaved so each reads the other's pre-commit snapshot -- turned out not to be
-    // something the *local* sqlite3 test client can demonstrate reliably:
-    //
-    // 1. It was tried by holding a manual `db.transaction('write')` open and asserting that a
-    //    concurrent `repo.upsert()` call gets rejected. That assertion held, but it turned out to
-    //    hold identically against the *pre-fix* code too (the plain, un-transactioned `this.db.execute`
-    //    calls): SQLite serializes ALL writes against a file while another write transaction is open,
-    //    transactional or not, so that shape of test can't tell the fixed code apart from the buggy
-    //    code -- it doesn't actually verify anything about this fix.
-    // 2. It was tried by racing two real `repo.upsert()` calls via `Promise.all` and retrying on
-    //    SQLITE_BUSY. The local driver (`libsql` 0.5.29, via `@libsql/client`'s sqlite3 client) does
-    //    enforce real mutual exclusion between concurrent write transactions on the same file (a
-    //    second `transaction('write')` call while one is open fails with SQLITE_BUSY), which is the
-    //    right underlying guarantee -- but a connection that hits SQLITE_BUSY once was observed to get
-    //    permanently wedged on every subsequent attempt (never recovering, even long after the
-    //    contending transaction committed and closed), which made a retry-based test hang/fail
-    //    unreliably. That's a local-driver quirk, not documented behavior of the remote Turso client
-    //    this code actually runs against in production.
-    //
-    // So instead of a timing-based race test, these tests verify the actual mechanism directly: that
-    // upsert() performs its read AND its write through the SAME transaction handle (not two
-    // independent `this.db.execute` round trips), which is precisely what makes the read+write atomic
-    // and closes the race. This is backed by reading `@libsql/client`'s `Client`/`Transaction` types
-    // (`node_modules/@libsql/core/lib-esm/api.d.ts`) to confirm `transaction('write')`, `tx.execute`,
-    // `tx.commit`, and `tx.close` are used exactly as documented.
     function createFakeTxClient(existingRow: Record<string, unknown> | undefined) {
       const calls: string[] = []
       const txExecute = vi.fn(async (stmt: { sql: string }) => {
@@ -187,15 +159,13 @@ describe('ProfileRepository', () => {
 
       expect(transaction).toHaveBeenCalledExactlyOnceWith('write')
       expect(topLevelExecute).not.toHaveBeenCalled()
-      // Both statements ran on the transaction handle, in order, followed by a commit -- this is
-      // what makes the read and the write atomic instead of two independent round trips.
       expect(calls).toEqual(['SELECT', 'INSERT', 'COMMIT', 'CLOSE'])
     })
 
     it('closes the transaction without committing if the write fails', async () => {
       const { fakeClient, tx } = createFakeTxClient(undefined)
-      tx.execute.mockImplementationOnce(async () => ({ rows: [] })) // SELECT: no existing row
-      tx.execute.mockImplementationOnce(async () => { throw new Error('boom') }) // INSERT fails
+      tx.execute.mockImplementationOnce(async () => ({ rows: [] }))
+      tx.execute.mockImplementationOnce(async () => { throw new Error('boom') })
       const fakeRepo = new ProfileRepository(fakeClient)
 
       await expect(fakeRepo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 }))

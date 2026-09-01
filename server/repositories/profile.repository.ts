@@ -7,7 +7,6 @@ import type { ExperienceLevel, Goal, UnitSystem, UserProfile } from '~~/shared/t
 export interface UpsertProfileInput {
   dateOfBirth: string
   gender: Gender
-  /** Raw value: cm if the resolved unitSystem is metric, inches if imperial. */
   height: number
   activityLevel?: ActivityLevel | null
   experienceLevel?: ExperienceLevel | null
@@ -34,7 +33,12 @@ export class ProfileRepository {
       equipment: row.equipment as Equipment | null,
       unitSystem: row.unit_system as UnitSystem,
       timezone: row.timezone as string | null,
+      hydrationTargetMl: row.hydration_target_ml as number | null,
+      hydrationRemindersEnabled: Boolean(row.hydration_reminders_enabled),
+      hydrationReminderIntervalMinutes: row.hydration_reminder_interval_minutes as number,
+      hydrationLastRemindedAt: row.hydration_last_reminded_at as string | null,
       updatedAt: row.updated_at as string,
+      displayName: null,
     }
   }
 
@@ -45,10 +49,6 @@ export class ProfileRepository {
   }
 
   async upsert(userId: string, input: UpsertProfileInput): Promise<UserProfile> {
-    // The read (to resolve omitted fields) and the write must happen atomically: useDb() is a
-    // remote libsql/Turso client, so without an explicit transaction the SELECT and the INSERT
-    // are two independent network round trips, and two concurrent upsert calls for the same
-    // userId could each read the same stale snapshot and then lost-update each other.
     const tx = await this.db.transaction('write')
     try {
       const existingResult = await tx.execute({ sql: 'SELECT * FROM user_profiles WHERE user_id = ?', args: [userId] })
@@ -63,10 +63,6 @@ export class ProfileRepository {
       const unitSystem = input.unitSystem !== undefined ? input.unitSystem : (existing?.unitSystem ?? 'metric')
       const timezone = input.timezone !== undefined ? input.timezone : (existing?.timezone ?? null)
 
-      // Height conversion MUST happen after unitSystem is resolved (above) and inside this same
-      // transaction: unitSystem may itself be preserved from the existing row rather than passed
-      // explicitly, so converting height against anything read/resolved outside this transaction
-      // would reintroduce the TOCTOU race this method exists to close.
       const heightCm = unitSystem === 'imperial' ? round1(inToCm(input.height)) : round1(input.height)
 
       const result = await tx.execute({
@@ -107,9 +103,46 @@ export class ProfileRepository {
       await tx.commit()
       return this.mapRow(row as unknown as Record<string, unknown>)
     } finally {
-      // Safe to call unconditionally: per @libsql/client's docs this is a no-op if the
-      // transaction was already closed by commit(), and rolls back otherwise (error path).
       tx.close()
     }
+  }
+
+  async setHydrationTarget(userId: string, targetMl: number | null): Promise<void> {
+    await this.db.execute({
+      sql: 'UPDATE user_profiles SET hydration_target_ml = ?, updated_at = datetime(\'now\') WHERE user_id = ?',
+      args: [targetMl, userId],
+    })
+  }
+
+  async setHydrationReminderSettings(userId: string, enabled: boolean, intervalMinutes: number): Promise<void> {
+    await this.db.execute({
+      sql: `UPDATE user_profiles
+            SET hydration_reminders_enabled = ?, hydration_reminder_interval_minutes = ?, updated_at = datetime('now')
+            WHERE user_id = ?`,
+      args: [enabled ? 1 : 0, intervalMinutes, userId],
+    })
+  }
+
+  async markReminded(userId: string): Promise<void> {
+    await this.db.execute({
+      sql: `UPDATE user_profiles SET hydration_last_reminded_at = datetime('now') WHERE user_id = ?`,
+      args: [userId],
+    })
+  }
+
+  async findWithRemindersEnabled(): Promise<{ userId: string, timezone: string | null, intervalMinutes: number, lastRemindedAt: string | null }[]> {
+    const result = await this.db.execute(
+      `SELECT user_id, timezone, hydration_reminder_interval_minutes, hydration_last_reminded_at
+       FROM user_profiles WHERE hydration_reminders_enabled = 1`,
+    )
+    return result.rows.map((row) => {
+      const r = row as unknown as Record<string, unknown>
+      return {
+        userId: r.user_id as string,
+        timezone: r.timezone as string | null,
+        intervalMinutes: r.hydration_reminder_interval_minutes as number,
+        lastRemindedAt: r.hydration_last_reminded_at as string | null,
+      }
+    })
   }
 }

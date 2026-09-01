@@ -1,10 +1,31 @@
 <script setup lang="ts">
-import { DumbbellIcon, FlameIcon, LockIcon, TrendingUpIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, TrendingUpIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
 
-// Placeholder data shaped exactly like the real achievements/progress the backend now computes
-// (server/database/seed.ts's starterAchievements + GamificationService.evaluateAchievements) --
-// swap for a real useAchievements() query once that endpoint exists.
+const remindersEnabled = ref(false);
+const reminderInterval = ref(120);
+const { isLoading: reminderLoading, errorMessage: reminderError, enable: enableReminders, disable: disableReminders } = useHydrationReminders();
+
+const { data: profileData } = useProfile();
+let seededFromProfile = false;
+watch(profileData, (data) => {
+  if (seededFromProfile || !data?.profile) return;
+  remindersEnabled.value = data.profile.hydrationRemindersEnabled;
+  reminderInterval.value = data.profile.hydrationReminderIntervalMinutes;
+  seededFromProfile = true;
+}, { immediate: true });
+
+const onRemindersToggle = async (nextEnabled: boolean) => {
+  const succeeded = nextEnabled
+    ? await enableReminders(reminderInterval.value)
+    : await disableReminders(reminderInterval.value);
+  if (succeeded) remindersEnabled.value = nextEnabled;
+};
+
+const onIntervalChange = async () => {
+  if (remindersEnabled.value) await enableReminders(reminderInterval.value);
+};
+
 interface AchievementCard {
   key: string;
   icon: string;
@@ -74,15 +95,45 @@ const totalCount = groups.reduce((sum, group) => sum + group.items.length, 0);
 const unlockedCount = groups.reduce((sum, group) => sum + group.items.filter((item) => item.unlocked).length, 0);
 const unlockedPct = Math.round((unlockedCount / totalCount) * 100);
 
-function progressPct(card: AchievementCard): number {
+const progressPct = (card: AchievementCard): number => {
   if (!card.progress) return 0;
   return Math.min(100, Math.round((card.progress.current / card.progress.target) * 100));
-}
+};
 </script>
 
 <template>
   <main class="mx-auto max-w-xl space-y-8 p-8">
     <h1 class="font-heading text-2xl uppercase text-foreground">Profile</h1>
+
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <BellIcon class="size-4.5 text-primary" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Hydration Reminders</h2>
+      </div>
+      <div class="space-y-4 rounded-xl border border-md-surface-variant bg-card p-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-foreground">Remind me to drink water</p>
+            <p class="text-xs text-muted-foreground">Push notifications while the app's installed.</p>
+          </div>
+          <UiCheckbox
+            :model-value="remindersEnabled"
+            :disabled="reminderLoading"
+            @update:model-value="(value) => onRemindersToggle(!!value)"
+          />
+        </div>
+        <div v-if="remindersEnabled" class="flex items-center justify-between gap-4 border-t border-md-surface-variant pt-4">
+          <p class="text-sm text-muted-foreground">Every</p>
+          <UiNativeSelect v-model="reminderInterval" class="w-32" :disabled="reminderLoading" @update:model-value="onIntervalChange">
+            <UiNativeSelectOption :value="60">1 hour</UiNativeSelectOption>
+            <UiNativeSelectOption :value="120">2 hours</UiNativeSelectOption>
+            <UiNativeSelectOption :value="180">3 hours</UiNativeSelectOption>
+            <UiNativeSelectOption :value="240">4 hours</UiNativeSelectOption>
+          </UiNativeSelect>
+        </div>
+        <p v-if="reminderError" class="text-xs text-destructive">{{ reminderError }}</p>
+      </div>
+    </section>
 
     <section class="space-y-3">
       <div class="flex items-center justify-between">

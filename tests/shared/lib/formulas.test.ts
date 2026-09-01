@@ -9,8 +9,6 @@ describe('bmi', () => {
 
 describe('tdee', () => {
   it('computes Mifflin-St Jeor for a male, moderately active', () => {
-    // BMR = 10*70 + 6.25*175 - 5*30 + 5 = 700 + 1093.75 - 150 + 5 = 1648.75
-    // TDEE = BMR * 1.55 (moderately_active)
     const result = tdee({
       weightKg: 70,
       heightCm: 175,
@@ -22,7 +20,6 @@ describe('tdee', () => {
   })
 
   it('computes Mifflin-St Jeor for a female, sedentary', () => {
-    // BMR = 10*60 + 6.25*165 - 5*25 - 161 = 600 + 1031.25 - 125 - 161 = 1345.25
     const result = tdee({
       weightKg: 60,
       heightCm: 165,

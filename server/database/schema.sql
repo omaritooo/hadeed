@@ -81,6 +81,10 @@ ALTER TABLE user_profiles ADD COLUMN training_days_per_week INTEGER;
 ALTER TABLE user_profiles ADD COLUMN equipment TEXT CHECK (equipment IN ('gym','home','both'));
 ALTER TABLE user_profiles ADD COLUMN unit_system TEXT NOT NULL DEFAULT 'metric' CHECK (unit_system IN ('metric','imperial'));
 ALTER TABLE user_profiles ADD COLUMN timezone TEXT;
+ALTER TABLE user_profiles ADD COLUMN hydration_target_ml INTEGER;
+ALTER TABLE user_profiles ADD COLUMN hydration_reminders_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_profiles ADD COLUMN hydration_reminder_interval_minutes INTEGER NOT NULL DEFAULT 120;
+ALTER TABLE user_profiles ADD COLUMN hydration_last_reminded_at TEXT;
 
 CREATE TABLE IF NOT EXISTS body_metrics (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,6 +103,32 @@ CREATE TABLE IF NOT EXISTS body_metric_measurements (
   key             TEXT NOT NULL,
   value_cm        REAL NOT NULL
 );
+
+-- Free-form log of water intake events -- each entry is one "add N ml" action, mirroring
+-- body_metrics' one-row-per-recording shape rather than a single running daily counter, so
+-- individual entries stay visible/undoable and "today's total" is just a SUM over the day.
+CREATE TABLE IF NOT EXISTS hydration_logs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount_ml   INTEGER NOT NULL,
+  logged_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_hydration_logs_user ON hydration_logs(user_id, logged_at);
+
+-- One row per subscribed device/browser (a user can have several). endpoint is the push
+-- service's unique URL for that subscription, so it doubles as the natural upsert key --
+-- resubscribing the same device (e.g. after a permission reset) just updates its keys in place.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint    TEXT NOT NULL UNIQUE,
+  p256dh_key  TEXT NOT NULL,
+  auth_key    TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
 
 CREATE TABLE IF NOT EXISTS user_targets (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,

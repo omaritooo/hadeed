@@ -1,9 +1,9 @@
 import type { z } from "zod"
 
-export function useZodForm<Schema extends z.ZodObject<z.ZodRawShape>>(
+export const useZodForm = <Schema extends z.ZodObject<z.ZodRawShape>>(
   schema: Schema,
   initialValues: z.infer<Schema>,
-) {
+) => {
   type Values = z.infer<Schema>
   type Key = keyof Values
 
@@ -15,13 +15,15 @@ export function useZodForm<Schema extends z.ZodObject<z.ZodRawShape>>(
     Object.fromEntries(Object.keys(initialValues).map(key => [key, false])),
   ) as Record<Key, boolean>
 
-  function validateField(field: Key) {
+  const validateField = (field: Key) => {
     touched[field] = true
-    const result = schema.shape[field as string].safeParse(form[field])
+    const fieldSchema = schema.shape[field as string] as z.ZodType | undefined
+    if (!fieldSchema) return
+    const result = fieldSchema.safeParse(form[field])
     errors[field] = result.success ? [] : result.error.issues.map(issue => issue.message)
   }
 
-  function validateAll() {
+  const validateAll = () => {
     const result = schema.safeParse(form)
     const fieldErrors = result.success ? {} : result.error.flatten().fieldErrors as Record<string, string[] | undefined>
 
@@ -33,7 +35,7 @@ export function useZodForm<Schema extends z.ZodObject<z.ZodRawShape>>(
     return result.success
   }
 
-  function reset() {
+  const reset = () => {
     Object.assign(form, structuredClone(initialValues))
     for (const key of Object.keys(errors) as Key[]) {
       errors[key] = []

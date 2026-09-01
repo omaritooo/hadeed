@@ -42,20 +42,10 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event) as { expectedVersion: number, weightKg?: number | null, reps?: number | null, rpe?: number | null }
   const repo = new SessionRepository(useDb())
 
-  // Unlike the write-only gap left on sets.post.ts, this route echoes back the full
-  // updated row on success — an unowned caller could use a no-op/guessed correction to
-  // *read* another user's real set data, not just tamper with it. That disclosure risk
-  // is closed here regardless of the perf tradeoff still open on the POST side.
   const ownerId = await repo.findSetLogOwnerId(setId)
   if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Set log not found' })
   if (ownerId !== ctx.userId) throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
 
-  // Only forward fields the client actually sent. Spreading `{ weightKg: body.weightKg,
-  // reps: body.reps, rpe: body.rpe }` unconditionally would create own-enumerable keys
-  // for every field even when the client omitted it (value `undefined`), which passes
-  // editSetLog's ALLOWED_KEYS check but then fails at the db layer: @libsql/client
-  // throws "undefined cannot be passed as argument to the database" for any bind arg
-  // that is `undefined` (verified locally). Filtering to present keys avoids that.
   const corrections: { weightKg?: number | null, reps?: number | null, rpe?: number | null } = {}
   if ('weightKg' in body) corrections.weightKg = body.weightKg
   if ('reps' in body) corrections.reps = body.reps

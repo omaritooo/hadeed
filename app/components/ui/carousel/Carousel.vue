@@ -21,7 +21,7 @@ defineExpose({
   scrollPrev,
 })
 
-function onKeyDown(event: KeyboardEvent) {
+const onKeyDown = (event: KeyboardEvent) => {
   const prevKey = props.orientation === "vertical" ? "ArrowUp" : "ArrowLeft"
   const nextKey = props.orientation === "vertical" ? "ArrowDown" : "ArrowRight"
 

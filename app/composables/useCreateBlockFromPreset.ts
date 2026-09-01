@@ -9,7 +9,7 @@ export interface CreateBlockFromPresetInput {
   endDate: string | null
 }
 
-export function useCreateBlockFromPreset() {
+export const useCreateBlockFromPreset = () => {
   const { $api } = useNuxtApp()
 
   return useMutation<Block, CreateBlockFromPresetInput, FetchError<{ statusMessage: string }>>({

@@ -14,17 +14,17 @@ const [useProvideCarousel, useInjectCarousel] = createInjectionState(
       axis: orientation === "horizontal" ? "x" : "y",
     }, plugins)
 
-    function scrollPrev() {
+    const scrollPrev = () => {
       emblaApi.value?.scrollPrev()
     }
-    function scrollNext() {
+    const scrollNext = () => {
       emblaApi.value?.scrollNext()
     }
 
     const canScrollNext = ref(false)
     const canScrollPrev = ref(false)
 
-    function onSelect(api: CarouselApi) {
+    const onSelect = (api: CarouselApi) => {
       canScrollNext.value = api?.canScrollNext() || false
       canScrollPrev.value = api?.canScrollPrev() || false
     }
@@ -44,7 +44,7 @@ const [useProvideCarousel, useInjectCarousel] = createInjectionState(
   },
 )
 
-function useCarousel() {
+const useCarousel = () => {
   const carouselState = useInjectCarousel()
 
   if (!carouselState)

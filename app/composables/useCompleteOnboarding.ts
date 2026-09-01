@@ -5,7 +5,7 @@ import { useMutation } from '@pinia/colada'
 
 export type CompletedOnboardingProfile = (UserProfile & { displayName: string | null, targets: UserTarget[] }) | null
 
-export function useCompleteOnboarding() {
+export const useCompleteOnboarding = () => {
   const { $api } = useNuxtApp()
 
   return useMutation<CompletedOnboardingProfile, CompleteOnboardingInput, FetchError<{ statusMessage: string }>>({

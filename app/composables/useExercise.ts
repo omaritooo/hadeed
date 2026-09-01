@@ -4,7 +4,7 @@ import type { Exercise } from '~~/shared/types/exercise.types'
 import { useQuery } from '@pinia/colada'
 import { toValue } from 'vue'
 
-export function useExercise(id: MaybeRefOrGetter<string>) {
+export const useExercise = (id: MaybeRefOrGetter<string>) => {
   const { $api } = useNuxtApp()
 
   return useQuery<Exercise, FetchError<{ statusMessage: string }>>({

@@ -14,9 +14,6 @@ const backContainer = ref<HTMLElement | null>(null);
 let frontChart: BodyChart | null = null;
 let backChart: BodyChart | null = null;
 
-// Unlike the page this was lifted out of, this component owns its mount timing directly: the
-// caller decides when to render <ExerciseMuscleMap>, so by the time onMounted runs here, both
-// containers are already real elements -- no need to wait on a v-if living somewhere else.
 onMounted(() => {
   if (frontContainer.value) {
     frontChart = new BodyChart(frontContainer.value, {

@@ -11,8 +11,6 @@ const EXPERIENCE_LEVELS: ExperienceLevel[] = ['beginner', 'intermediate', 'advan
 const GOALS: Goal[] = ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness']
 const EQUIPMENT_OPTIONS: Equipment[] = ['gym', 'home', 'both']
 
-// Nitro parses this call's argument statically (AST), not at runtime, so values
-// must be literals here — references to EXPERIENCE_LEVELS etc. above resolve to nothing.
 defineRouteMeta({
   openAPI: {
     summary: 'Recommend preset splits',

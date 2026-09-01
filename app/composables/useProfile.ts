@@ -7,7 +7,7 @@ export interface ProfileResponse {
   stats: { bmi: number, tdee: number | null } | null
 }
 
-export function useProfile() {
+export const useProfile = () => {
   const { $api } = useNuxtApp()
 
   return useQuery<ProfileResponse, FetchError<{ statusMessage: string }>>({

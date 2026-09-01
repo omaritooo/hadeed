@@ -17,8 +17,6 @@ describe('ProfileService', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    // No pre-inserted users row: there's no separate signup flow, completeOnboarding's
-    // ensureExists() call is what creates the row (with its password hash) on first use.
     service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db))
   })
 
@@ -111,12 +109,10 @@ describe('ProfileService', () => {
   it('converts weight using the profile\'s actual resolved unitSystem, not a stale pre-fetched guess', async () => {
     await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 70, weight: 180, unitSystem: 'imperial' })
 
-    // Second call omits unitSystem — weight must still be interpreted as lbs (preserved imperial),
-    // not misread as already-kg.
     await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 71, weight: 184 })
 
     const metrics = await new BodyMetricsRepository(db).findForUser('user-1')
-    expect(metrics[0]?.weightKg).toBeCloseTo(round1(lbsToKg(184)), 1) // NOT 184 raw
+    expect(metrics[0]?.weightKg).toBeCloseTo(round1(lbsToKg(184)), 1)
   })
 
   it('creates an active weight target when targetWeight is provided', async () => {

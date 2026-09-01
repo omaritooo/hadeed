@@ -9,7 +9,7 @@ export interface ExerciseHistoryResponse {
   history: ExerciseHistoryEntry[]
 }
 
-export function useExerciseHistory(id: MaybeRefOrGetter<string>) {
+export const useExerciseHistory = (id: MaybeRefOrGetter<string>) => {
   const { $api } = useNuxtApp()
 
   return useQuery<ExerciseHistoryResponse, FetchError<{ statusMessage: string }>>({

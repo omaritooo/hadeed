@@ -8,6 +8,7 @@ import type {
   WorkoutSession,
   WorkoutSessionWithLogs,
 } from '~~/shared/types/session.types'
+import type { RecentSessionSummary } from '~~/shared/types/home.types'
 
 const ABANDON_AFTER_HOURS = 12
 
@@ -106,11 +107,6 @@ export class SessionRepository {
   }
 
   async startSession(userId: string, input: StartSessionInput): Promise<WorkoutSession> {
-    // Idempotent replay must never be a bare "id already exists -> return whatever's there"
-    // check: that would let anyone read back another user's real row just by resubmitting
-    // its (leaked or guessed) id. A replay is only genuine if the existing row's owner
-    // actually matches this caller; anything else is a real id collision and must be
-    // rejected, not silently disclosed.
     const existing = await this.db.execute({ sql: 'SELECT * FROM workout_sessions WHERE id = ?', args: [input.id] })
     const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
 
@@ -127,9 +123,6 @@ export class SessionRepository {
         if (!row) throw new Error('Failed to start session')
         session = this.mapSession(row as unknown as Record<string, unknown>)
       } catch (err) {
-        // Two concurrent replays of the same offline mutation can both pass the "not found"
-        // check above and race on this INSERT; the loser hits a raw UNIQUE violation instead
-        // of a clean outcome. Re-resolve it exactly like a sequential replay would have.
         if (!this.isUniqueConstraintError(err)) throw err
         const retry = await this.db.execute({ sql: 'SELECT * FROM workout_sessions WHERE id = ?', args: [input.id] })
         const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
@@ -143,14 +136,9 @@ export class SessionRepository {
       const existingExerciseRow = existingExerciseLog.rows[0] as unknown as Record<string, unknown> | undefined
       if (existingExerciseRow) {
         if (existingExerciseRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session')
-        continue // already applied by an earlier attempt at this same call; no-op
+        continue
       }
 
-      // Unlike logSet/addFreeformExercise (single-purpose user actions that must report a
-      // definitive success/failure), this loop seeds a batch snapshot at session-start time,
-      // so a genuinely-new exercise that loses the status race (session completed/abandoned
-      // between the check above and here) is silently skipped rather than aborting the rest
-      // of an otherwise-successful start. Logged so a dropped attach is diagnosable later.
       try {
         const inserted = await this.db.execute({
           sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
@@ -174,9 +162,6 @@ export class SessionRepository {
           console.warn('startSession: dropped exercise attach, session is not in progress', { sessionId: session.id, exerciseLogId: exercise.id })
         }
       } catch (err) {
-        // Concurrent replay racing on this exercise-log id: another attempt already applied
-        // it first, which is exactly the no-op outcome this loop wants, so swallow silently
-        // unless the row that won belongs to a different session entirely.
         if (!this.isUniqueConstraintError(err)) throw err
         const retry = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
         const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
@@ -226,16 +211,11 @@ export class SessionRepository {
   }
 
   async logSet(input: LogSetInput): Promise<SetLog> {
-    // Idempotent replay must verify the pre-existing row actually belongs to the exercise
-    // log the caller claims, not just that the id exists — a bare id-exists check would let
-    // a caller "replay" a leaked/guessed id and read back someone else's real set data via
-    // the RETURNING clause of an upsert. A true replay's exerciseLogId always matches; a
-    // real collision does not, and must be rejected rather than treated as a no-op.
     const existing = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [input.id] })
     const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
     if (existingRow) {
       if (existingRow.exercise_log_id !== input.exerciseLogId) throw new Error('Set log id already exists under a different exercise log')
-      return this.mapSetLog(existingRow) // already applied; replay succeeds as a no-op regardless of current session status
+      return this.mapSetLog(existingRow)
     }
 
     try {
@@ -254,9 +234,6 @@ export class SessionRepository {
       if (!row) throw new Error('Cannot log a set: exercise log not found or session is not in progress')
       return this.mapSetLog(row as unknown as Record<string, unknown>)
     } catch (err) {
-      // Two concurrent replays of the same set can both pass the "not found" check above and
-      // race on this INSERT; the loser hits a raw UNIQUE violation instead of a clean no-op.
-      // Re-resolve it exactly like a sequential replay would have.
       if (!this.isUniqueConstraintError(err)) throw err
       const retry = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [input.id] })
       const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
@@ -267,8 +244,6 @@ export class SessionRepository {
   }
 
   async addFreeformExercise(input: AddFreeformExerciseInput): Promise<ExerciseLog> {
-    // Same idempotent-replay-vs-fresh-write reasoning as logSet above: verify the existing
-    // row's sessionId matches before treating it as a no-op, rather than a bare id check.
     const existing = await this.db.execute({ sql: 'SELECT * FROM exercise_logs WHERE id = ?', args: [input.id] })
     const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
     if (existingRow) {
@@ -288,7 +263,6 @@ export class SessionRepository {
       if (!row) throw new Error('Cannot add exercise: session not found or session is not in progress')
       return this.mapExerciseLog(row as unknown as Record<string, unknown>)
     } catch (err) {
-      // Same concurrent-replay race as logSet above.
       if (!this.isUniqueConstraintError(err)) throw err
       const retry = await this.db.execute({ sql: 'SELECT * FROM exercise_logs WHERE id = ?', args: [input.id] })
       const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
@@ -321,10 +295,6 @@ export class SessionRepository {
             GROUP BY exercise_logs.id`,
       args: [sessionId],
     })
-    // A planned session with zero split-linked exercise logs has nothing to have completed
-    // (e.g. it was started with an empty/mismatched exercises snapshot) — vacuously "every
-    // planned exercise met its target" is true over an empty set, but that's not a workout
-    // that happened. Mirror the freeform branch above: nothing logged means not complete.
     if (result.rows.length === 0) return false
 
     return result.rows.every((row) => {
@@ -433,10 +403,6 @@ export class SessionRepository {
     return row ? (row.exercise_id as string) : null
   }
 
-  // The heaviest weight this user has ever logged for this exercise, across every session --
-  // used at write time to detect whether a just-logged set is a new PR (see sets.post.ts).
-  // Deliberately the same "heaviest weight wins" rule findExerciseHistory uses for its own PR,
-  // so a set that's flagged as a PR here is the same set findExerciseHistory would later report.
   async findBestWeightForExercise(userId: string, exerciseId: string): Promise<number | null> {
     const result = await this.db.execute({
       sql: `SELECT MAX(sl.weight_kg) AS max_weight
@@ -461,10 +427,6 @@ export class SessionRepository {
     })
   }
 
-  // One row per session: its heaviest set for this exercise (weight, then reps, breaks ties)
-  // plus how many sets were logged that session. ROW_NUMBER() rather than a plain MAX(weight_kg)
-  // GROUP BY, because the reps figure has to come from the *same* set as the winning weight, not
-  // an independent MAX(reps) that could belong to a different set entirely.
   async findExerciseHistory(userId: string, exerciseId: string): Promise<ExerciseHistoryEntry[]> {
     const result = await this.db.execute({
       sql: `WITH ranked_sets AS (
@@ -510,9 +472,6 @@ export class SessionRepository {
     return (result.rows[0]?.count as number) ?? 0
   }
 
-  // weight_kg * reps per set, summed across every set this user has ever logged -- the "total
-  // volume lifted" figure the total_volume_kg achievement criteria (and any future stats
-  // display) reads against.
   async totalVolumeKg(userId: string): Promise<number> {
     const result = await this.db.execute({
       sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
@@ -523,5 +482,73 @@ export class SessionRepository {
       args: [userId],
     })
     return (result.rows[0]?.total as number) ?? 0
+  }
+
+  async volumeKgInRange(userId: string, startIso: string, endIso: string): Promise<number> {
+    const result = await this.db.execute({
+      sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN workout_sessions ws ON ws.id = el.session_id
+            WHERE ws.user_id = ? AND sl.weight_kg IS NOT NULL AND sl.reps IS NOT NULL
+              AND ws.started_at >= ? AND ws.started_at < ?`,
+      args: [userId, startIso, endIso],
+    })
+    return (result.rows[0]?.total as number) ?? 0
+  }
+
+  async findActiveForUser(userId: string): Promise<WorkoutSession | null> {
+    const result = await this.db.execute({
+      sql: `SELECT * FROM workout_sessions WHERE user_id = ? AND status = 'in_progress' ORDER BY started_at DESC LIMIT 1`,
+      args: [userId],
+    })
+    const row = result.rows[0]
+    return row ? this.mapSession(row as unknown as Record<string, unknown>) : null
+  }
+
+  async findMostRecentSplitDayId(userId: string, splitDayIds: number[]): Promise<number | null> {
+    if (splitDayIds.length === 0) return null
+    const placeholders = splitDayIds.map(() => '?').join(', ')
+    const result = await this.db.execute({
+      sql: `SELECT split_day_id FROM workout_sessions
+            WHERE user_id = ? AND status = 'completed' AND split_day_id IN (${placeholders})
+            ORDER BY started_at DESC LIMIT 1`,
+      args: [userId, ...splitDayIds],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? (row.split_day_id as number) : null
+  }
+
+  async findMostRecentCompletedSummary(userId: string): Promise<RecentSessionSummary | null> {
+    const sessionResult = await this.db.execute({
+      sql: `SELECT *, ROUND((julianday(completed_at) - julianday(started_at)) * 24 * 60) AS duration_minutes
+            FROM workout_sessions
+            WHERE user_id = ? AND status = 'completed'
+            ORDER BY completed_at DESC LIMIT 1`,
+      args: [userId],
+    })
+    const sessionRow = sessionResult.rows[0] as unknown as Record<string, unknown> | undefined
+    if (!sessionRow) return null
+
+    const topSetResult = await this.db.execute({
+      sql: `SELECT e.name AS exercise_name, sl.weight_kg, sl.reps
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN exercises e ON e.id = el.exercise_id
+            WHERE el.session_id = ? AND sl.weight_kg IS NOT NULL
+            ORDER BY sl.weight_kg DESC, sl.reps DESC LIMIT 1`,
+      args: [sessionRow.id as string],
+    })
+    const topSetRow = topSetResult.rows[0] as unknown as Record<string, unknown> | undefined
+
+    return {
+      sessionId: sessionRow.id as string,
+      startedAt: sessionRow.started_at as string,
+      completedAt: sessionRow.completed_at as string,
+      durationMinutes: sessionRow.duration_minutes as number | null,
+      topExerciseName: (topSetRow?.exercise_name as string) ?? null,
+      topWeightKg: (topSetRow?.weight_kg as number) ?? null,
+      topReps: (topSetRow?.reps as number) ?? null,
+    }
   }
 }

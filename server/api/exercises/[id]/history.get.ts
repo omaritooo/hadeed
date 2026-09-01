@@ -55,8 +55,6 @@ export default defineEventHandler(async (event) => {
 
   const history = await new SessionRepository(useDb()).findExerciseHistory(ctx.userId, id)
 
-  // history is already ordered heaviest-set-per-session; the PR is just the entry with the
-  // highest weight (ties broken by higher reps, then most recent) -- no separate query needed.
   const personalRecord = history.reduce<typeof history[number] | null>((best, entry) => {
     if (!best) return entry
     if (entry.topSetWeightKg > best.topSetWeightKg) return entry

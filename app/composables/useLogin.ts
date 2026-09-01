@@ -7,7 +7,7 @@ export interface LoginInput {
   rememberMe: boolean
 }
 
-export function useLogin() {
+export const useLogin = () => {
   const { $api } = useNuxtApp()
 
   return useMutation<{ userId: string }, LoginInput, FetchError<{ statusMessage: string }>>({

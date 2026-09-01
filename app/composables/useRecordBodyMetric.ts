@@ -3,7 +3,7 @@ import type { RecordBodyMetricInput } from '~~/server/repositories/body-metrics.
 import type { BodyMetric } from '~~/shared/types/profile.types'
 import { useMutation } from '@pinia/colada'
 
-export function useRecordBodyMetric() {
+export const useRecordBodyMetric = () => {
   const { $api } = useNuxtApp()
 
   return useMutation<BodyMetric, RecordBodyMetricInput, FetchError<{ statusMessage: string }>>({

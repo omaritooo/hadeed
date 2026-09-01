@@ -6,7 +6,7 @@ import { AuthSessionRepository } from '~~/server/repositories/auth-session.repos
 import { getSessionCookie } from '~~/server/utils/session-cookie'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 
-export async function getRequestContext(event: H3Event): Promise<RequestContext> {
+export const getRequestContext = async (event: H3Event): Promise<RequestContext> => {
   const sessionId = getSessionCookie(event)
   if (!sessionId) {
     throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })

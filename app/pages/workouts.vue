@@ -23,49 +23,45 @@ const personalRecord = computed(() => exerciseHistory.value?.personalRecord ?? n
 const history = computed(() => exerciseHistory.value?.history ?? []);
 
 const activeImageIndex = ref(0);
-function onImageCarouselInit(api: CarouselApi) {
+const onImageCarouselInit = (api: CarouselApi) => {
   if (!api) return;
   activeImageIndex.value = api.selectedScrollSnap();
   api.on("select", () => {
     activeImageIndex.value = api.selectedScrollSnap();
   });
-}
+};
 
-// ~8% of instruction steps across the exercise library end in a "Tip: ..." aside -- pulled out
-// so it renders as its own callout instead of running on as one more sentence of body text.
 const parsedInstructions = computed(() => {
   if (!exercise.value) return [];
   return exercise.value.instructions.map((step) => {
     const match = step.match(/\s*Tip:\s*(.+)$/);
     return match
-      ? { text: step.slice(0, match.index).trim(), tip: match[1].trim() }
+      ? { text: step.slice(0, match.index).trim(), tip: (match[1] ?? "").trim() }
       : { text: step, tip: null };
   });
 });
 
-function fetchExercise() {
+const fetchExercise = () => {
   if (queriedId.value === exerciseId.value) {
     refetch();
   } else {
     queriedId.value = exerciseId.value;
   }
-}
+};
 fetchExercise();
 
-function titleCase(value: string): string {
+const titleCase = (value: string): string => {
   return value.replace(/\b\w/g, (c) => c.toUpperCase());
-}
+};
 
-function formatWeight(weightKg: number): string {
+const formatWeight = (weightKg: number): string => {
   if (profileData.value?.profile?.unitSystem === "imperial") {
     return `${Math.round(kgToLbs(weightKg))} lbs`;
   }
   return `${Math.round(weightKg)} kg`;
-}
+};
 
-// sqlite's datetime('now') returns "YYYY-MM-DD HH:MM:SS" (space-separated, UTC) -- normalize to
-// a real ISO string before parsing, since Date's space-separated parsing isn't reliable cross-browser.
-function formatHistoryDate(dateString: string): string {
+const formatHistoryDate = (dateString: string): string => {
   const date = new Date(`${dateString.replace(" ", "T")}Z`);
   const today = new Date();
   if (date.toDateString() === today.toDateString()) return "Today";
@@ -74,7 +70,7 @@ function formatHistoryDate(dateString: string): string {
     day: "numeric",
     year: "numeric",
   }).format(date);
-}
+};
 </script>
 
 <template>

@@ -1,0 +1,24 @@
+name: Hydration reminders
+
+on:
+  schedule:
+    # GitHub's schedule trigger is best-effort and can lag well past its nominal interval
+    # under platform load -- fine here since isDue() only cares whether enough time has
+    # elapsed since a user's last reminder, not that this fires at an exact minute.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {} # manual trigger, for testing
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the reminder dispatch endpoint
+        run: |
+          status=$(curl -s -o /tmp/response.json -w "%{http_code}" -X POST \
+            "${{ vars.APP_URL }}/api/hydration/reminders/dispatch" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          cat /tmp/response.json
+          if [ "$status" -ge 300 ]; then
+            echo "Dispatch failed with status $status"
+            exit 1
+          fi

@@ -62,8 +62,6 @@ describe('SessionService', () => {
     expect(sessionId).toBe('session-1')
     expect(facts.scheduledDaysThisWeek).toBe(2)
     expect(facts.completedDaysThisWeek).toBe(1)
-    // A mid-week completion (1 of 2 scheduled days done) must never be reported as a
-    // missed day — missedScheduledDay is a fact about a closed week, not an open one.
     expect(facts.missedScheduledDay).toBe(false)
   })
 
@@ -125,11 +123,9 @@ describe('SessionService', () => {
     await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
     await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
 
-    // First completion succeeds and bumps the version to 2.
     await service.completeSession('session-1', 1)
     onSessionCompleted.mockClear()
 
-    // A stale client retries with the old expected version and hits the conflict branch.
     const result = await service.completeSession('session-1', 1)
 
     expect(result.conflict).toBe(true)

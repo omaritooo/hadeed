@@ -21,7 +21,7 @@ const items = [
 
 <template>
   <nav
-    class="fixed inset-x-0 bottom-0 z-50 border-t border-md-surface-variant bg-md-surface-container-low pb-[env(safe-area-inset-bottom)]"
+    class="fixed inset-x-0 bottom-0 z-50 border-t border-md-surface-variant/40 bg-md-surface-container-low/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
   >
     <div class="mx-auto flex max-w-xl items-center justify-around px-2 py-2">
       <NuxtLink
@@ -38,11 +38,13 @@ const items = [
         <component
           :is="item.icon"
           class="size-5"
-          :stroke-width="route.path === item.to ? 2.5 : 2"
+          :stroke-width="route.path === item.to ? 2.5 : 1.75"
         />
-        <span class="font-mono text-[10px] font-bold uppercase tracking-[1px]">{{
-          item.label
-        }}</span>
+        <span
+          class="font-mono text-[10px] uppercase tracking-[1px]"
+          :class="route.path === item.to ? 'font-bold' : 'font-medium'"
+          >{{ item.label }}</span
+        >
       </NuxtLink>
     </div>
   </nav>

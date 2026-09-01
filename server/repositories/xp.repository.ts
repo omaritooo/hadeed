@@ -1,5 +1,6 @@
 import type { Client } from '@libsql/client'
 import type { XpSourceType } from '~~/shared/types/gamification.types'
+import type { RecentPr } from '~~/shared/types/home.types'
 
 export class XpRepository {
   constructor(private db: Client) {}
@@ -13,9 +14,6 @@ export class XpRepository {
     })
   }
 
-  // xp_ledger already carries one deduplicated row per (userId, sourceType, sourceId) event
-  // (see award()'s ON CONFLICT DO NOTHING), so it doubles as a durable count of how many times
-  // a given kind of event has happened for this user -- no separate counter table needed.
   async countBySourceType(userId: string, sourceType: XpSourceType): Promise<number> {
     const result = await this.db.execute({
       sql: 'SELECT COUNT(*) as count FROM xp_ledger WHERE user_id = ? AND source_type = ?',
@@ -32,5 +30,25 @@ export class XpRepository {
     })
     const row = result.rows[0]
     return row ? (row.total as number) : 0
+  }
+
+  async recentPrs(userId: string, limit: number): Promise<RecentPr[]> {
+    const result = await this.db.execute({
+      sql: `SELECT xl.created_at AS achieved_at, sl.weight_kg, sl.reps, e.name AS exercise_name
+            FROM xp_ledger xl
+            JOIN set_logs sl ON sl.id = xl.source_id
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN exercises e ON e.id = el.exercise_id
+            WHERE xl.user_id = ? AND xl.source_type = 'pr'
+            ORDER BY xl.created_at DESC
+            LIMIT ?`,
+      args: [userId, limit],
+    })
+    return result.rows.map(row => ({
+      exerciseName: row.exercise_name as string,
+      weightKg: row.weight_kg as number,
+      reps: row.reps as number,
+      achievedAt: row.achieved_at as string,
+    }))
   }
 }

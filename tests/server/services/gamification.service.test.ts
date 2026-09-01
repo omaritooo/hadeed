@@ -4,6 +4,7 @@ import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { XpRepository } from '~~/server/repositories/xp.repository'
 import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
+import { SessionRepository } from '~~/server/repositories/session.repository'
 import { GamificationService } from '~~/server/services/gamification.service'
 
 describe('GamificationService', () => {
@@ -19,6 +20,7 @@ describe('GamificationService', () => {
       new XpRepository(db),
       new StreakRepository(db),
       achievements,
+      new SessionRepository(db),
     )
   })
 
@@ -33,11 +35,6 @@ describe('GamificationService', () => {
       criteriaType: 'streak_length', criteriaValue: { days: 2 }, isPublished: true,
     })
 
-    // Each call represents a separate week's final session, fully completing
-    // that week's schedule (completedDaysThisWeek === scheduledDaysThisWeek) —
-    // that's what advances the streak by one. A session logged mid-week
-    // (partial completion) intentionally would NOT advance it; see the
-    // "leaves the streak unchanged mid-week" test below.
     await service.onSessionCompleted('user-1', 'session-1', { scheduledDaysThisWeek: 5, completedDaysThisWeek: 5 })
     let unlocked = await achievements.findUnlockedKeys('user-1')
     expect(unlocked).not.toContain('week-streak')

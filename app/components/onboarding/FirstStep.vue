@@ -29,9 +29,9 @@ const { form, errors, touched, validateField, validateAll } = useZodForm(stepSch
   confirmPassword: store.form.confirmPassword ?? "",
 });
 
-function fieldValid(field: keyof typeof form) {
+const fieldValid = (field: keyof typeof form) => {
   return touched[field] && errors[field].length === 0;
-}
+};
 
 const dateFormatter = new DateFormatter("en-US", { dateStyle: "long" });
 

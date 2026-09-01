@@ -15,7 +15,7 @@ describe('AuthSessionRepository', () => {
 
   it('creates a session with a random id and resolves it back via findValid', async () => {
     const session = await repo.create('user-1')
-    expect(session.id).toHaveLength(43) // 32 random bytes, base64url-encoded, no padding
+    expect(session.id).toHaveLength(43)
     expect(session.userId).toBe('user-1')
 
     const found = await repo.findValid(session.id)

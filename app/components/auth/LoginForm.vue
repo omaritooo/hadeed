@@ -10,21 +10,20 @@ const { form, errors, touched, validateField, validateAll } = useZodForm(loginSc
   password: "",
 });
 
-function fieldValid(field: keyof typeof form) {
+const fieldValid = (field: keyof typeof form) => {
   return touched[field] && errors[field].length === 0;
-}
+};
 
 const rememberMe = ref(false);
 
 const { mutateAsync: login, isLoading, error } = useLogin();
 
-async function handleSubmit() {
+const handleSubmit = async () => {
   if (!validateAll()) return;
   try {
     await login({ email: form.email!, password: form.password!, rememberMe: rememberMe.value });
     await navigateTo("/");
   } catch {
-    // `error` is already reactive and rendered below.
   }
 }
 </script>

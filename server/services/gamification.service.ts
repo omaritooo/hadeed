@@ -43,11 +43,6 @@ export class GamificationService {
   }
 
   private async evaluateAchievements(userId: string): Promise<void> {
-    // Every fact every criteria type needs, fetched once per call regardless of which event
-    // triggered it (onPrHit doesn't only care about PR-count achievements, since a PR can also
-    // be the set that pushes total volume or session count over a threshold). These are cheap,
-    // indexed reads, and evaluateAchievements only runs on session-complete / PR events, not on
-    // every set logged.
     const [published, unlockedKeys, streak, sessionCount, prCount, totalVolumeKg] = await Promise.all([
       this.achievements.findPublished(),
       this.achievements.findUnlockedKeys(userId),
@@ -75,8 +70,6 @@ export class GamificationService {
           met = totalVolumeKg >= (achievement.criteriaValue.kg as number)
           break
         case 'target_hit':
-          // Not implemented: no achievement is currently seeded with this criteria type.
-          // Would need wiring into ProfileService/TargetRepository's target-hit detection.
           break
       }
 

@@ -141,7 +141,7 @@ describe('SessionRepository idempotent replay', () => {
 
     expect(replay.id).toBe(first.id)
     const withLogs = await repo.findWithLogs('session-1')
-    expect(withLogs?.exercises).toHaveLength(1) // not duplicated by the replayed exercise-log insert
+    expect(withLogs?.exercises).toHaveLength(1)
   })
 
   it('replaying logSet with the same id is a no-op, even after the session was completed', async () => {
@@ -153,7 +153,7 @@ describe('SessionRepository idempotent replay', () => {
 
     const replay = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 999, reps: 1, rpe: 1 })
 
-    expect(replay.weightKg).toBe(original.weightKg) // replay is a no-op, not a second write
+    expect(replay.weightKg).toBe(original.weightKg)
     const sets = await db.execute({ sql: 'SELECT COUNT(*) as count FROM set_logs WHERE id = ?', args: ['set-1'] })
     expect(sets.rows[0]!.count).toBe(1)
   })
@@ -239,8 +239,6 @@ describe('SessionRepository idempotent replay', () => {
     await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
     await repo.completeSession('session-1', 1)
 
-    // Replaying startSession for the already-completed session, but with an exercise that
-    // was never part of the original call, must not silently attach it after completion.
     await repo.startSession('user-1', {
       id: 'session-1',
       splitDayId: null,
@@ -263,7 +261,7 @@ describe('SessionRepository idempotent replay', () => {
     expect(second.id).toBe('race-session')
 
     const withLogs = await repo.findWithLogs('race-session')
-    expect(withLogs?.exercises).toHaveLength(1) // not duplicated by the race
+    expect(withLogs?.exercises).toHaveLength(1)
   })
 
   it('two concurrent replays of the same logSet never surface a raw UNIQUE constraint error', async () => {
@@ -391,9 +389,9 @@ describe('SessionRepository.completeSession', () => {
   })
 
   it('reports a conflict, and records it, when the expected version is stale', async () => {
-    await repo.completeSession('session-1', 1) // version is now 2
+    await repo.completeSession('session-1', 1)
 
-    const result = await repo.completeSession('session-1', 1) // stale client still thinks it's 1
+    const result = await repo.completeSession('session-1', 1)
     expect(result.conflict).toBe(true)
 
     const conflicts = await db.execute({ sql: 'SELECT * FROM sync_conflicts WHERE entity_id = ?', args: ['session-1'] })
@@ -426,13 +424,13 @@ describe('SessionRepository.editSetLog', () => {
   })
 
   it('records a conflict instead of silently overwriting when the expected version is stale', async () => {
-    await repo.editSetLog('set-1', 1, { weightKg: 62.5 }) // version is now 2
+    await repo.editSetLog('set-1', 1, { weightKg: 62.5 })
 
-    const result = await repo.editSetLog('set-1', 1, { weightKg: 999 }) // stale client
+    const result = await repo.editSetLog('set-1', 1, { weightKg: 999 })
     expect(result.conflict).toBe(true)
 
     const stillCorrect = await db.execute({ sql: 'SELECT weight_kg FROM set_logs WHERE id = ?', args: ['set-1'] })
-    expect(stillCorrect.rows[0].weight_kg).toBe(62.5) // the stale write never applied
+    expect(stillCorrect.rows[0].weight_kg).toBe(62.5)
 
     const conflicts = await db.execute({ sql: 'SELECT * FROM sync_conflicts WHERE entity_id = ?', args: ['set-1'] })
     expect(conflicts.rows).toHaveLength(1)
@@ -601,7 +599,6 @@ describe('SessionRepository.countTrainedDaysInRange', () => {
     await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
     await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
     await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
-    // Never completed.
 
     const count = await repo.countTrainedDaysInRange('user-1', '2000-01-01', '2100-01-01')
     expect(count).toBe(0)

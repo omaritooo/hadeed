@@ -3,7 +3,7 @@ import type { CreatePresetSplitInput } from '~~/server/repositories/preset-split
 import type { PresetSplit } from '~~/shared/types/preset.types'
 import { useMutation } from '@pinia/colada'
 
-export function useCreatePresetSplit() {
+export const useCreatePresetSplit = () => {
   const { $api } = useNuxtApp()
 
   return useMutation<PresetSplit, CreatePresetSplitInput, FetchError<{ statusMessage: string }>>({

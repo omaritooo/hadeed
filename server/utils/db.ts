@@ -2,7 +2,7 @@ import { createClient } from '@libsql/client'
 
 let client: ReturnType<typeof createClient> | undefined
 
-export function useDb() {
+export const useDb = () => {
   if (!client) {
     const config = useRuntimeConfig()
     client = createClient({

@@ -38,7 +38,7 @@ describe('PresetSplitService.recommend', () => {
       daysPerWeek: 6, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'gym',
     })
     expect(results[0]!.preset.name).toBe('PPL')
-    expect(results[0]!.score).toBe(9) // 3 (freq exact) + 2 (experience) + 2 (goal) + 2 (equipment)
+    expect(results[0]!.score).toBe(9)
   })
 
   it('gives partial credit for a frequency one day outside the range', async () => {
@@ -46,7 +46,7 @@ describe('PresetSplitService.recommend', () => {
       daysPerWeek: 5, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'gym',
     })
     const upperLower = results.find(r => r.preset.name === 'Upper/Lower')!
-    expect(upperLower.score).toBe(1 + 2 + 2 + 2) // 5 is one day outside [4,4]
+    expect(upperLower.score).toBe(1 + 2 + 2 + 2)
   })
 
   it('never returns unpublished presets', async () => {

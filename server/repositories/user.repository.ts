@@ -9,9 +9,6 @@ export interface UserWithPasswordHash {
 export class UserRepository {
   constructor(private db: Client) {}
 
-  // There's no separate signup endpoint -- requests establish identity via a session cookie
-  // (see getRequestContext), except onboarding itself, which creates the account. ON CONFLICT
-  // (id) DO NOTHING makes this safe to call unconditionally on the onboarding path.
   async ensureExists(userId: string, email: string, passwordHash: string, displayName?: string): Promise<void> {
     await this.db.execute({
       sql: 'INSERT INTO users (id, email, password_hash, display_name) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING',

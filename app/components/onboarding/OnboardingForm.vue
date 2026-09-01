@@ -51,14 +51,12 @@ const current = computed(() => steps[onboardingStep.value - 1]);
 type StepHandle = ComponentExposed<typeof OnboardingFirstStep>;
 const stepRef = useTemplateRef<StepHandle>("step");
 
-async function handleContinue() {
+const handleContinue = async () => {
   if (!stepRef.value?.validate()) return;
 
   if (onboardingStep.value === steps.length) {
     const data = onboardingStore.submitForm();
 
-    // email/password are sent to create the users row and its login credentials on this
-    // caller's first write; confirmPassword was only ever a client-side equality check.
     try {
       await completeOnboarding({
         email: data.email,
@@ -79,7 +77,6 @@ async function handleContinue() {
       onboardingStore.resetForm();
       await navigateTo("/");
     } catch {
-      // `error` (from useCompleteOnboarding) is already reactive and rendered below.
     }
     return;
   }

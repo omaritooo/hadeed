@@ -18,7 +18,12 @@ export interface UserProfile {
   equipment: Equipment | null
   unitSystem: UnitSystem
   timezone: string | null
+  hydrationTargetMl: number | null
+  hydrationRemindersEnabled: boolean
+  hydrationReminderIntervalMinutes: number
+  hydrationLastRemindedAt: string | null
   updatedAt: string
+  displayName: string | null
 }
 
 export interface BodyMetric {

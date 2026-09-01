@@ -98,7 +98,6 @@ describe('SplitService.createFromPreset', () => {
     expect(cloned?.days[0]?.exercises[0]?.exerciseId).toBe('bench-press')
     expect(cloned?.userId).toBe('user-1')
 
-    // Mutating the preset's exercise target afterward must not affect the clone.
     await db.execute({ sql: 'UPDATE preset_split_exercises SET target_reps = 999 WHERE preset_split_day_id = (SELECT id FROM preset_split_days WHERE preset_split_id = ?)', args: [preset.id] })
     const stillCloned = await splitService.getOwnedBlock(block.id)
     expect(stillCloned?.days[0]?.exercises[0]?.targetReps).toBe(8)
