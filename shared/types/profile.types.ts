@@ -1,6 +1,6 @@
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
-import type { MacroTarget } from './split.types'
+import type { MacroTarget } from '~~/shared/types/split.types'
 
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced'
 export type Goal = 'fat_loss' | 'muscle_gain' | 'maintenance' | 'general_fitness'

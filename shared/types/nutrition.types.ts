@@ -1,4 +1,4 @@
-import type { MacroTarget } from './split.types'
+import type { MacroTarget } from '~~/shared/types/split.types'
 
 export type IngredientUnitType = 'weight_100g' | 'count'
 
