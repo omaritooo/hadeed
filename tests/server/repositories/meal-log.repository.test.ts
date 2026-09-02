@@ -36,18 +36,25 @@ describe('MealLogRepository', () => {
   })
 
   it('finds meals logged within a date range', async () => {
-    await db.execute({
-      sql: 'INSERT INTO meal_logs (user_id, name, logged_at) VALUES (?, ?, ?)',
-      args: ['user-1', 'Yesterday', toSqliteDatetime(new Date('2026-08-01T12:00:00Z'))],
-    })
-    await repo.log('user-1', 'Today', [chickenItem])
+    const insertAt = async (name: string, loggedAt: string) => {
+      await db.execute({
+        sql: 'INSERT INTO meal_logs (user_id, name, logged_at) VALUES (?, ?, ?)',
+        args: ['user-1', name, loggedAt],
+      })
+    }
+
+    // Range under test: [2026-08-02 00:00:00, 2026-08-03 00:00:00)
+    await insertAt('Before', '2026-08-01 23:59:59') // just before the start boundary -> excluded
+    await insertAt('AtStart', '2026-08-02 00:00:00') // exactly on the inclusive start boundary -> included
+    await insertAt('Inside', '2026-08-02 12:00:00') // strictly inside -> included
+    await insertAt('AtEnd', '2026-08-03 00:00:00') // exactly on the exclusive end boundary -> excluded
 
     const results = await repo.findForRange(
       'user-1',
       toSqliteDatetime(new Date('2026-08-02T00:00:00Z')),
       toSqliteDatetime(new Date('2026-08-03T00:00:00Z')),
     )
-    expect(results).toHaveLength(0)
+    expect(results.map(r => r.name)).toEqual(['AtStart', 'Inside'])
   })
 
   it('deletes only the caller\'s own meal log', async () => {
