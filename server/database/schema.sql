@@ -338,3 +338,66 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- Nutrition: personal ingredient catalog + logged meals + reusable preset meals.
+-- Mirrors hydration_logs' "one row per event" shape, but a meal is a list of
+-- ingredient lines rather than a single scalar, so it gets a two-table
+-- log/log_items split like workout_sessions/exercise_logs.
+
+CREATE TABLE IF NOT EXISTS ingredients (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  unit_type   TEXT NOT NULL CHECK (unit_type IN ('weight_100g', 'count')),
+  unit_label  TEXT,               -- e.g. 'cup', 'can', 'scoop' (null when unit_type = 'weight_100g')
+  calories    REAL NOT NULL,      -- per 100g if weight_100g, per 1 unit_label if count
+  protein_g   REAL NOT NULL,
+  carbs_g     REAL NOT NULL,
+  fat_g       REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meal_logs (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name       TEXT,
+  logged_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ingredient_name/calories/protein_g/carbs_g/fat_g are a snapshot computed at
+-- log time (quantity scaled against the ingredient's macros then), not a live
+-- join -- editing an ingredient later must not rewrite past totals.
+CREATE TABLE IF NOT EXISTS meal_log_items (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  meal_log_id      INTEGER NOT NULL REFERENCES meal_logs(id) ON DELETE CASCADE,
+  ingredient_id    INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+  ingredient_name  TEXT NOT NULL,
+  quantity         REAL NOT NULL,
+  calories         REAL NOT NULL,
+  protein_g        REAL NOT NULL,
+  carbs_g          REAL NOT NULL,
+  fat_g            REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS preset_meals (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS preset_meal_items (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  preset_meal_id  INTEGER NOT NULL REFERENCES preset_meals(id) ON DELETE CASCADE,
+  ingredient_id   INTEGER NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+  quantity        REAL NOT NULL
+);
+
+ALTER TABLE user_profiles ADD COLUMN nutrition_target_calories REAL;
+ALTER TABLE user_profiles ADD COLUMN nutrition_target_protein_g REAL;
+ALTER TABLE user_profiles ADD COLUMN nutrition_target_carbs_g REAL;
+ALTER TABLE user_profiles ADD COLUMN nutrition_target_fat_g REAL;
+
+CREATE INDEX IF NOT EXISTS idx_ingredients_user       ON ingredients(user_id);
+CREATE INDEX IF NOT EXISTS idx_meal_logs_user          ON meal_logs(user_id, logged_at);
+CREATE INDEX IF NOT EXISTS idx_meal_log_items_meal     ON meal_log_items(meal_log_id);
+CREATE INDEX IF NOT EXISTS idx_preset_meals_user       ON preset_meals(user_id);
+CREATE INDEX IF NOT EXISTS idx_preset_meal_items_meal  ON preset_meal_items(preset_meal_id);
