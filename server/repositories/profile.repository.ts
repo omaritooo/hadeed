@@ -3,6 +3,7 @@ import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
 import { inToCm, round1 } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem, UserProfile } from '~~/shared/types/profile.types'
+import type { MacroTarget } from '~~/shared/types/split.types'
 
 export interface UpsertProfileInput {
   dateOfBirth: string
@@ -37,6 +38,14 @@ export class ProfileRepository {
       hydrationRemindersEnabled: Boolean(row.hydration_reminders_enabled),
       hydrationReminderIntervalMinutes: row.hydration_reminder_interval_minutes as number,
       hydrationLastRemindedAt: row.hydration_last_reminded_at as string | null,
+      nutritionTarget: row.nutrition_target_calories !== null
+        ? {
+            calories: row.nutrition_target_calories as number,
+            proteinG: row.nutrition_target_protein_g as number,
+            carbsG: row.nutrition_target_carbs_g as number,
+            fatG: row.nutrition_target_fat_g as number,
+          }
+        : null,
       updatedAt: row.updated_at as string,
       displayName: null,
     }
@@ -111,6 +120,16 @@ export class ProfileRepository {
     await this.db.execute({
       sql: 'UPDATE user_profiles SET hydration_target_ml = ?, updated_at = datetime(\'now\') WHERE user_id = ?',
       args: [targetMl, userId],
+    })
+  }
+
+  async setNutritionTarget(userId: string, target: MacroTarget | null): Promise<void> {
+    await this.db.execute({
+      sql: `UPDATE user_profiles
+            SET nutrition_target_calories = ?, nutrition_target_protein_g = ?, nutrition_target_carbs_g = ?, nutrition_target_fat_g = ?,
+                updated_at = datetime('now')
+            WHERE user_id = ?`,
+      args: [target?.calories ?? null, target?.proteinG ?? null, target?.carbsG ?? null, target?.fatG ?? null, userId],
     })
   }
 

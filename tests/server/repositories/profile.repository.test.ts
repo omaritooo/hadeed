@@ -131,6 +131,24 @@ describe('ProfileRepository', () => {
     expect(profile?.trainingDaysPerWeek).toBeNull()
   })
 
+  it('exposes nutritionTarget as null until all four macros are set', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
+    const profile = await repo.findByUserId('user-1')
+    expect(profile?.nutritionTarget).toBeNull()
+  })
+
+  it('sets and clears the nutrition target', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
+    await repo.setNutritionTarget('user-1', { calories: 2400, proteinG: 180, carbsG: 250, fatG: 70 })
+
+    let profile = await repo.findByUserId('user-1')
+    expect(profile?.nutritionTarget).toEqual({ calories: 2400, proteinG: 180, carbsG: 250, fatG: 70 })
+
+    await repo.setNutritionTarget('user-1', null)
+    profile = await repo.findByUserId('user-1')
+    expect(profile?.nutritionTarget).toBeNull()
+  })
+
   describe('atomicity of the read-then-write (lost-update fix)', () => {
     function createFakeTxClient(existingRow: Record<string, unknown> | undefined) {
       const calls: string[] = []
