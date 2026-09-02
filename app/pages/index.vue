@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DropletIcon, FlameIcon, FlameKindlingIcon, StarIcon } from "@lucide/vue";
+import { DropletIcon, FlameIcon, FlameKindlingIcon, StarIcon, UtensilsIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 definePageMeta({});
@@ -25,6 +25,16 @@ const hydrationPct = computed(() => {
     Math.round((hydration.value.totalMl / hydration.value.targetMl) * 100)
   );
 });
+
+const { data: nutrition } = useNutritionToday();
+const caloriePct = computed(() => {
+  if (!nutrition.value?.target?.calories) return 0;
+  return Math.min(100, Math.round((nutrition.value.totals.calories / nutrition.value.target.calories) * 100));
+});
+const remainingLabel = (remaining: number | undefined): string => {
+  if (remaining === undefined) return "";
+  return remaining >= 0 ? `${Math.round(remaining)} to go` : `${Math.round(-remaining)} over`;
+};
 </script>
 
 <template>
@@ -116,6 +126,47 @@ const hydrationPct = computed(() => {
             >+500ml</Button
           >
         </div>
+      </UiCard>
+    </div>
+    <div class="space-y-2">
+      <div class="flex items-center gap-2">
+        <UtensilsIcon class="size-4.5 text-lime" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Nutrition</h2>
+      </div>
+      <UiCard class="w-full space-y-4 rounded-xl border border-surface-strong bg-card p-5">
+        <div class="flex items-end justify-between">
+          <div>
+            <p class="font-heading text-2xl text-foreground [font-variant-numeric:tabular-nums]">
+              {{ Math.round(nutrition?.totals.calories ?? 0).toLocaleString() }}<span
+                class="font-sans text-sm font-normal text-muted-foreground"
+              >cal</span>
+            </p>
+            <p v-if="nutrition?.target" class="text-xs text-muted-foreground">
+              {{ remainingLabel(nutrition.remaining?.calories) }}
+            </p>
+            <p v-else class="text-xs text-muted-foreground">
+              No daily target --
+              <NuxtLink to="/profile" class="text-cyan-pale underline">set one</NuxtLink>
+            </p>
+          </div>
+          <span
+            v-if="nutrition?.target"
+            class="font-mono text-xs text-muted-foreground [font-variant-numeric:tabular-nums]"
+          >
+            {{ Math.round(nutrition.target.calories).toLocaleString() }}cal goal
+          </span>
+        </div>
+        <div v-if="nutrition?.target" class="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div class="h-full rounded-full bg-lime transition-[width]" :style="{ width: `${caloriePct}%` }" />
+        </div>
+        <div v-if="nutrition?.target" class="grid grid-cols-3 gap-2 font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">
+          <span>P {{ Math.round(nutrition.totals.proteinG) }}g</span>
+          <span>C {{ Math.round(nutrition.totals.carbsG) }}g</span>
+          <span>F {{ Math.round(nutrition.totals.fatG) }}g</span>
+        </div>
+        <NuxtLink to="/nutrition">
+          <Button variant="secondary" size="sm">Log meal</Button>
+        </NuxtLink>
       </UiCard>
     </div>
   </div>
