@@ -18,6 +18,42 @@ const macroPct = (consumed: number, target: number | undefined): number => {
   if (!target) return 0;
   return Math.min(100, Math.round((consumed / target) * 100));
 };
+
+const { data: ingredients } = useIngredients();
+const { mutateAsync: createIngredientAsync, isLoading: creatingIngredient } = useCreateIngredient();
+const deleteIngredient = useDeleteIngredient();
+
+// UiMetricInput's model type is `number | string | undefined` (no `null`), matching the
+// convention already established in profile.vue's target fields, so these use `undefined`
+// for "empty" rather than the plan's literal `null`.
+const newIngredient = ref({
+  name: "",
+  unitType: "weight_100g" as "weight_100g" | "count",
+  unitLabel: "",
+  calories: undefined as number | undefined,
+  proteinG: undefined as number | undefined,
+  carbsG: undefined as number | undefined,
+  fatG: undefined as number | undefined,
+});
+const showNewIngredientForm = ref(false);
+
+const onCreateIngredient = async () => {
+  try {
+    await createIngredientAsync({
+      name: newIngredient.value.name,
+      unitType: newIngredient.value.unitType,
+      unitLabel: newIngredient.value.unitType === "count" ? newIngredient.value.unitLabel : null,
+      calories: newIngredient.value.calories ?? 0,
+      proteinG: newIngredient.value.proteinG ?? 0,
+      carbsG: newIngredient.value.carbsG ?? 0,
+      fatG: newIngredient.value.fatG ?? 0,
+    });
+    newIngredient.value = { name: "", unitType: "weight_100g", unitLabel: "", calories: undefined, proteinG: undefined, carbsG: undefined, fatG: undefined };
+    showNewIngredientForm.value = false;
+  } catch {
+    // Swallow: on failure the form stays open with the user's input intact.
+  }
+};
 </script>
 
 <template>
@@ -82,6 +118,44 @@ const macroPct = (consumed: number, target: number | undefined): number => {
       <NuxtLink to="/nutrition/log">
         <Button variant="secondary" class="w-full gap-2"><PlusIcon class="size-4" />Log Meal</Button>
       </NuxtLink>
+    </section>
+
+    <section v-if="tab === 'ingredients'" class="space-y-4">
+      <div v-for="ingredient in ingredients ?? []" :key="ingredient.id" class="flex items-center justify-between rounded-xl border border-surface-strong bg-card p-4">
+        <div>
+          <p class="text-sm font-semibold text-foreground">{{ ingredient.name }}</p>
+          <p class="font-mono text-[10px] text-muted-foreground">
+            {{ ingredient.calories }}cal / {{ ingredient.unitType === 'weight_100g' ? '100g' : `1 ${ingredient.unitLabel}` }}
+            -- P{{ ingredient.proteinG }} C{{ ingredient.carbsG }} F{{ ingredient.fatG }}
+          </p>
+        </div>
+        <button :disabled="deleteIngredient.isLoading.value" @click="deleteIngredient.mutate(ingredient.id)">
+          <TrashIcon class="size-4 text-muted-foreground" />
+        </button>
+      </div>
+      <p v-if="!ingredients?.length" class="text-center text-sm text-muted-foreground">No ingredients yet.</p>
+
+      <Button v-if="!showNewIngredientForm" variant="secondary" class="w-full gap-2" @click="showNewIngredientForm = true">
+        <PlusIcon class="size-4" />Add Ingredient
+      </Button>
+      <div v-else class="space-y-3 rounded-xl border border-surface-strong bg-card p-4">
+        <UiInput v-model="newIngredient.name" placeholder="Name (e.g. Chicken breast)" />
+        <UiNativeSelect v-model="newIngredient.unitType">
+          <UiNativeSelectOption value="weight_100g">Per 100g</UiNativeSelectOption>
+          <UiNativeSelectOption value="count">Per count (cup, can, scoop...)</UiNativeSelectOption>
+        </UiNativeSelect>
+        <UiInput v-if="newIngredient.unitType === 'count'" v-model="newIngredient.unitLabel" placeholder="Unit label (e.g. can)" />
+        <div class="grid grid-cols-2 gap-3">
+          <UiMetricInput v-model="newIngredient.calories" unit="cal" />
+          <UiMetricInput v-model="newIngredient.proteinG" unit="g protein" />
+          <UiMetricInput v-model="newIngredient.carbsG" unit="g carbs" />
+          <UiMetricInput v-model="newIngredient.fatG" unit="g fat" />
+        </div>
+        <div class="flex gap-2">
+          <Button :disabled="creatingIngredient || !newIngredient.name" @click="onCreateIngredient">Save</Button>
+          <Button variant="secondary" @click="showNewIngredientForm = false">Cancel</Button>
+        </div>
+      </div>
     </section>
   </main>
 </template>
