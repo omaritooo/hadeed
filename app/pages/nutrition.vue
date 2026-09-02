@@ -40,9 +40,9 @@ const showNewIngredientForm = ref(false);
 const onCreateIngredient = async () => {
   try {
     await createIngredientAsync({
-      name: newIngredient.value.name,
+      name: newIngredient.value.name.trim(),
       unitType: newIngredient.value.unitType,
-      unitLabel: newIngredient.value.unitType === "count" ? newIngredient.value.unitLabel : null,
+      unitLabel: newIngredient.value.unitType === "count" ? newIngredient.value.unitLabel.trim() : null,
       calories: newIngredient.value.calories ?? 0,
       proteinG: newIngredient.value.proteinG ?? 0,
       carbsG: newIngredient.value.carbsG ?? 0,
@@ -152,7 +152,12 @@ const onCreateIngredient = async () => {
           <UiMetricInput v-model="newIngredient.fatG" unit="g fat" />
         </div>
         <div class="flex gap-2">
-          <Button :disabled="creatingIngredient || !newIngredient.name" @click="onCreateIngredient">Save</Button>
+          <Button
+            :disabled="creatingIngredient || !newIngredient.name.trim() || (newIngredient.unitType === 'count' && !newIngredient.unitLabel.trim())"
+            @click="onCreateIngredient"
+          >
+            Save
+          </Button>
           <Button variant="secondary" @click="showNewIngredientForm = false">Cancel</Button>
         </div>
       </div>
