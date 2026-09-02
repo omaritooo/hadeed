@@ -76,6 +76,10 @@ describe('NutritionService', () => {
     expect(updated).toMatchObject({ unitType: 'count', unitLabel: 'breast' })
   })
 
+  it('still 404s updating an unknown ingredient even when the update touches unitType/unitLabel', async () => {
+    await expect(service.updateIngredient(999, { unitType: 'count', unitLabel: 'can' })).rejects.toThrow()
+  })
+
   it('scales a weight_100g ingredient by grams / 100 when logging', async () => {
     const chicken = await service.createIngredient({
       name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,
