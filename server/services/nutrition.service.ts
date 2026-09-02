@@ -5,7 +5,7 @@ import type { MealLogItemInput, MealLogRepository } from '~~/server/repositories
 import type { CreatePresetMealInput, PresetMealRepository } from '~~/server/repositories/preset-meal.repository'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import type { Ingredient, MealLog, NutritionToday, PresetMeal } from '~~/shared/types/nutrition.types'
+import type { Ingredient, IngredientUnitType, MealLog, NutritionToday, PresetMeal } from '~~/shared/types/nutrition.types'
 import type { MacroTarget } from '~~/shared/types/split.types'
 import { toSqliteDatetime } from '~~/server/utils/date'
 
@@ -28,6 +28,12 @@ const requireNonNegative = (values: (number | undefined)[], message: string): vo
   }
 }
 
+const requireUnitLabelForCount = (unitType: IngredientUnitType, unitLabel: string | null | undefined): void => {
+  if (unitType === 'count' && (!unitLabel || !unitLabel.trim())) {
+    throw createError({ statusCode: 400, statusMessage: 'unitLabel is required for count-type ingredients' })
+  }
+}
+
 export class NutritionService extends BaseService {
   constructor(
     ctx: RequestContext,
@@ -45,11 +51,23 @@ export class NutritionService extends BaseService {
 
   async createIngredient(input: CreateIngredientInput): Promise<Ingredient> {
     requireNonNegative([input.calories, input.proteinG, input.carbsG, input.fatG], 'Macro values must be non-negative numbers')
+    requireUnitLabelForCount(input.unitType, input.unitLabel)
     return this.ingredients.create(this.ctx.userId, input)
   }
 
   async updateIngredient(id: number, input: UpdateIngredientInput): Promise<Ingredient> {
     requireNonNegative([input.calories, input.proteinG, input.carbsG, input.fatG], 'Macro values must be non-negative numbers')
+
+    // Only re-check the count/unitLabel invariant when this update actually touches one of
+    // those fields -- otherwise an unrelated patch (e.g. calories only) would need no lookup.
+    if ('unitType' in input || 'unitLabel' in input) {
+      const current = await this.ingredients.findById(id, this.ctx.userId)
+      if (!current) throw createError({ statusCode: 404, statusMessage: 'Ingredient not found' })
+      const resultingUnitType = input.unitType ?? current.unitType
+      const resultingUnitLabel = 'unitLabel' in input ? input.unitLabel : current.unitLabel
+      requireUnitLabelForCount(resultingUnitType, resultingUnitLabel)
+    }
+
     const updated = await this.ingredients.update(id, this.ctx.userId, input)
     if (!updated) throw createError({ statusCode: 404, statusMessage: 'Ingredient not found' })
     return updated
@@ -59,14 +77,19 @@ export class NutritionService extends BaseService {
     return this.ingredients.delete(id, this.ctx.userId)
   }
 
+  private async assertIngredientOwned(ingredientId: number): Promise<Ingredient> {
+    const ingredient = await this.ingredients.findById(ingredientId, this.ctx.userId)
+    if (!ingredient) throw createError({ statusCode: 400, statusMessage: `Unknown ingredient ${ingredientId}` })
+    return ingredient
+  }
+
   private async resolveItems(items: { ingredientId: number, quantity: number }[]): Promise<MealLogItemInput[]> {
     if (!items.length) throw createError({ statusCode: 400, statusMessage: 'A meal needs at least one item' })
     return Promise.all(items.map(async (item) => {
       if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
         throw createError({ statusCode: 400, statusMessage: 'quantity must be a positive number' })
       }
-      const ingredient = await this.ingredients.findById(item.ingredientId, this.ctx.userId)
-      if (!ingredient) throw createError({ statusCode: 400, statusMessage: `Unknown ingredient ${item.ingredientId}` })
+      const ingredient = await this.assertIngredientOwned(item.ingredientId)
       const scale = scaleFor(ingredient, item.quantity)
       return {
         ingredientId: ingredient.id,
@@ -102,6 +125,7 @@ export class NutritionService extends BaseService {
 
   async createPresetMeal(input: CreatePresetMealInput): Promise<PresetMeal> {
     if (!input.items.length) throw createError({ statusCode: 400, statusMessage: 'A preset meal needs at least one item' })
+    await Promise.all(input.items.map(item => this.assertIngredientOwned(item.ingredientId)))
     return this.presetMeals.create(this.ctx.userId, input)
   }
 
