@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { PlusIcon, TrashIcon, UtensilsIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer as UiDrawer,
+  DrawerContent as UiDrawerContent,
+  DrawerHeader as UiDrawerHeader,
+  DrawerTitle as UiDrawerTitle,
+  DrawerTrigger as UiDrawerTrigger,
+} from "@/components/ui/drawer";
 
 definePageMeta({});
 
@@ -50,6 +57,64 @@ const onCreateIngredient = async () => {
     });
     newIngredient.value = { name: "", unitType: "weight_100g", unitLabel: "", calories: undefined, proteinG: undefined, carbsG: undefined, fatG: undefined };
     showNewIngredientForm.value = false;
+  } catch {
+    // Swallow: on failure the form stays open with the user's input intact.
+  }
+};
+
+const { data: presetMeals } = usePresetMeals();
+const { mutateAsync: createPresetMealAsync, isLoading: creatingPresetMeal } = useCreatePresetMeal();
+const deletePresetMeal = useDeletePresetMeal();
+const { mutateAsync: logMealAsync, isLoading: loggingMeal } = useLogMeal();
+const logPresetMeal = useLogPresetMeal();
+
+const logDrawerOpen = ref(false);
+const draftItems = ref<{ ingredientId: number, quantity: number }[]>([]);
+// NativeSelect's model type includes `null` (reka-ui's AcceptableValue), unlike
+// UiMetricInput which only accepts `number | string | undefined` -- so the ingredient
+// picker keeps `null` as its "nothing selected" sentinel while quantity uses `undefined`.
+const draftIngredientId = ref<number | null>(null);
+const draftQuantity = ref<number | undefined>(undefined);
+
+const addDraftItem = () => {
+  if (draftIngredientId.value === null || !draftQuantity.value || draftQuantity.value <= 0) return;
+  draftItems.value.push({ ingredientId: draftIngredientId.value, quantity: draftQuantity.value });
+  draftIngredientId.value = null;
+  draftQuantity.value = undefined;
+};
+const removeDraftItem = (index: number) => draftItems.value.splice(index, 1);
+
+const draftTotals = computed(() => {
+  return draftItems.value.reduce((sum, item) => {
+    const ingredient = ingredients.value?.find((i) => i.id === item.ingredientId);
+    if (!ingredient) return sum;
+    const scale = ingredient.unitType === "weight_100g" ? item.quantity / 100 : item.quantity;
+    sum.calories += ingredient.calories * scale;
+    sum.proteinG += ingredient.proteinG * scale;
+    return sum;
+  }, { calories: 0, proteinG: 0 });
+});
+
+const onSaveMeal = async () => {
+  try {
+    await logMealAsync({ items: draftItems.value });
+    draftItems.value = [];
+    logDrawerOpen.value = false;
+  } catch {
+    // Swallow: on failure the drawer stays open with the draft items intact.
+  }
+};
+
+const onQuickLogPreset = (presetMealId: number) => logPresetMeal.mutate(presetMealId);
+
+const newPresetName = ref("");
+const showNewPresetForm = ref(false);
+const onCreatePreset = async () => {
+  try {
+    await createPresetMealAsync({ name: newPresetName.value.trim(), items: draftItems.value });
+    newPresetName.value = "";
+    draftItems.value = [];
+    showNewPresetForm.value = false;
   } catch {
     // Swallow: on failure the form stays open with the user's input intact.
   }
@@ -115,9 +180,76 @@ const onCreateIngredient = async () => {
         <p v-if="!nutrition?.meals.length" class="text-center text-sm text-muted-foreground">No meals logged today.</p>
       </div>
 
-      <NuxtLink to="/nutrition/log">
-        <Button variant="secondary" class="w-full gap-2"><PlusIcon class="size-4" />Log Meal</Button>
-      </NuxtLink>
+      <UiDrawer v-model:open="logDrawerOpen">
+        <UiDrawerTrigger as-child>
+          <Button variant="secondary" class="w-full gap-2"><PlusIcon class="size-4" />Log Meal</Button>
+        </UiDrawerTrigger>
+        <UiDrawerContent>
+          <UiDrawerHeader>
+            <UiDrawerTitle>Log a meal</UiDrawerTitle>
+          </UiDrawerHeader>
+          <div class="space-y-4 px-4 pb-4">
+            <div v-if="presetMeals?.length" class="space-y-2">
+              <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Presets</p>
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  v-for="preset in presetMeals"
+                  :key="preset.id"
+                  variant="secondary"
+                  size="sm"
+                  :disabled="logPresetMeal.isLoading.value"
+                  @click="onQuickLogPreset(preset.id)"
+                >
+                  {{ preset.name }}
+                </Button>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Build a meal</p>
+              <div class="flex gap-2">
+                <UiNativeSelect v-model="draftIngredientId" class="flex-1">
+                  <UiNativeSelectOption :value="null" disabled>Pick an ingredient</UiNativeSelectOption>
+                  <UiNativeSelectOption v-for="ingredient in ingredients ?? []" :key="ingredient.id" :value="ingredient.id">
+                    {{ ingredient.name }}
+                  </UiNativeSelectOption>
+                </UiNativeSelect>
+                <UiMetricInput
+                  v-model="draftQuantity"
+                  :unit="ingredients?.find((i) => i.id === draftIngredientId)?.unitType === 'count' ? (ingredients?.find((i) => i.id === draftIngredientId)?.unitLabel ?? 'x') : 'g'"
+                  class="w-32"
+                />
+                <Button size="sm" :disabled="draftIngredientId === null || !draftQuantity || draftQuantity <= 0" @click="addDraftItem">Add</Button>
+              </div>
+
+              <div v-for="(item, index) in draftItems" :key="index" class="flex items-center justify-between text-sm text-foreground">
+                <span>{{ item.quantity }} -- {{ ingredients?.find((i) => i.id === item.ingredientId)?.name }}</span>
+                <button @click="removeDraftItem(index)"><TrashIcon class="size-3.5 text-muted-foreground" /></button>
+              </div>
+
+              <p v-if="draftItems.length" class="font-mono text-xs text-muted-foreground">
+                {{ Math.round(draftTotals.calories) }}cal / {{ Math.round(draftTotals.proteinG) }}g protein
+              </p>
+            </div>
+
+            <div class="flex gap-2">
+              <Button :disabled="!draftItems.length || loggingMeal" @click="onSaveMeal">Log meal</Button>
+              <Button
+                v-if="!showNewPresetForm"
+                variant="secondary"
+                :disabled="!draftItems.length"
+                @click="showNewPresetForm = true"
+              >
+                Save as preset
+              </Button>
+            </div>
+            <div v-if="showNewPresetForm" class="flex gap-2">
+              <UiInput v-model="newPresetName" placeholder="Preset name" class="flex-1" />
+              <Button :disabled="!newPresetName.trim() || creatingPresetMeal" @click="onCreatePreset">Save</Button>
+            </div>
+          </div>
+        </UiDrawerContent>
+      </UiDrawer>
     </section>
 
     <section v-if="tab === 'ingredients'" class="space-y-4">
@@ -161,6 +293,22 @@ const onCreateIngredient = async () => {
           <Button variant="secondary" @click="showNewIngredientForm = false">Cancel</Button>
         </div>
       </div>
+    </section>
+
+    <section v-if="tab === 'presets'" class="space-y-4">
+      <div v-for="preset in presetMeals ?? []" :key="preset.id" class="flex items-center justify-between rounded-xl border border-surface-strong bg-card p-4">
+        <div>
+          <p class="text-sm font-semibold text-foreground">{{ preset.name }}</p>
+          <p class="font-mono text-[10px] text-muted-foreground">{{ preset.items.length }} ingredient(s)</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <Button size="sm" variant="secondary" :disabled="logPresetMeal.isLoading.value" @click="onQuickLogPreset(preset.id)">Log now</Button>
+          <button :disabled="deletePresetMeal.isLoading.value" @click="deletePresetMeal.mutate(preset.id)">
+            <TrashIcon class="size-4 text-muted-foreground" />
+          </button>
+        </div>
+      </div>
+      <p v-if="!presetMeals?.length" class="text-center text-sm text-muted-foreground">No preset meals yet -- build one from the Today tab's "Log Meal" drawer and save it.</p>
     </section>
   </main>
 </template>
