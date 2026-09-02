@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, TrendingUpIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, TrendingUpIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
+import { Button } from "@/components/ui/button";
 
 const remindersEnabled = ref(false);
 const reminderInterval = ref(120);
@@ -24,6 +25,36 @@ const onRemindersToggle = async (nextEnabled: boolean) => {
 
 const onIntervalChange = async () => {
   if (remindersEnabled.value) await enableReminders(reminderInterval.value);
+};
+
+const { mutate: saveTarget, isLoading: targetSaving } = useSetNutritionTarget();
+// UiMetricInput's model type is `number | string | undefined` (no `null`), so these use
+// `undefined` for "empty" rather than the plan's literal `null`, matching how FourthStep.vue
+// binds its optional targetWeight field to the same component.
+const targetCalories = ref<number | undefined>(undefined);
+const targetProtein = ref<number | undefined>(undefined);
+const targetCarbs = ref<number | undefined>(undefined);
+const targetFat = ref<number | undefined>(undefined);
+let seededTargetFromProfile = false;
+watch(profileData, (data) => {
+  if (seededTargetFromProfile || !data?.profile) return;
+  const target = data.profile.nutritionTarget;
+  targetCalories.value = target?.calories ?? undefined;
+  targetProtein.value = target?.proteinG ?? undefined;
+  targetCarbs.value = target?.carbsG ?? undefined;
+  targetFat.value = target?.fatG ?? undefined;
+  seededTargetFromProfile = true;
+}, { immediate: true });
+
+const onSaveTarget = () => {
+  const hasAllFields =
+    targetCalories.value !== undefined && targetProtein.value !== undefined &&
+    targetCarbs.value !== undefined && targetFat.value !== undefined;
+  saveTarget(
+    hasAllFields
+      ? { calories: targetCalories.value!, proteinG: targetProtein.value!, carbsG: targetCarbs.value!, fatG: targetFat.value! }
+      : null,
+  );
 };
 
 interface AchievementCard {
@@ -132,6 +163,23 @@ const progressPct = (card: AchievementCard): number => {
           </UiNativeSelect>
         </div>
         <p v-if="reminderError" class="text-xs text-destructive">{{ reminderError }}</p>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <UtensilsIcon class="size-4.5 text-lime" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Nutrition Target</h2>
+      </div>
+      <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
+        <p class="text-xs text-muted-foreground">Leave any field blank to clear your target entirely.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <UiMetricInput v-model="targetCalories" unit="cal" />
+          <UiMetricInput v-model="targetProtein" unit="g protein" />
+          <UiMetricInput v-model="targetCarbs" unit="g carbs" />
+          <UiMetricInput v-model="targetFat" unit="g fat" />
+        </div>
+        <Button variant="secondary" size="sm" :disabled="targetSaving" @click="onSaveTarget">Save target</Button>
       </div>
     </section>
 
