@@ -63,6 +63,13 @@ describe('NutritionService', () => {
     await expect(service.logMeal('Lunch', [])).rejects.toThrow()
   })
 
+  it('rejects logging a non-positive quantity', async () => {
+    const chicken = await service.createIngredient({
+      name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,
+    })
+    await expect(service.logMeal('Lunch', [{ ingredientId: chicken.id, quantity: 0 }])).rejects.toThrow()
+  })
+
   it('logs a preset meal by resolving its saved items against current ingredient macros', async () => {
     const chicken = await service.createIngredient({
       name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,
