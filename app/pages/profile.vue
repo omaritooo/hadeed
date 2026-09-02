@@ -27,7 +27,7 @@ const onIntervalChange = async () => {
   if (remindersEnabled.value) await enableReminders(reminderInterval.value);
 };
 
-const { mutate: saveTarget, isLoading: targetSaving } = useSetNutritionTarget();
+const { mutateAsync: saveTarget, isLoading: targetSaving } = useSetNutritionTarget();
 // UiMetricInput's model type is `number | string | undefined` (no `null`), so these use
 // `undefined` for "empty" rather than the plan's literal `null`, matching how FourthStep.vue
 // binds its optional targetWeight field to the same component.
@@ -46,15 +46,27 @@ watch(profileData, (data) => {
   seededTargetFromProfile = true;
 }, { immediate: true });
 
-const onSaveTarget = () => {
+const onSaveTarget = async () => {
   const hasAllFields =
     targetCalories.value !== undefined && targetProtein.value !== undefined &&
     targetCarbs.value !== undefined && targetFat.value !== undefined;
-  saveTarget(
-    hasAllFields
-      ? { calories: targetCalories.value!, proteinG: targetProtein.value!, carbsG: targetCarbs.value!, fatG: targetFat.value! }
-      : null,
-  );
+  try {
+    await saveTarget(
+      hasAllFields
+        ? { calories: targetCalories.value!, proteinG: targetProtein.value!, carbsG: targetCarbs.value!, fatG: targetFat.value! }
+        : null,
+    );
+    if (!hasAllFields) {
+      // A partial save clears the target server-side; reflect that in the UI instead of
+      // leaving stale partially-filled fields on screen.
+      targetCalories.value = undefined;
+      targetProtein.value = undefined;
+      targetCarbs.value = undefined;
+      targetFat.value = undefined;
+    }
+  } catch {
+    // Swallow: on failure the fields simply stay as the user left them.
+  }
 };
 
 interface AchievementCard {
