@@ -119,6 +119,22 @@ const onCreatePreset = async () => {
     // Swallow: on failure the form stays open with the user's input intact.
   }
 };
+
+// The drawer can also be dismissed without saving (outside-press, Escape, swipe --
+// DrawerRoot defaults to modal: true), which isn't distinguished from a save-driven
+// close. Reset all draft/preset-form state whenever it closes so a stale, already-valid
+// draft can't resurface the next time "Log Meal" is opened. This also covers the case
+// where "Log meal" succeeds while the preset-name form is still open, since onSaveMeal
+// closes the drawer on success (onCreatePreset resets this state itself and leaves the
+// drawer open, so it's unaffected either way).
+watch(logDrawerOpen, (open) => {
+  if (open) return;
+  draftItems.value = [];
+  draftIngredientId.value = null;
+  draftQuantity.value = undefined;
+  showNewPresetForm.value = false;
+  newPresetName.value = "";
+});
 </script>
 
 <template>
@@ -245,7 +261,7 @@ const onCreatePreset = async () => {
             </div>
             <div v-if="showNewPresetForm" class="flex gap-2">
               <UiInput v-model="newPresetName" placeholder="Preset name" class="flex-1" />
-              <Button :disabled="!newPresetName.trim() || creatingPresetMeal" @click="onCreatePreset">Save</Button>
+              <Button :disabled="!draftItems.length || !newPresetName.trim() || creatingPresetMeal" @click="onCreatePreset">Save</Button>
             </div>
           </div>
         </UiDrawerContent>
