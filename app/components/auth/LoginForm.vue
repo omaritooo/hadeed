@@ -56,8 +56,8 @@ const handleSubmit = async () => {
               @blur="validateField('email')"
             />
             <UiInputGroupAddon v-if="fieldValid('email')" align="inline-end">
-              <div class="bg-md-tertiary flex size-5 shrink-0 items-center justify-center rounded-full">
-                <CheckIcon class="text-md-on-tertiary size-3" />
+              <div class="bg-lime flex size-5 shrink-0 items-center justify-center rounded-full">
+                <CheckIcon class="text-lime-ink size-3" />
               </div>
             </UiInputGroupAddon>
           </UiInputGroup>
@@ -81,8 +81,8 @@ const handleSubmit = async () => {
               @blur="validateField('password')"
             />
             <UiInputGroupAddon v-if="fieldValid('password')" align="inline-end">
-              <div class="bg-md-tertiary flex size-5 shrink-0 items-center justify-center rounded-full">
-                <CheckIcon class="text-md-on-tertiary size-3" />
+              <div class="bg-lime flex size-5 shrink-0 items-center justify-center rounded-full">
+                <CheckIcon class="text-lime-ink size-3" />
               </div>
             </UiInputGroupAddon>
           </UiInputGroup>

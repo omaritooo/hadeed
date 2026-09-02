@@ -8,7 +8,7 @@ export const useRecommendedSplits = (input: MaybeRefOrGetter<RecommendationInput
   const { $api } = useNuxtApp()
 
   return useQuery<SplitRecommendation[], FetchError<{ statusMessage: string }>>({
-    key: () => ['preset-splits', 'recommend', toValue(input)],
+    key: () => queryKeys.presetSplitsRecommend(toValue(input)),
     query: () => {
       const value = toValue(input)
       return $api<SplitRecommendation[]>('/api/preset-splits/recommend', {

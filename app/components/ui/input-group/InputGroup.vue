@@ -14,9 +14,9 @@ const props = defineProps<{
     role="group"
     :class="
       cn(
-        'group/input-group border-input bg-md-surface-container-highest font-mono relative flex w-full items-center rounded-lg border shadow-xs transition-[color,box-shadow] outline-none',
+        'group/input-group border-input bg-surface-strong font-mono relative flex w-full items-center rounded-lg border shadow-xs transition-[color,box-shadow] outline-none',
         'h-14 min-w-0 has-[>textarea]:h-auto',
-        props.valid && 'border-md-tertiary/50 ring-1 ring-md-tertiary/20',
+        props.valid && 'border-lime/50 ring-1 ring-lime/20',
 
         // Variants based on alignment.
         'has-[>[data-align=inline-start]]:[&>input]:pl-2',

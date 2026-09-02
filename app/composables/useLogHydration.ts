@@ -11,6 +11,6 @@ export const useLogHydration = () => {
       method: 'POST',
       body: { amountMl },
     }),
-    onSuccess: () => queryCache.invalidateQueries({ key: ['hydration'] }),
+    onSuccess: () => queryCache.invalidateQueries({ key: queryKeys.hydration() }),
   })
 }

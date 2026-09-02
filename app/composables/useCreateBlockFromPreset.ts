@@ -1,6 +1,6 @@
 import type { FetchError } from 'ofetch'
 import type { Block } from '~~/shared/types/split.types'
-import { useMutation } from '@pinia/colada'
+import { useMutation, useQueryCache } from '@pinia/colada'
 
 export interface CreateBlockFromPresetInput {
   presetSplitId: number
@@ -11,11 +11,14 @@ export interface CreateBlockFromPresetInput {
 
 export const useCreateBlockFromPreset = () => {
   const { $api } = useNuxtApp()
+  const queryCache = useQueryCache()
 
   return useMutation<Block, CreateBlockFromPresetInput, FetchError<{ statusMessage: string }>>({
     mutation: input => $api<Block>('/api/blocks/from-preset', {
       method: 'POST',
       body: input,
     }),
+    // A new active block changes home's todaysWorkout/activeSession/weeklyProgress.
+    onSuccess: () => queryCache.invalidateQueries({ key: queryKeys.home() }),
   })
 }

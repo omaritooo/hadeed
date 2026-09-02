@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { DropletIcon, FlameIcon, FlameKindlingIcon } from "@lucide/vue";
+import { DropletIcon, FlameIcon, FlameKindlingIcon, StarIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 definePageMeta({});
 const { data: profile, isLoading, error, isPending } = useProfile();
-const { data } = useHomeStats();
+const { data: stats } = useHomeStats();
 const now = useNow();
 useDateFormat(now, "MMM DD, YYYY");
 const timeOfDay = computed(() => {
@@ -14,7 +14,7 @@ const timeOfDay = computed(() => {
   else return `Good evening, `;
 });
 console.log(profile.value);
-console.log(data.value);
+console.log(stats.value);
 
 const { data: hydration } = useHydrationStatus();
 const logHydration = useLogHydration();
@@ -37,27 +37,35 @@ const hydrationPct = computed(() => {
       <span>{{ profile?.profile?.displayName?.split(" ")[0] }} </span>
     </span>
 
-    <div class="flex gap-x-2">
-      <UiCard>
+    <div class="flex gap-x-2 font-heading min-h-max h-max">
+      <UiCard class="w-1/2 flex flex-col gap-y-1">
         <span class="flex gap-x-2 items-center flex-row">
           <FlameIcon fill="currentColor" class="text-primary" />
-          <h2 class="text-3xl">{{ data?.streak.current ?? 0 }}</h2></span
+          <h2 class="text-3xl">{{ stats?.streak.current ?? 0 }}</h2></span
         >
+        <span class="text-muted-foreground font-thin">Day Streak</span>
       </UiCard>
-      <UiCard>
-        <span class="flex gap-x-2 items-center flex-row">
-          <FlameIcon fill="currentColor" class="text-primary" />
-          <h2 class="text-3xl">14</h2></span
+      <UiCard class="w-1/2">
+        <span class="flex gap-x-2 items-center flex-row font-heading">
+          <StarIcon fill="currentColor" class="text-primary" />
+          <h2 class="text-3xl">Level 14</h2></span
         >
       </UiCard>
     </div>
 
+    <div>
+      <div>
+        <UiCard>
+          <span class="font-heading text-xl">Active Goal: {{ profile?.stats.latestWeightKg }}KG </span>
+        </UiCard>
+      </div>
+    </div>
     <div class="space-y-2">
       <div class="flex items-center gap-2">
-        <DropletIcon class="size-4.5 text-md-secondary" />
+        <DropletIcon class="size-4.5 text-cyan-pale" />
         <h2 class="font-heading text-lg uppercase text-foreground">Hydration</h2>
       </div>
-      <div class="space-y-4 rounded-xl border border-md-surface-variant bg-card p-5">
+      <UiCard class="w-full space-y-4 rounded-xl border border-surface-strong bg-card p-5">
         <div class="flex items-end justify-between">
           <div>
             <p
@@ -73,9 +81,7 @@ const hydrationPct = computed(() => {
             </p>
             <p v-else class="text-xs text-muted-foreground">
               No daily target --
-              <NuxtLink to="/profile" class="text-md-secondary underline"
-                >set one</NuxtLink
-              >
+              <NuxtLink to="/profile" class="text-cyan-pale underline">set one</NuxtLink>
             </p>
           </div>
           <span
@@ -90,7 +96,7 @@ const hydrationPct = computed(() => {
           class="h-1.5 overflow-hidden rounded-full bg-muted"
         >
           <div
-            class="h-full rounded-full bg-md-secondary-container transition-[width]"
+            class="h-full rounded-full bg-secondary transition-[width]"
             :style="{ width: `${hydrationPct}%` }"
           />
         </div>
@@ -110,7 +116,7 @@ const hydrationPct = computed(() => {
             >+500ml</Button
           >
         </div>
-      </div>
+      </UiCard>
     </div>
   </div>
   <div v-else>Is Loading</div>

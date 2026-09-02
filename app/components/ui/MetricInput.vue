@@ -14,7 +14,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="bg-md-surface-container-highest border border-input flex h-14 items-center overflow-hidden rounded-lg"
+    class="bg-surface-strong border border-input flex h-14 items-center overflow-hidden rounded-lg"
     :class="ariaInvalid && 'border-destructive'"
   >
     <input
@@ -27,7 +27,7 @@ const emit = defineEmits<{
       @blur="emit('blur')"
     />
     <div class="border-l border-input flex h-full items-center px-6">
-      <span class="text-md-primary font-mono text-sm">{{ unit }}</span>
+      <span class="text-peach font-mono text-sm">{{ unit }}</span>
     </div>
   </div>
 </template>

@@ -43,7 +43,7 @@ const forwardedProps = useForwardProps(delegatedProps);
     </div>
 
     <div
-      class="border-md-outline flex size-8 shrink-0 items-center justify-center rounded-full border-2 group-data-[state=checked]:border-none group-data-[state=checked]:bg-primary"
+      class="border-outline-warm flex size-8 shrink-0 items-center justify-center rounded-full border-2 group-data-[state=checked]:border-none group-data-[state=checked]:bg-primary"
     >
       <RadioGroupIndicator data-slot="option-card-indicator">
         <CheckIcon class="text-primary-foreground size-4" />

@@ -21,7 +21,7 @@ const items = [
 
 <template>
   <nav
-    class="fixed inset-x-0 bottom-0 z-50 border-t border-md-surface-variant/40 bg-md-surface-container-low/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
+    class="fixed inset-x-0 bottom-0 z-50 border-t border-surface-strong/40 bg-card/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
   >
     <div class="mx-auto flex max-w-xl items-center justify-around px-2 py-2">
       <NuxtLink

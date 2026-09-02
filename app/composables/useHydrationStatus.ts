@@ -6,7 +6,7 @@ export const useHydrationStatus = () => {
   const { $api } = useNuxtApp()
 
   return useQuery<HydrationToday, FetchError<{ statusMessage: string }>>({
-    key: () => ['hydration'],
+    key: () => queryKeys.hydration(),
     query: () => $api<HydrationToday>('/api/hydration'),
   })
 }

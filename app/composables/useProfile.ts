@@ -11,7 +11,7 @@ export const useProfile = () => {
   const { $api } = useNuxtApp()
 
   return useQuery<ProfileResponse, FetchError<{ statusMessage: string }>>({
-    key: () => ['profile'],
+    key: () => queryKeys.profile(),
     query: () => $api<ProfileResponse>('/api/profile'),
   })
 }

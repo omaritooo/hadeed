@@ -87,7 +87,7 @@ const formatHistoryDate = (dateString: string): string => {
                 <UiCarouselContent>
                   <UiCarouselItem v-for="image in exercise.images" :key="image">
                     <div
-                      class="aspect-4/3 w-full overflow-hidden rounded-xl bg-md-surface-container-low"
+                      class="aspect-4/3 w-full overflow-hidden rounded-xl bg-card"
                     >
                       <NuxtImg :src="image" class="size-full object-cover" />
                     </div>
@@ -114,14 +114,14 @@ const formatHistoryDate = (dateString: string): string => {
             <div class="flex items-center gap-2">
               <UiBadge
                 v-if="exercise.primaryMuscles[0]"
-                class="gap-1 rounded-full bg-md-surface-container-high px-3 py-1 font-mono text-xs font-bold uppercase tracking-[1.2px] text-muted-foreground"
+                class="gap-1 rounded-full bg-popover px-3 py-1 font-mono text-xs font-bold uppercase tracking-[1.2px] text-muted-foreground"
               >
                 <ArrowUpRightIcon class="size-3.5" />
                 {{ exercise.primaryMuscles[0] }}
               </UiBadge>
               <UiBadge
                 v-if="exercise.mechanic"
-                class="rounded-full bg-md-surface-container-high px-3 py-1 font-mono text-xs font-bold uppercase tracking-[1.2px] text-muted-foreground"
+                class="rounded-full bg-popover px-3 py-1 font-mono text-xs font-bold uppercase tracking-[1.2px] text-muted-foreground"
               >
                 {{ exercise.mechanic }}
               </UiBadge>
@@ -130,7 +130,7 @@ const formatHistoryDate = (dateString: string): string => {
 
           <div
             v-if="personalRecord"
-            class="relative flex items-center h-fit min-h-22 justify-between overflow-hidden rounded-xl border border-md-surface-container-high bg-card p-5 shadow-[0_0_20px_0_rgba(255,87,34,0.2)]"
+            class="relative flex items-center h-fit min-h-22 justify-between overflow-hidden rounded-xl border border-popover bg-card p-5 shadow-[0_0_20px_0_rgba(255,87,34,0.2)]"
           >
             <div class="flex items-center gap-4">
               <div
@@ -140,7 +140,7 @@ const formatHistoryDate = (dateString: string): string => {
               </div>
               <div class="space-y-0.5">
                 <p
-                  class="font-mono text-[11px] font-bold uppercase tracking-[1px] text-md-primary"
+                  class="font-mono text-[11px] font-bold uppercase tracking-[1px] text-peach"
                 >
                   Personal Record
                 </p>
@@ -171,12 +171,12 @@ const formatHistoryDate = (dateString: string): string => {
               <div
                 v-for="(step, index) in parsedInstructions"
                 :key="index"
-                class="flex gap-4 border-b border-md-surface-variant pb-5 last:border-b-0 last:pb-0 motion-safe:group-data-[state=open]/drawer-content:animate-[step-in_0.45s_cubic-bezier(0.16,1,0.3,1)_backwards]"
+                class="flex gap-4 border-b border-surface-strong pb-5 last:border-b-0 last:pb-0 motion-safe:group-data-[state=open]/drawer-content:animate-[step-in_0.45s_cubic-bezier(0.16,1,0.3,1)_backwards]"
                 :style="{ animationDelay: `${index * 90}ms` }"
               >
                 <span
                   class="w-9 shrink-0 font-heading text-3xl leading-8 [font-variant-numeric:tabular-nums]"
-                  :class="index === 0 ? 'text-primary' : 'text-md-surface-container-high'"
+                  :class="index === 0 ? 'text-primary' : 'text-popover'"
                 >
                   {{ String(index + 1).padStart(2, "0") }}
                 </span>
@@ -184,7 +184,7 @@ const formatHistoryDate = (dateString: string): string => {
                   <p class="text-sm leading-6 text-muted-foreground">{{ step.text }}</p>
                   <p
                     v-if="step.tip"
-                    class="flex items-start gap-1.5 rounded-lg bg-md-surface-container-high px-3 py-2 text-xs leading-5"
+                    class="flex items-start gap-1.5 rounded-lg bg-popover px-3 py-2 text-xs leading-5"
                   >
                     <span
                       class="shrink-0 font-mono text-[10px] font-bold uppercase tracking-[1px] text-primary"
@@ -199,18 +199,18 @@ const formatHistoryDate = (dateString: string): string => {
 
           <div v-if="exercise" class="space-y-3">
             <div class="flex items-center gap-2">
-              <PersonStandingIcon class="size-5 text-md-tertiary" />
+              <PersonStandingIcon class="size-5 text-lime" />
               <h2 class="font-heading text-xl uppercase text-foreground">Target Areas</h2>
             </div>
             <div
-              class="space-y-5 rounded-xl border border-md-surface-variant bg-card p-5"
+              class="space-y-5 rounded-xl border border-surface-strong bg-card p-5"
             >
               <div
                 class="rounded-lg py-2"
                 style="
                   background: radial-gradient(
                     ellipse at center,
-                    var(--md-surface-container-high),
+                    var(--popover),
                     transparent 70%
                   );
                 "
@@ -221,7 +221,7 @@ const formatHistoryDate = (dateString: string): string => {
                 />
               </div>
               <div
-                class="flex flex-wrap gap-x-6 gap-y-3 border-t border-md-surface-variant pt-4"
+                class="flex flex-wrap gap-x-6 gap-y-3 border-t border-surface-strong pt-4"
               >
                 <div v-if="exercise.primaryMuscles.length" class="flex items-start gap-2">
                   <span
@@ -268,7 +268,7 @@ const formatHistoryDate = (dateString: string): string => {
                 <HistoryIcon class="size-4.5 text-foreground" />
                 <h2 class="font-heading text-xl uppercase text-foreground">History</h2>
               </div>
-              <span class="font-mono text-xs uppercase tracking-[1.2px] text-md-primary"
+              <span class="font-mono text-xs uppercase tracking-[1.2px] text-peach"
                 >View All</span
               >
             </div>
@@ -278,7 +278,7 @@ const formatHistoryDate = (dateString: string): string => {
             <div
               v-for="entry in history"
               :key="entry.sessionId"
-              class="flex items-center justify-between rounded-xl border border-md-surface-variant bg-card p-5"
+              class="flex items-center justify-between rounded-xl border border-surface-strong bg-card p-5"
             >
               <div>
                 <p class="mb-1 font-mono text-xs text-muted-foreground">
@@ -297,7 +297,7 @@ const formatHistoryDate = (dateString: string): string => {
                 </div>
               </div>
               <div
-                class="flex size-8 shrink-0 items-center justify-center rounded-full bg-md-surface-container-high"
+                class="flex size-8 shrink-0 items-center justify-center rounded-full bg-popover"
               >
                 <ChevronRightIcon class="size-4 text-muted-foreground" />
               </div>

@@ -6,7 +6,7 @@ export const useHomeStats = () => {
   const { $api } = useNuxtApp()
 
   return useQuery<HomeSummary, FetchError<{ statusMessage: string }>>({
-    key: () => ['home'],
+    key: () => queryKeys.home(),
     query: () => $api<HomeSummary>('/api/home'),
   })
 }

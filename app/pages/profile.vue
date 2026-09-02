@@ -71,7 +71,7 @@ const groups: AchievementGroup[] = [
     key: "prs",
     label: "Personal Records",
     icon: TrendingUpIcon,
-    iconClass: "text-md-tertiary",
+    iconClass: "text-lime",
     items: [
       { key: "first_pr", icon: "🥇", name: "First PR", description: "Logged your first personal record.", unlocked: true },
       { key: "pr_five", icon: "📈", name: "Personal Best Club", description: "Set 5 personal records.", unlocked: false, progress: { current: 2, target: 5, unit: "PRs" } },
@@ -110,7 +110,7 @@ const progressPct = (card: AchievementCard): number => {
         <BellIcon class="size-4.5 text-primary" />
         <h2 class="font-heading text-lg uppercase text-foreground">Hydration Reminders</h2>
       </div>
-      <div class="space-y-4 rounded-xl border border-md-surface-variant bg-card p-4">
+      <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
         <div class="flex items-center justify-between gap-4">
           <div>
             <p class="text-sm font-semibold text-foreground">Remind me to drink water</p>
@@ -122,7 +122,7 @@ const progressPct = (card: AchievementCard): number => {
             @update:model-value="(value) => onRemindersToggle(!!value)"
           />
         </div>
-        <div v-if="remindersEnabled" class="flex items-center justify-between gap-4 border-t border-md-surface-variant pt-4">
+        <div v-if="remindersEnabled" class="flex items-center justify-between gap-4 border-t border-surface-strong pt-4">
           <p class="text-sm text-muted-foreground">Every</p>
           <UiNativeSelect v-model="reminderInterval" class="w-32" :disabled="reminderLoading" @update:model-value="onIntervalChange">
             <UiNativeSelectOption :value="60">1 hour</UiNativeSelectOption>
@@ -138,7 +138,7 @@ const progressPct = (card: AchievementCard): number => {
     <section class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="font-heading text-xl uppercase text-foreground">Achievements</h2>
-        <span class="font-mono text-xs font-bold uppercase tracking-[1.2px] text-md-primary [font-variant-numeric:tabular-nums]">
+        <span class="font-mono text-xs font-bold uppercase tracking-[1.2px] text-peach [font-variant-numeric:tabular-nums]">
           {{ unlockedCount }}/{{ totalCount }}
         </span>
       </div>
@@ -156,12 +156,12 @@ const progressPct = (card: AchievementCard): number => {
         <div
           v-for="card in group.items"
           :key="card.key"
-          class="relative flex flex-col gap-2 rounded-xl border border-md-surface-variant bg-card p-4"
+          class="relative flex flex-col gap-2 rounded-xl border border-surface-strong bg-card p-4"
           :class="!card.unlocked && 'opacity-70'"
         >
           <div
             v-if="!card.unlocked"
-            class="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-md-surface-container-high"
+            class="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-popover"
           >
             <LockIcon class="size-3 text-muted-foreground" />
           </div>
@@ -177,7 +177,7 @@ const progressPct = (card: AchievementCard): number => {
           </div>
           <div v-if="!card.unlocked && card.progress" class="mt-1 space-y-1">
             <div class="h-1 overflow-hidden rounded-full bg-muted">
-              <div class="h-full rounded-full bg-md-outline" :style="{ width: `${progressPct(card)}%` }" />
+              <div class="h-full rounded-full bg-outline-warm" :style="{ width: `${progressPct(card)}%` }" />
             </div>
             <p class="font-mono text-[10px] text-muted-foreground [font-variant-numeric:tabular-nums]">
               {{ card.progress.current }}/{{ card.progress.target }} {{ card.progress.unit }}

@@ -13,7 +13,7 @@ export const useExerciseHistory = (id: MaybeRefOrGetter<string>) => {
   const { $api } = useNuxtApp()
 
   return useQuery<ExerciseHistoryResponse, FetchError<{ statusMessage: string }>>({
-    key: () => ['exercise-history', toValue(id)],
+    key: () => queryKeys.exerciseHistory(toValue(id)),
     query: () => $api<ExerciseHistoryResponse>(`/api/exercises/${toValue(id)}/history`),
     enabled: () => toValue(id) !== '',
   })

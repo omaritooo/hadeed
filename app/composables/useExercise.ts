@@ -8,7 +8,7 @@ export const useExercise = (id: MaybeRefOrGetter<string>) => {
   const { $api } = useNuxtApp()
 
   return useQuery<Exercise, FetchError<{ statusMessage: string }>>({
-    key: () => ['exercise', toValue(id)],
+    key: () => queryKeys.exercise(toValue(id)),
     query: () => $api<Exercise>(`/api/exercises/${toValue(id)}`),
     enabled: () => toValue(id) !== '',
   })

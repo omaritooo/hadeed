@@ -15,7 +15,7 @@
   "dependencies": {
     "@artmizu/nuxt-prometheus": "^3.0.4",
     "@libsql/client": "^0.17.4",
-    "@lucide/vue": "^1.38.0",
+    "@lucide/vue": "^1.39.0",
     "@norbiros/nuxt-auto-form": "^0.6.2",
     "@nuxt/a11y": "^1.0.0-alpha.1",
     "@nuxt/eslint": "^1.16.0",

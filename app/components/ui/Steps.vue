@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<Props>(), {
           v-show="currentStep > 1"
           @click="prevFunction"
           aria-label="Previous step"
-          class="text-muted-foreground hover:bg-md-surface-container-high hover:text-foreground absolute top-1/2 left-3 flex size-9 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
+          class="text-muted-foreground hover:bg-popover hover:text-foreground absolute top-1/2 left-3 flex size-9 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
         >
           <CircleChevronLeft :size="20" />
         </button>
@@ -32,7 +32,7 @@ const props = withDefaults(defineProps<Props>(), {
           v-show="currentStep < steps"
           @click="nextFunction"
           aria-label="Next step"
-          class="text-muted-foreground hover:bg-md-surface-container-high hover:text-foreground absolute top-1/2 right-3 flex size-9 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
+          class="text-muted-foreground hover:bg-popover hover:text-foreground absolute top-1/2 right-3 flex size-9 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
         >
           <CircleChevronRight :size="20" />
         </button>
@@ -46,7 +46,7 @@ const props = withDefaults(defineProps<Props>(), {
           :class="
             index + 1 <= currentStep
               ? 'bg-primary shadow-[0px_0px_8px_0px_rgba(255,87,34,0.5)]'
-              : 'bg-md-surface-container-high'
+              : 'bg-popover'
           "
         />
       </div>

@@ -22,7 +22,7 @@ const decrement = () => (model.value as number)--;
       class="bg-card flex flex-col justify-center px-4 py-4 h-32 gap-y-4 border border-white/10 w-full rounded-lg"
     >
       <div
-        class="bg-md-surface-variant py-1 w-full flex-1 rounded-md flex justify-between items-center px-3"
+        class="bg-surface-strong py-1 w-full flex-1 rounded-md flex justify-between items-center px-3"
       >
         <button
           class="bg-card px-3 py-2 rounded-md"
@@ -46,7 +46,7 @@ const decrement = () => (model.value as number)--;
         <div
           class="flex-1 py-1.5 rounded-full"
           v-for="i in range"
-          :class="i < (model as number) ? 'bg-primary ' : ' bg-md-surface-variant'"
+          :class="i < (model as number) ? 'bg-primary ' : ' bg-surface-strong'"
         />
       </div>
     </div>
