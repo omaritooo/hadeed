@@ -24,6 +24,9 @@ describe('PresetMealRepository', () => {
   })
 
   it('lists only the caller\'s presets, alphabetically, with items', async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    await repo.create('user-2', { name: 'Aaa-should-not-appear', items: [{ ingredientId: 1, quantity: 10 }] })
+
     await repo.create('user-1', { name: 'Snack', items: [{ ingredientId: 1, quantity: 50 }] })
     await repo.create('user-1', { name: 'Breakfast', items: [{ ingredientId: 1, quantity: 100 }] })
 
