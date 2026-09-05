@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import type { CarouselApi } from "@/components/ui/carousel";
 import { kgToLbs } from "~~/shared/lib/formulas";
 
+// Mount one shared instance and toggle exerciseId/open — do not mount per-row in a
+// list (queries fire eagerly on mount).
 const props = defineProps<{ exerciseId: string }>();
 const open = defineModel<boolean>("open", { default: false });
 
 const exerciseId = toRef(props, "exerciseId");
-const { data: exercise, refetch } = useExercise(exerciseId);
-const { data: exerciseHistory } = useExerciseHistory(exerciseId);
+const { data: exercise, refetch: refetchExercise } = useExercise(exerciseId);
+const { data: exerciseHistory, refetch: refetchHistory } = useExerciseHistory(exerciseId);
 const { data: profileData } = useProfile();
 
 const personalRecord = computed(() => exerciseHistory.value?.personalRecord ?? null);
@@ -43,7 +45,10 @@ const parsedInstructions = computed(() => {
 });
 
 watch(open, (isOpen) => {
-  if (isOpen) refetch();
+  if (isOpen) {
+    refetchExercise();
+    refetchHistory();
+  }
 });
 
 const titleCase = (value: string): string => {
