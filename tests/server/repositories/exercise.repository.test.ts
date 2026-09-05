@@ -105,4 +105,27 @@ describe('ExerciseRepository', () => {
     expect(inclinePress?.primaryMuscles).toEqual(['chest'])
     expect(benchPress?.images).toEqual([])
   })
+
+  it('batches muscle/image attachment across multiple exercises from findByIds', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await seedExercise(db, 'bench-press', chest.id)
+    await seedExercise(db, 'incline-press', chest.id)
+    await db.execute({
+      sql: 'INSERT INTO exercise_images (exercise_id, url, position) VALUES (?, ?, ?)',
+      args: ['incline-press', 'incline.jpg', 0],
+    })
+
+    const results = await repo.findByIds(['bench-press', 'incline-press'])
+
+    expect(results.map(e => e.id).sort()).toEqual(['bench-press', 'incline-press'])
+    const inclinePress = results.find(e => e.id === 'incline-press')
+    expect(inclinePress?.images).toEqual(['incline.jpg'])
+    expect(inclinePress?.primaryMuscles).toEqual(['chest'])
+  })
+
+  it('findByIds returns an empty array for an empty id list', async () => {
+    const results = await repo.findByIds([])
+    expect(results).toEqual([])
+  })
 })

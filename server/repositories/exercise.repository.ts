@@ -109,6 +109,17 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
     return this.attachDetails(exercises)
   }
 
+  async findByIds(ids: string[]): Promise<Exercise[]> {
+    if (ids.length === 0) return []
+    const placeholders = ids.map(() => '?').join(', ')
+    const result = await this.db.execute({
+      sql: `SELECT * FROM exercises WHERE id IN (${placeholders})`,
+      args: ids,
+    })
+    const exercises = result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
+    return this.attachDetails(exercises)
+  }
+
   async findNamesByIds(ids: string[]): Promise<Record<string, string>> {
     if (ids.length === 0) return {}
     const placeholders = ids.map(() => '?').join(', ')
