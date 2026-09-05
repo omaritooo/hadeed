@@ -16,6 +16,7 @@ export interface ExerciseLog {
   id: string
   sessionId: string
   exerciseId: string
+  exerciseName: string | null
   splitExerciseId: number | null
   position: number
   setType: SetType

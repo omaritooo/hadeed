@@ -84,6 +84,7 @@ export class SessionRepository {
       id: row.id as string,
       sessionId: row.session_id as string,
       exerciseId: row.exercise_id as string,
+      exerciseName: (row.exercise_name as string | undefined) ?? null,
       splitExerciseId: row.split_exercise_id as number | null,
       position: row.position as number,
       setType: row.set_type as SetType,
@@ -217,7 +218,11 @@ export class SessionRepository {
     if (!session) return null
 
     const exercisesResult = await this.db.execute({
-      sql: 'SELECT * FROM exercise_logs WHERE session_id = ? ORDER BY position',
+      sql: `SELECT exercise_logs.*, exercises.name AS exercise_name
+            FROM exercise_logs
+            LEFT JOIN exercises ON exercises.id = exercise_logs.exercise_id
+            WHERE exercise_logs.session_id = ?
+            ORDER BY exercise_logs.position`,
       args: [sessionId],
     })
     const exercises = await Promise.all(

@@ -55,6 +55,7 @@ describe('SessionRepository.startSession', () => {
     const withLogs = await repo.findWithLogs('session-1')
     expect(withLogs?.exercises).toHaveLength(1)
     expect(withLogs?.exercises[0].targetSets).toBe(3)
+    expect(withLogs?.exercises[0].exerciseName).toBe('Bench Press')
   })
 
   it('starts a freeform session with no split day and no exercises', async () => {
@@ -114,6 +115,7 @@ describe('SessionRepository logging', () => {
 
     const withLogs = await repo.findWithLogs('session-1')
     expect(withLogs?.exercises).toHaveLength(2)
+    expect(withLogs?.exercises[1].exerciseName).toBe('Plank')
   })
 })
 
