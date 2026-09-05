@@ -1,11 +1,31 @@
 <script setup lang="ts">
 import { PlayIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { kgToLbs } from "~~/shared/lib/formulas";
 
 const { data: summary, isLoading } = useWorkoutsSummary();
 const startSession = useStartSession();
+const { data: profileData } = useProfile();
 const now = useNow();
 const startError = ref<string | null>(null);
+
+const formatWeight = (weightKg: number): string => {
+  if (profileData.value?.profile?.unitSystem === "imperial") {
+    return `${Math.round(kgToLbs(weightKg))} lbs`;
+  }
+  return `${Math.round(weightKg)} kg`;
+};
+
+const formatHistoryDate = (dateString: string): string => {
+  const date = new Date(`${dateString.replace(" ", "T")}Z`);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return "Today";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+};
 
 const startWorkout = async () => {
   startError.value = null;
@@ -93,6 +113,24 @@ const resumeWorkout = async () => {
           </div>
         </UiCard>
       </div>
+    </div>
+
+    <div v-if="summary?.recentSessions.length" class="space-y-2">
+      <h2 class="font-heading text-lg uppercase text-foreground">Recent Sessions</h2>
+      <UiCard v-for="session in summary.recentSessions" :key="session.sessionId" class="space-y-1">
+        <div class="flex items-start justify-between">
+          <p class="font-heading text-lg text-foreground">{{ session.dayName ?? "Freeform Workout" }}</p>
+          <span v-if="session.durationMinutes" class="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+            {{ Math.round(session.durationMinutes) }}m
+          </span>
+        </div>
+        <p class="text-sm text-muted-foreground">
+          {{ formatHistoryDate(session.completedAt) }}
+          <template v-if="session.topExerciseName">
+            • Top Lift: {{ formatWeight(session.topWeightKg ?? 0) }} {{ session.topExerciseName }}
+          </template>
+        </p>
+      </UiCard>
     </div>
   </div>
   <div v-else class="px-4 py-4 text-muted-foreground">Loading...</div>
