@@ -21,6 +21,7 @@ export interface ActiveSessionSummary {
 
 export interface RecentSessionSummary {
   sessionId: string
+  dayName: string | null
   startedAt: string
   completedAt: string
   durationMinutes: number | null
@@ -48,6 +49,11 @@ export interface WeightTrendPoint {
   weightKg: number
 }
 
+export interface ConsistencyDay {
+  date: string
+  active: boolean
+}
+
 export interface HomeSummary {
   streak: { current: number, longest: number }
   xp: { total: number, level: number, xpIntoLevel: number, xpForNextLevel: number }
@@ -58,4 +64,5 @@ export interface HomeSummary {
   recentPrs: RecentPr[]
   recentAchievements: UnlockedAchievementSummary[]
   weightTrend: WeightTrendPoint[]
+  consistency: ConsistencyDay[]
 }

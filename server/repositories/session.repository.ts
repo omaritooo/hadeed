@@ -1,4 +1,4 @@
-import type { Client } from '@libsql/client'
+import type { Client, InArgs } from '@libsql/client'
 import type { SetType } from '~~/shared/types/split.types'
 import type {
   ExerciseHistoryEntry,
@@ -107,78 +107,103 @@ export class SessionRepository {
   }
 
   async startSession(userId: string, input: StartSessionInput): Promise<WorkoutSession> {
-    const existing = await this.db.execute({ sql: 'SELECT * FROM workout_sessions WHERE id = ?', args: [input.id] })
-    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
-
-    let session: WorkoutSession
-    if (existingRow) {
-      session = this.assertOwnedSession(existingRow, userId)
-    } else {
-      try {
-        const result = await this.db.execute({
-          sql: 'INSERT INTO workout_sessions (id, user_id, split_day_id) VALUES (?, ?, ?) RETURNING *',
-          args: [input.id, userId, input.splitDayId],
-        })
-        const row = result.rows[0]
-        if (!row) throw new Error('Failed to start session')
-        session = this.mapSession(row as unknown as Record<string, unknown>)
-      } catch (err) {
-        if (!this.isUniqueConstraintError(err)) throw err
-        const retry = await this.db.execute({ sql: 'SELECT * FROM workout_sessions WHERE id = ?', args: [input.id] })
-        const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
-        if (!retryRow) throw err
-        session = this.assertOwnedSession(retryRow, userId)
-      }
-    }
+    const session = await this.insertIdempotent({
+      selectSql: 'SELECT * FROM workout_sessions WHERE id = ?',
+      selectArgs: [input.id],
+      insertSql: 'INSERT INTO workout_sessions (id, user_id, split_day_id) VALUES (?, ?, ?) RETURNING *',
+      insertArgs: [input.id, userId, input.splitDayId],
+      scopeField: 'user_id',
+      scopeValue: userId,
+      scopeErrorMessage: 'Session id already exists under a different user',
+      notFoundErrorMessage: 'Failed to start session',
+      map: row => this.mapSession(row),
+    })
 
     for (const exercise of input.exercises) {
-      const existingExerciseLog = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
-      const existingExerciseRow = existingExerciseLog.rows[0] as unknown as Record<string, unknown> | undefined
-      if (existingExerciseRow) {
-        if (existingExerciseRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session')
-        continue
-      }
-
-      try {
-        const inserted = await this.db.execute({
-          sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
-                WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
-                RETURNING id`,
-          args: [
-            exercise.id,
-            session.id,
-            exercise.exerciseId,
-            exercise.splitExerciseId,
-            exercise.position,
-            exercise.setType,
-            exercise.targetSets,
-            exercise.targetReps,
-            exercise.targetRpe,
-            session.id,
-          ],
-        })
-        if (inserted.rows.length === 0) {
-          console.warn('startSession: dropped exercise attach, session is not in progress', { sessionId: session.id, exerciseLogId: exercise.id })
-        }
-      } catch (err) {
-        if (!this.isUniqueConstraintError(err)) throw err
-        const retry = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
-        const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
-        if (!retryRow || retryRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session', { cause: err })
-      }
+      await this.attachExercise(session, exercise)
     }
 
     return session
   }
 
-  private assertOwnedSession(row: Record<string, unknown>, userId: string): WorkoutSession {
-    if (row.user_id !== userId) throw new Error('Session id already exists under a different user')
-    return this.mapSession(row)
+  private async attachExercise(session: WorkoutSession, exercise: StartSessionExerciseInput): Promise<void> {
+    const existingExerciseLog = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
+    const existingExerciseRow = existingExerciseLog.rows[0] as unknown as Record<string, unknown> | undefined
+    if (existingExerciseRow) {
+      if (existingExerciseRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session')
+      return
+    }
+
+    try {
+      const inserted = await this.db.execute({
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
+              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+              WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
+              RETURNING id`,
+        args: [
+          exercise.id,
+          session.id,
+          exercise.exerciseId,
+          exercise.splitExerciseId,
+          exercise.position,
+          exercise.setType,
+          exercise.targetSets,
+          exercise.targetReps,
+          exercise.targetRpe,
+          session.id,
+        ],
+      })
+      if (inserted.rows.length === 0) {
+        console.warn('startSession: dropped exercise attach, session is not in progress', { sessionId: session.id, exerciseLogId: exercise.id })
+      }
+    } catch (err) {
+      if (!this.isUniqueConstraintError(err)) throw err
+      const retry = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [exercise.id] })
+      const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
+      if (!retryRow || retryRow.session_id !== session.id) throw new Error('Exercise log id already exists under a different session', { cause: err })
+    }
   }
 
   private isUniqueConstraintError(err: unknown): boolean {
     return err instanceof Error && /UNIQUE constraint failed/i.test(err.message)
+  }
+
+  /**
+   * Idempotent insert-by-id: if a row with the given id already exists, validates it belongs
+   * to the expected scope (owning user/session/exercise log) and returns it as-is; otherwise
+   * inserts it, retrying the lookup once if a concurrent insert wins the unique-constraint race.
+   */
+  private async insertIdempotent<T>(options: {
+    selectSql: string
+    selectArgs: InArgs
+    insertSql: string
+    insertArgs: InArgs
+    scopeField: string
+    scopeValue: unknown
+    scopeErrorMessage: string
+    notFoundErrorMessage: string
+    map: (row: Record<string, unknown>) => T
+  }): Promise<T> {
+    const existing = await this.db.execute({ sql: options.selectSql, args: options.selectArgs })
+    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
+    if (existingRow) {
+      if (existingRow[options.scopeField] !== options.scopeValue) throw new Error(options.scopeErrorMessage)
+      return options.map(existingRow)
+    }
+
+    try {
+      const result = await this.db.execute({ sql: options.insertSql, args: options.insertArgs })
+      const row = result.rows[0]
+      if (!row) throw new Error(options.notFoundErrorMessage)
+      return options.map(row as unknown as Record<string, unknown>)
+    } catch (err) {
+      if (!this.isUniqueConstraintError(err)) throw err
+      const retry = await this.db.execute({ sql: options.selectSql, args: options.selectArgs })
+      const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
+      if (!retryRow) throw err
+      if (retryRow[options.scopeField] !== options.scopeValue) throw new Error(options.scopeErrorMessage, { cause: err })
+      return options.map(retryRow)
+    }
   }
 
   async findSessionById(sessionId: string): Promise<WorkoutSession | null> {
@@ -211,65 +236,41 @@ export class SessionRepository {
   }
 
   async logSet(input: LogSetInput): Promise<SetLog> {
-    const existing = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [input.id] })
-    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
-    if (existingRow) {
-      if (existingRow.exercise_log_id !== input.exerciseLogId) throw new Error('Set log id already exists under a different exercise log')
-      return this.mapSetLog(existingRow)
-    }
-
-    try {
-      const result = await this.db.execute({
-        sql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe)
-              SELECT ?, ?, ?, ?, ?, ?
-              WHERE EXISTS (
-                SELECT 1 FROM exercise_logs
-                JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
-                WHERE exercise_logs.id = ? AND workout_sessions.status = 'in_progress'
-              )
-              RETURNING *`,
-        args: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.exerciseLogId],
-      })
-      const row = result.rows[0]
-      if (!row) throw new Error('Cannot log a set: exercise log not found or session is not in progress')
-      return this.mapSetLog(row as unknown as Record<string, unknown>)
-    } catch (err) {
-      if (!this.isUniqueConstraintError(err)) throw err
-      const retry = await this.db.execute({ sql: 'SELECT * FROM set_logs WHERE id = ?', args: [input.id] })
-      const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
-      if (!retryRow) throw err
-      if (retryRow.exercise_log_id !== input.exerciseLogId) throw new Error('Set log id already exists under a different exercise log', { cause: err })
-      return this.mapSetLog(retryRow)
-    }
+    return this.insertIdempotent({
+      selectSql: 'SELECT * FROM set_logs WHERE id = ?',
+      selectArgs: [input.id],
+      insertSql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe)
+                  SELECT ?, ?, ?, ?, ?, ?
+                  WHERE EXISTS (
+                    SELECT 1 FROM exercise_logs
+                    JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
+                    WHERE exercise_logs.id = ? AND workout_sessions.status = 'in_progress'
+                  )
+                  RETURNING *`,
+      insertArgs: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.exerciseLogId],
+      scopeField: 'exercise_log_id',
+      scopeValue: input.exerciseLogId,
+      scopeErrorMessage: 'Set log id already exists under a different exercise log',
+      notFoundErrorMessage: 'Cannot log a set: exercise log not found or session is not in progress',
+      map: row => this.mapSetLog(row),
+    })
   }
 
   async addFreeformExercise(input: AddFreeformExerciseInput): Promise<ExerciseLog> {
-    const existing = await this.db.execute({ sql: 'SELECT * FROM exercise_logs WHERE id = ?', args: [input.id] })
-    const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
-    if (existingRow) {
-      if (existingRow.session_id !== input.sessionId) throw new Error('Exercise log id already exists under a different session')
-      return this.mapExerciseLog(existingRow)
-    }
-
-    try {
-      const result = await this.db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-              SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL
-              WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
-              RETURNING *`,
-        args: [input.id, input.sessionId, input.exerciseId, input.position, input.setType, input.sessionId],
-      })
-      const row = result.rows[0]
-      if (!row) throw new Error('Cannot add exercise: session not found or session is not in progress')
-      return this.mapExerciseLog(row as unknown as Record<string, unknown>)
-    } catch (err) {
-      if (!this.isUniqueConstraintError(err)) throw err
-      const retry = await this.db.execute({ sql: 'SELECT * FROM exercise_logs WHERE id = ?', args: [input.id] })
-      const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
-      if (!retryRow) throw err
-      if (retryRow.session_id !== input.sessionId) throw new Error('Exercise log id already exists under a different session', { cause: err })
-      return this.mapExerciseLog(retryRow)
-    }
+    return this.insertIdempotent({
+      selectSql: 'SELECT * FROM exercise_logs WHERE id = ?',
+      selectArgs: [input.id],
+      insertSql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
+                  SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL
+                  WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
+                  RETURNING *`,
+      insertArgs: [input.id, input.sessionId, input.exerciseId, input.position, input.setType, input.sessionId],
+      scopeField: 'session_id',
+      scopeValue: input.sessionId,
+      scopeErrorMessage: 'Exercise log id already exists under a different session',
+      notFoundErrorMessage: 'Cannot add exercise: session not found or session is not in progress',
+      map: row => this.mapExerciseLog(row),
+    })
   }
 
   async isComplete(sessionId: string): Promise<boolean> {
@@ -472,6 +473,15 @@ export class SessionRepository {
     return (result.rows[0]?.count as number) ?? 0
   }
 
+  async findTrainedDatesInRange(userId: string, startIso: string, endIso: string): Promise<Set<string>> {
+    const result = await this.db.execute({
+      sql: `SELECT DISTINCT date(started_at) as day FROM workout_sessions
+            WHERE user_id = ? AND status = 'completed' AND started_at >= ? AND started_at < ?`,
+      args: [userId, startIso, endIso],
+    })
+    return new Set(result.rows.map(row => (row as unknown as Record<string, unknown>).day as string))
+  }
+
   async totalVolumeKg(userId: string): Promise<number> {
     const result = await this.db.execute({
       sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
@@ -521,9 +531,11 @@ export class SessionRepository {
 
   async findMostRecentCompletedSummary(userId: string): Promise<RecentSessionSummary | null> {
     const sessionResult = await this.db.execute({
-      sql: `SELECT *, ROUND((julianday(completed_at) - julianday(started_at)) * 24 * 60) AS duration_minutes
+      sql: `SELECT workout_sessions.*, split_days.name AS day_name,
+                   ROUND((julianday(completed_at) - julianday(started_at)) * 24 * 60) AS duration_minutes
             FROM workout_sessions
-            WHERE user_id = ? AND status = 'completed'
+            LEFT JOIN split_days ON split_days.id = workout_sessions.split_day_id
+            WHERE workout_sessions.user_id = ? AND workout_sessions.status = 'completed'
             ORDER BY completed_at DESC LIMIT 1`,
       args: [userId],
     })
@@ -543,6 +555,7 @@ export class SessionRepository {
 
     return {
       sessionId: sessionRow.id as string,
+      dayName: (sessionRow.day_name as string) ?? null,
       startedAt: sessionRow.started_at as string,
       completedAt: sessionRow.completed_at as string,
       durationMinutes: sessionRow.duration_minutes as number | null,
