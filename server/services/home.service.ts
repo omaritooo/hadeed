@@ -4,12 +4,11 @@ import type { BlockRepository } from '~~/server/repositories/block.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { AchievementRepository } from '~~/server/repositories/achievement.repository'
-import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import type { ActiveSessionSummary, ConsistencyDay, HomeSummary, TodaysWorkout } from '~~/shared/types/home.types'
-import type { WorkoutSession } from '~~/shared/types/session.types'
+import type { ConsistencyDay, HomeSummary } from '~~/shared/types/home.types'
 import type { SplitDay, SplitExercise } from '~~/shared/types/split.types'
+import type { WorkoutsService } from '~~/server/services/workouts.service'
 import { xpFloorForLevel, xpToLevel } from '~~/shared/lib/formulas'
 import { startOfWeek, toSqliteDatetime } from '~~/server/utils/date'
 
@@ -28,8 +27,8 @@ export class HomeService extends BaseService {
     private streaks: StreakRepository,
     private xp: XpRepository,
     private achievements: AchievementRepository,
-    private exercises: ExerciseRepository,
     private bodyMetrics: BodyMetricsRepository,
+    private workouts: WorkoutsService,
   ) {
     super(ctx)
   }
@@ -60,8 +59,8 @@ export class HomeService extends BaseService {
       .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
 
     const [activeSession, todaysWorkout, weeklyTrainedDays, weeklyVolumeKg, recentSession, recentPrs, recentAchievements, bodyMetrics, trainedDates] = await Promise.all([
-      this.buildActiveSession(activeSessionRow),
-      this.buildTodaysWorkout(userId, trainingDays, activeSessionRow),
+      this.workouts.buildActiveSession(activeSessionRow),
+      this.workouts.buildTodaysWorkout(userId, trainingDays, activeSessionRow),
       this.sessions.countTrainedDaysInRange(userId, toSqliteDatetime(weekStart), toSqliteDatetime(weekEnd)),
       this.sessions.volumeKgInRange(userId, toSqliteDatetime(weekStart), toSqliteDatetime(weekEnd)),
       this.sessions.findMostRecentCompletedSummary(userId),
@@ -98,46 +97,6 @@ export class HomeService extends BaseService {
       recentAchievements,
       weightTrend,
       consistency,
-    }
-  }
-
-  private async buildActiveSession(session: WorkoutSession | null): Promise<ActiveSessionSummary | null> {
-    if (!session) return null
-    const withLogs = await this.sessions.findWithLogs(session.id)
-    const setsLogged = withLogs?.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0) ?? 0
-    return { sessionId: session.id, splitDayId: session.splitDayId, startedAt: session.startedAt, setsLogged }
-  }
-
-  private async buildTodaysWorkout(
-    userId: string,
-    trainingDays: TrainingDay[],
-    activeSession: WorkoutSession | null,
-  ): Promise<TodaysWorkout | null> {
-    if (trainingDays.length === 0) return null
-
-    let day = activeSession?.splitDayId ? trainingDays.find(d => d.id === activeSession.splitDayId) : undefined
-    if (!day) {
-      const lastSplitDayId = await this.sessions.findMostRecentSplitDayId(userId, trainingDays.map(d => d.id))
-      const lastIndex = lastSplitDayId ? trainingDays.findIndex(d => d.id === lastSplitDayId) : -1
-      day = trainingDays[(lastIndex + 1) % trainingDays.length]
-    }
-    if (!day) return null
-
-    const names = await this.exercises.findNamesByIds(day.exercises.map(exercise => exercise.exerciseId))
-    return {
-      splitDayId: day.id,
-      blockId: day.blockId,
-      dayName: day.name,
-      exercises: day.exercises.map(exercise => ({
-        exerciseId: exercise.exerciseId,
-        exerciseName: names[exercise.exerciseId] ?? exercise.exerciseId,
-        splitExerciseId: exercise.id,
-        position: exercise.position,
-        setType: exercise.setType,
-        targetSets: exercise.targetSets,
-        targetReps: exercise.targetReps,
-        targetRpe: exercise.targetRpe,
-      })),
     }
   }
 }

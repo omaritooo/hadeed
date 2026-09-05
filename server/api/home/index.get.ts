@@ -7,6 +7,7 @@ import { XpRepository } from '~~/server/repositories/xp.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
+import { WorkoutsService } from '~~/server/services/workouts.service'
 import { HomeService } from '~~/server/services/home.service'
 
 defineRouteMeta({
@@ -22,15 +23,19 @@ defineRouteMeta({
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
   const db = useDb()
+  const sessions = new SessionRepository(db)
+  const blocks = new BlockRepository(db)
+  const xp = new XpRepository(db)
+  const workouts = new WorkoutsService(ctx, sessions, blocks, new ExerciseRepository(db), xp)
   const service = new HomeService(
     ctx,
-    new SessionRepository(db),
-    new BlockRepository(db),
+    sessions,
+    blocks,
     new StreakRepository(db),
-    new XpRepository(db),
+    xp,
     new AchievementRepository(db),
-    new ExerciseRepository(db),
     new BodyMetricsRepository(db),
+    workouts,
   )
   return service.getSummary()
 })
