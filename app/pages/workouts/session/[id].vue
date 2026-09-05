@@ -34,22 +34,28 @@ const openInfo = (exerciseId: string) => {
 };
 
 const finishError = ref<string | null>(null);
+const logErrors = reactive<Record<string, string | null>>({});
 
 const logNextSet = async (exerciseLogId: string) => {
   const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
   if (!exercise) return;
   const draft = draftFor(exerciseLogId);
-  await logSet.mutateAsync({
-    sessionId: sessionId.value,
-    exerciseLogId,
-    setNumber: exercise.sets.length + 1,
-    weightKg: draft.weightKg === "" ? null : Number(draft.weightKg),
-    reps: draft.reps === "" ? null : Number(draft.reps),
-    rpe: draft.rpe === "" ? null : Number(draft.rpe),
-  });
-  draft.weightKg = "";
-  draft.reps = "";
-  draft.rpe = "";
+  logErrors[exerciseLogId] = null;
+  try {
+    await logSet.mutateAsync({
+      sessionId: sessionId.value,
+      exerciseLogId,
+      setNumber: exercise.sets.length + 1,
+      weightKg: draft.weightKg === "" ? null : Number(draft.weightKg),
+      reps: draft.reps === "" ? null : Number(draft.reps),
+      rpe: draft.rpe === "" ? null : Number(draft.rpe),
+    });
+    draft.weightKg = "";
+    draft.reps = "";
+    draft.rpe = "";
+  } catch {
+    logErrors[exerciseLogId] = "Couldn't log that set. Please try again.";
+  }
 };
 
 const finish = async () => {
@@ -58,8 +64,15 @@ const finish = async () => {
   try {
     await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
     await navigateTo("/workouts");
-  } catch {
-    finishError.value = "Log the remaining target sets before finishing this workout.";
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number } | null)?.statusCode;
+    if (statusCode === 422) {
+      finishError.value = "Log the remaining target sets before finishing this workout.";
+    } else if (statusCode === 409) {
+      finishError.value = "This session was updated elsewhere — refreshing.";
+    } else {
+      finishError.value = "Something went wrong. Please try again.";
+    }
     await refetch();
   }
 };
@@ -101,6 +114,7 @@ const finish = async () => {
           <CheckIcon class="size-4" />
         </Button>
       </div>
+      <p v-if="logErrors[exercise.id]" class="text-sm text-destructive">{{ logErrors[exercise.id] }}</p>
     </UiCard>
 
     <ExerciseDetailDrawer v-model:open="infoDrawerOpen" :exercise-id="infoExerciseId" />
