@@ -717,3 +717,58 @@ describe('SessionRepository.findRecentCompletedSummaries', () => {
     expect(summary).toBeNull()
   })
 })
+
+describe('SessionRepository.findLastPerformedForExercises', () => {
+  let db: Client
+  let sessions: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench', 'Bench', '[]')" })
+  })
+
+  it('returns the top set from the most recent session per exercise, not the heaviest ever', async () => {
+    // Older session: heavier squat set.
+    await sessions.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 's1-squat', sessionId: 's1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.logSet({ id: 's1-squat-set', exerciseLogId: 's1-squat', setNumber: 1, weightKg: 140, reps: 3, rpe: 9 })
+    await sessions.completeSession('s1', 1)
+    await db.execute({ sql: `UPDATE workout_sessions SET started_at = '2026-01-01 12:00:00', completed_at = '2026-01-01 12:30:00' WHERE id = 's1'` })
+
+    // Newer session: lighter squat set, should still win because it's more recent.
+    await sessions.startSession('user-1', { id: 's2', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 's2-squat', sessionId: 's2', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.logSet({ id: 's2-squat-set-1', exerciseLogId: 's2-squat', setNumber: 1, weightKg: 100, reps: 5, rpe: 7 })
+    // Same weight, more reps - should win the within-session tiebreak.
+    await sessions.logSet({ id: 's2-squat-set-2', exerciseLogId: 's2-squat', setNumber: 2, weightKg: 100, reps: 8, rpe: 8 })
+    await sessions.completeSession('s2', 1)
+    await db.execute({ sql: `UPDATE workout_sessions SET started_at = '2026-01-05 12:00:00', completed_at = '2026-01-05 12:30:00' WHERE id = 's2'` })
+
+    const result = await sessions.findLastPerformedForExercises('user-1', ['squat', 'bench'])
+
+    expect(result.squat).toEqual({ weightKg: 100, reps: 8, date: '2026-01-05 12:30:00' })
+    expect(result.bench).toBeUndefined()
+  })
+
+  it('breaks a same-timestamp session tie by favoring the later-inserted session', async () => {
+    for (const [id, weight] of [['s1', 100], ['s2', 110]] as const) {
+      await sessions.startSession('user-1', { id, splitDayId: null, exercises: [] })
+      await sessions.addFreeformExercise({ id: `${id}-ex`, sessionId: id, exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+      await sessions.logSet({ id: `${id}-set`, exerciseLogId: `${id}-ex`, setNumber: 1, weightKg: weight, reps: 5, rpe: 8 })
+      await sessions.completeSession(id, 1)
+    }
+    await db.execute({ sql: 'UPDATE workout_sessions SET completed_at = ? WHERE id IN (?, ?)', args: ['2026-01-01 12:00:00', 's1', 's2'] })
+
+    const result = await sessions.findLastPerformedForExercises('user-1', ['squat'])
+
+    expect(result.squat?.weightKg).toBe(110)
+  })
+
+  it('returns an empty object for an empty exerciseIds array', async () => {
+    const result = await sessions.findLastPerformedForExercises('user-1', [])
+    expect(result).toEqual({})
+  })
+})

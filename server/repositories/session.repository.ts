@@ -469,6 +469,50 @@ export class SessionRepository {
     }))
   }
 
+  async findLastPerformedForExercises(userId: string, exerciseIds: string[]): Promise<Record<string, { weightKg: number, reps: number, date: string }>> {
+    if (exerciseIds.length === 0) return {}
+    const placeholders = exerciseIds.map(() => '?').join(', ')
+    const result = await this.db.execute({
+      sql: `WITH ranked_sets AS (
+              SELECT
+                el.exercise_id AS exercise_id,
+                COALESCE(ws.completed_at, ws.started_at) AS session_date,
+                sl.weight_kg AS weight_kg,
+                sl.reps AS reps,
+                ROW_NUMBER() OVER (
+                  PARTITION BY el.exercise_id, ws.id
+                  ORDER BY sl.weight_kg DESC, sl.reps DESC
+                ) AS set_rank,
+                DENSE_RANK() OVER (
+                  PARTITION BY el.exercise_id
+                  ORDER BY COALESCE(ws.completed_at, ws.started_at) DESC, ws.rowid DESC
+                ) AS session_rank
+              FROM workout_sessions ws
+              JOIN exercise_logs el ON el.session_id = ws.id
+              JOIN set_logs sl ON sl.exercise_log_id = el.id
+              WHERE ws.user_id = ?
+                AND el.exercise_id IN (${placeholders})
+                AND sl.weight_kg IS NOT NULL
+                AND sl.reps IS NOT NULL
+            )
+            SELECT exercise_id, session_date, weight_kg, reps
+            FROM ranked_sets
+            WHERE set_rank = 1 AND session_rank = 1`,
+      args: [userId, ...exerciseIds],
+    })
+
+    const byExercise: Record<string, { weightKg: number, reps: number, date: string }> = {}
+    for (const row of result.rows) {
+      const r = row as unknown as Record<string, unknown>
+      byExercise[r.exercise_id as string] = {
+        weightKg: r.weight_kg as number,
+        reps: r.reps as number,
+        date: r.session_date as string,
+      }
+    }
+    return byExercise
+  }
+
   async countTrainedDaysInRange(userId: string, startIso: string, endIso: string): Promise<number> {
     const result = await this.db.execute({
       sql: `SELECT COUNT(DISTINCT date(started_at)) as count FROM workout_sessions
