@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LayoutGridIcon, PlayIcon, TrophyIcon } from "@lucide/vue";
+import { DumbbellIcon, LayoutGridIcon, PlayIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { kgToLbs } from "~~/shared/lib/formulas";
 
@@ -8,6 +8,13 @@ const startSession = useStartSession();
 const { data: profileData } = useProfile();
 const now = useNow();
 const startError = ref<string | null>(null);
+
+const infoDrawerOpen = ref(false);
+const infoExerciseId = ref("");
+const openInfo = (exerciseId: string) => {
+  infoExerciseId.value = exerciseId;
+  infoDrawerOpen.value = true;
+};
 
 const formatWeight = (weightKg: number): string => {
   if (profileData.value?.profile?.unitSystem === "imperial") {
@@ -78,10 +85,35 @@ const resumeWorkout = async () => {
     <UiCard v-else-if="summary?.todaysWorkout" class="space-y-3">
       <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Today</span>
       <p class="font-heading text-2xl font-semibold text-foreground">{{ summary.todaysWorkout.dayName }}</p>
-      <ul class="space-y-1 text-sm text-muted-foreground">
-        <li v-for="exercise in summary.todaysWorkout.exercises" :key="exercise.splitExerciseId">
-          {{ exercise.exerciseName }}
-          <span v-if="exercise.targetSets">— {{ exercise.targetSets }}×{{ exercise.targetReps }}</span>
+      <ul class="space-y-2">
+        <li
+          v-for="exercise in summary.todaysWorkout.exercises"
+          :key="exercise.splitExerciseId"
+          class="flex cursor-pointer items-center gap-3 rounded-xl border border-surface-strong bg-card p-3"
+          @click="openInfo(exercise.exerciseId)"
+        >
+          <div class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-popover">
+            <NuxtImg v-if="exercise.thumbnailUrl" :src="exercise.thumbnailUrl" class="size-full object-cover" />
+            <DumbbellIcon v-else class="size-5 text-muted-foreground" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <p class="truncate text-sm font-semibold text-foreground">{{ exercise.exerciseName }}</p>
+              <UiBadge
+                v-if="exercise.primaryMuscle"
+                class="shrink-0 rounded-full bg-popover px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground"
+              >
+                {{ exercise.primaryMuscle }}
+              </UiBadge>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              <span v-if="exercise.targetSets">{{ exercise.targetSets }}×{{ exercise.targetReps }}</span>
+              <template v-if="exercise.lastPerformed">
+                · Last: {{ formatWeight(exercise.lastPerformed.weightKg) }} × {{ exercise.lastPerformed.reps }}
+                ({{ formatHistoryDate(exercise.lastPerformed.date) }})
+              </template>
+            </p>
+          </div>
         </li>
       </ul>
       <Button size="lg" class="w-full" :disabled="startSession.isLoading.value" @click="startWorkout">
@@ -138,6 +170,8 @@ const resumeWorkout = async () => {
         </p>
       </UiCard>
     </div>
+
+    <ExerciseDetailDrawer v-model:open="infoDrawerOpen" :exercise-id="infoExerciseId" />
   </div>
   <div v-else class="px-4 py-4 text-muted-foreground">Loading...</div>
 </template>
