@@ -5,24 +5,30 @@ import { Button } from "@/components/ui/button";
 const { data: summary, isLoading } = useWorkoutsSummary();
 const startSession = useStartSession();
 const now = useNow();
+const startError = ref<string | null>(null);
 
 const startWorkout = async () => {
+  startError.value = null;
   const workout = summary.value?.todaysWorkout;
   if (!workout) return;
-  const session = await startSession.mutateAsync({
-    splitDayId: workout.splitDayId,
-    exercises: workout.exercises.map(exercise => ({
-      id: crypto.randomUUID(),
-      exerciseId: exercise.exerciseId,
-      splitExerciseId: exercise.splitExerciseId,
-      position: exercise.position,
-      setType: exercise.setType,
-      targetSets: exercise.targetSets,
-      targetReps: exercise.targetReps,
-      targetRpe: exercise.targetRpe,
-    })),
-  });
-  await navigateTo(`/workouts/session/${session.id}`);
+  try {
+    const session = await startSession.mutateAsync({
+      splitDayId: workout.splitDayId,
+      exercises: workout.exercises.map(exercise => ({
+        id: crypto.randomUUID(),
+        exerciseId: exercise.exerciseId,
+        splitExerciseId: exercise.splitExerciseId,
+        position: exercise.position,
+        setType: exercise.setType,
+        targetSets: exercise.targetSets,
+        targetReps: exercise.targetReps,
+        targetRpe: exercise.targetRpe,
+      })),
+    });
+    await navigateTo(`/workouts/session/${session.id}`);
+  } catch {
+    startError.value = "Couldn't start the workout. Please try again.";
+  }
 };
 
 const resumeWorkout = async () => {
@@ -62,6 +68,7 @@ const resumeWorkout = async () => {
         <PlayIcon class="size-4" />
         Start Workout
       </Button>
+      <p v-if="startError" class="text-sm text-destructive">{{ startError }}</p>
     </UiCard>
 
     <UiCard v-else class="space-y-2">
@@ -69,4 +76,5 @@ const resumeWorkout = async () => {
       <p class="text-sm text-muted-foreground">Set up a training split to see today's workout here.</p>
     </UiCard>
   </div>
+  <div v-else class="px-4 py-4 text-muted-foreground">Loading...</div>
 </template>
