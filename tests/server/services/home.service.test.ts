@@ -18,17 +18,20 @@ function ctx(userId = 'user-1'): RequestContext {
 
 describe('HomeService', () => {
   let db: Client
+  let sessions: SessionRepository
+  let blocks: BlockRepository
   let service: HomeService
 
   beforeEach(async () => {
     db = await createTestDb()
-    const sessions = new SessionRepository(db)
-    const blocks = new BlockRepository(db)
+    sessions = new SessionRepository(db)
+    blocks = new BlockRepository(db)
     const exercises = new ExerciseRepository(db)
     const xp = new XpRepository(db)
     const workouts = new WorkoutsService(ctx(), sessions, blocks, exercises, xp)
     service = new HomeService(ctx(), sessions, blocks, new StreakRepository(db), xp, new AchievementRepository(db), new BodyMetricsRepository(db), workouts)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
   })
 
   it('returns a summary with null todaysWorkout/activeSession when there is no active block', async () => {
@@ -36,5 +39,41 @@ describe('HomeService', () => {
     expect(summary.todaysWorkout).toBeNull()
     expect(summary.activeSession).toBeNull()
     expect(summary.streak).toEqual({ current: 0, longest: 0 })
+  })
+
+  it('threads a real active block/split day through to todaysWorkout via the delegated WorkoutsService call', async () => {
+    await blocks.createWithDays('user-1', {
+      programId: null,
+      name: 'Block',
+      startDate: '2020-01-01',
+      endDate: null,
+      trainingDayMacroTarget: null,
+      restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [
+          { exerciseId: 'squat', position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 5, targetRpe: 8 },
+        ] },
+      ],
+    })
+
+    const summary = await service.getSummary()
+
+    expect(summary.todaysWorkout?.dayName).toBe('Push')
+    expect(summary.todaysWorkout?.exercises[0]).toMatchObject({
+      exerciseId: 'squat',
+      exerciseName: 'Squat',
+      setType: 'weight_reps',
+      targetSets: 3,
+    })
+  })
+
+  it('threads a real in-progress session through to activeSession via the delegated WorkoutsService call', async () => {
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 8 })
+
+    const summary = await service.getSummary()
+
+    expect(summary.activeSession).toMatchObject({ sessionId: 'session-1', setsLogged: 1 })
   })
 })
