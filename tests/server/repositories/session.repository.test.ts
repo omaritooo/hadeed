@@ -642,6 +642,55 @@ describe('SessionRepository.findRecentCompletedSummaries', () => {
     expect(results[1]?.sessionId).toBe('s2')
   })
 
+  it('findRecentCompletedSummaries breaks a completed_at tie by rowid, favoring the later-inserted session', async () => {
+    for (const [id, weight] of [['s1', 100], ['s2', 110]] as const) {
+      await sessions.startSession('user-1', { id, splitDayId: null, exercises: [] })
+      await sessions.addFreeformExercise({ id: `${id}-ex`, sessionId: id, exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+      await sessions.logSet({ id: `${id}-set`, exerciseLogId: `${id}-ex`, setNumber: 1, weightKg: weight, reps: 5, rpe: 8 })
+      await sessions.completeSession(id, 1)
+    }
+
+    // Force an identical completed_at on both rows to simulate two sessions completing within
+    // the same second (datetime('now') has only second-level resolution). s2 has the higher
+    // rowid since it was inserted after s1, so it should still sort first.
+    await db.execute({ sql: 'UPDATE workout_sessions SET completed_at = ? WHERE id IN (?, ?)', args: ['2026-01-01 12:00:00', 's1', 's2'] })
+
+    const results = await sessions.findRecentCompletedSummaries('user-1', 2)
+
+    expect(results).toHaveLength(2)
+    expect(results[0]?.completedAt).toBe(results[1]?.completedAt)
+    expect(results[0]?.sessionId).toBe('s2')
+    expect(results[1]?.sessionId).toBe('s1')
+  })
+
+  it('findRecentCompletedSummaries populates day name, duration, and the top set by weight then reps', async () => {
+    await db.execute({ sql: 'INSERT INTO programs (id, user_id, name) VALUES (1, ?, ?)', args: ['user-1', 'Program'] })
+    await db.execute({ sql: `INSERT INTO blocks (id, program_id, user_id, name, start_date) VALUES (1, 1, ?, 'Block', '2026-01-01')`, args: ['user-1'] })
+    await db.execute({ sql: `INSERT INTO split_days (id, block_id, name, day_of_week, location, is_rest_day) VALUES (1, 1, 'Leg Day', 1, 'gym', 0)` })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('deadlift', 'Deadlift', '[]')" })
+
+    await sessions.startSession('user-1', { id: 's1', splitDayId: 1, exercises: [] })
+    await sessions.addFreeformExercise({ id: 's1-squat', sessionId: 's1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.addFreeformExercise({ id: 's1-deadlift', sessionId: 's1', exerciseId: 'deadlift', position: 1, setType: 'weight_reps' })
+    // Lower weight but more reps than the deadlift set below - should lose the tiebreak on weight_kg.
+    await sessions.logSet({ id: 's1-squat-set', exerciseLogId: 's1-squat', setNumber: 1, weightKg: 100, reps: 20, rpe: 8 })
+    // Two deadlift sets at the same weight - the one with more reps should win the tiebreak.
+    await sessions.logSet({ id: 's1-deadlift-set-1', exerciseLogId: 's1-deadlift', setNumber: 1, weightKg: 150, reps: 5, rpe: 8 })
+    await sessions.logSet({ id: 's1-deadlift-set-2', exerciseLogId: 's1-deadlift', setNumber: 2, weightKg: 150, reps: 8, rpe: 9 })
+    await sessions.completeSession('s1', 1)
+    await db.execute({
+      sql: `UPDATE workout_sessions SET started_at = '2026-01-01 12:00:00', completed_at = '2026-01-01 12:45:00' WHERE id = 's1'`,
+    })
+
+    const [result] = await sessions.findRecentCompletedSummaries('user-1', 1)
+
+    expect(result?.dayName).toBe('Leg Day')
+    expect(result?.durationMinutes).toBe(45)
+    expect(result?.topExerciseName).toBe('Deadlift')
+    expect(result?.topWeightKg).toBe(150)
+    expect(result?.topReps).toBe(8)
+  })
+
   it('findRecentCompletedSummaries returns an empty array when there are no completed sessions', async () => {
     const results = await sessions.findRecentCompletedSummaries('user-1', 5)
     expect(results).toEqual([])
