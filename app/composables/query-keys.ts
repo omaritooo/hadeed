@@ -11,4 +11,6 @@ export const queryKeys = {
   nutrition: () => ['nutrition'] as const,
   ingredients: () => ['ingredients'] as const,
   presetMeals: () => ['preset-meals'] as const,
+  workouts: () => ['workouts'] as const,
+  session: (id: string) => ['session', id] as const,
 }
