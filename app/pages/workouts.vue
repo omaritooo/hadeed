@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PlayIcon } from "@lucide/vue";
+import { PlayIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 const { data: summary, isLoading } = useWorkoutsSummary();
@@ -75,6 +75,25 @@ const resumeWorkout = async () => {
       <p class="font-heading text-xl text-foreground">No active program</p>
       <p class="text-sm text-muted-foreground">Set up a training split to see today's workout here.</p>
     </UiCard>
+
+    <div v-if="summary?.recentPrs.length" class="space-y-2">
+      <h2 class="font-heading text-lg uppercase text-foreground">Recent PRs</h2>
+      <div class="flex gap-3 overflow-x-auto pb-1">
+        <UiCard
+          v-for="pr in summary.recentPrs"
+          :key="`${pr.exerciseName}-${pr.achievedAt}`"
+          class="flex w-44 shrink-0 items-center gap-3"
+        >
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <TrophyIcon class="size-4" />
+          </div>
+          <div class="min-w-0">
+            <p class="truncate text-sm font-semibold text-foreground">{{ pr.exerciseName }}</p>
+            <p class="text-xs text-muted-foreground">{{ pr.weightKg }}kg × {{ pr.reps }}</p>
+          </div>
+        </UiCard>
+      </div>
+    </div>
   </div>
   <div v-else class="px-4 py-4 text-muted-foreground">Loading...</div>
 </template>
