@@ -69,21 +69,33 @@ export class WorkoutsService extends BaseService {
     }
     if (!day) return null
 
-    const names = await this.exercises.findNamesByIds(day.exercises.map(exercise => exercise.exerciseId))
+    const exerciseIds = day.exercises.map(exercise => exercise.exerciseId)
+    const [exerciseDetails, lastPerformed] = await Promise.all([
+      this.exercises.findByIds(exerciseIds),
+      this.sessions.findLastPerformedForExercises(userId, exerciseIds),
+    ])
+    const detailsById = new Map(exerciseDetails.map(exercise => [exercise.id, exercise]))
+
     return {
       splitDayId: day.id,
       blockId: day.blockId,
       dayName: day.name,
-      exercises: day.exercises.map(exercise => ({
-        exerciseId: exercise.exerciseId,
-        exerciseName: names[exercise.exerciseId] ?? exercise.exerciseId,
-        splitExerciseId: exercise.id,
-        position: exercise.position,
-        setType: exercise.setType,
-        targetSets: exercise.targetSets,
-        targetReps: exercise.targetReps,
-        targetRpe: exercise.targetRpe,
-      })),
+      exercises: day.exercises.map((exercise) => {
+        const details = detailsById.get(exercise.exerciseId)
+        return {
+          exerciseId: exercise.exerciseId,
+          exerciseName: details?.name ?? exercise.exerciseId,
+          splitExerciseId: exercise.id,
+          position: exercise.position,
+          setType: exercise.setType,
+          targetSets: exercise.targetSets,
+          targetReps: exercise.targetReps,
+          targetRpe: exercise.targetRpe,
+          thumbnailUrl: details?.images[0] ?? null,
+          primaryMuscle: details?.primaryMuscles[0] ?? null,
+          lastPerformed: lastPerformed[exercise.exerciseId] ?? null,
+        }
+      }),
     }
   }
 }

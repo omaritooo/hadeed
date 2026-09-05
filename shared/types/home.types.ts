@@ -9,6 +9,9 @@ export interface TodaysWorkoutExercise {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  thumbnailUrl: string | null
+  primaryMuscle: string | null
+  lastPerformed: { weightKg: number, reps: number, date: string } | null
 }
 
 export interface TodaysWorkout {

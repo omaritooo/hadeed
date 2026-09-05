@@ -4,6 +4,7 @@ import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
+import { MuscleRepository } from '~~/server/repositories/muscle.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
@@ -59,6 +60,59 @@ describe('WorkoutsService', () => {
       setType: 'weight_reps',
       targetSets: 3,
     })
+  })
+
+  it('enriches todaysWorkout exercises with catalog details and last-performed history', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['squat', chest.id, 'primary'] })
+    await db.execute({ sql: 'INSERT INTO exercise_images (exercise_id, url, position) VALUES (?, ?, ?)', args: ['squat', 'squat.jpg', 0] })
+
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 120, reps: 5, rpe: 8 })
+    await sessions.completeSession('session-1', 1)
+
+    await blocks.createWithDays('user-1', {
+      programId: null,
+      name: 'Block',
+      startDate: '2020-01-01',
+      endDate: null,
+      trainingDayMacroTarget: null,
+      restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [
+          { exerciseId: 'squat', position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 5, targetRpe: 8 },
+        ] },
+      ],
+    })
+
+    const summary = await service.getSummary()
+    const exercise = summary.todaysWorkout?.exercises[0]
+
+    expect(exercise?.thumbnailUrl).toBe('squat.jpg')
+    expect(exercise?.primaryMuscle).toBe('chest')
+    expect(exercise?.lastPerformed).toEqual({ weightKg: 120, reps: 5, date: exercise?.lastPerformed?.date })
+  })
+
+  it('leaves lastPerformed null for an exercise with no logged history', async () => {
+    await blocks.createWithDays('user-1', {
+      programId: null,
+      name: 'Block',
+      startDate: '2020-01-01',
+      endDate: null,
+      trainingDayMacroTarget: null,
+      restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [
+          { exerciseId: 'squat', position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 5, targetRpe: 8 },
+        ] },
+      ],
+    })
+
+    const summary = await service.getSummary()
+
+    expect(summary.todaysWorkout?.exercises[0]?.lastPerformed).toBeNull()
   })
 
   it('includes an in-progress session as activeSession', async () => {
