@@ -5,7 +5,6 @@ import {
   HistoryIcon,
   InfoIcon,
   PersonStandingIcon,
-  PlusIcon,
   TrophyIcon,
 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
@@ -303,9 +302,8 @@ const formatHistoryDate = (dateString: string): string => {
       </div>
 
       <UiDrawerFooter>
-        <Button size="lg" class="w-full rounded-full uppercase">
-          <PlusIcon class="size-4" />
-          Log Set
+        <Button size="lg" class="w-full rounded-full uppercase" @click="open = false">
+          Close
         </Button>
       </UiDrawerFooter>
     </UiDrawerContent>

@@ -2,6 +2,7 @@
 import { CheckIcon, InfoIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { SetLog } from "~~/shared/types/session.types";
 
 const route = useRoute();
 const sessionId = computed(() => route.params.id as string);
@@ -9,6 +10,7 @@ const sessionId = computed(() => route.params.id as string);
 const { data: session, refetch } = useSession(sessionId);
 const logSet = useLogSet();
 const completeSession = useCompleteSession();
+const editSetLog = useEditSetLog();
 
 const now = useNow({ interval: 1000 });
 const elapsed = computed(() => {
@@ -35,6 +37,50 @@ const openInfo = (exerciseId: string) => {
 
 const finishError = ref<string | null>(null);
 const logErrors = reactive<Record<string, string | null>>({});
+
+const editingSetId = ref<string | null>(null);
+const editError = ref<string | null>(null);
+const editDrafts = reactive<Record<string, { weightKg: string, reps: string, rpe: string }>>({});
+
+const startEdit = (set: SetLog) => {
+  editingSetId.value = set.id;
+  editError.value = null;
+  editDrafts[set.id] = {
+    weightKg: set.weightKg === null ? "" : String(set.weightKg),
+    reps: set.reps === null ? "" : String(set.reps),
+    rpe: set.rpe === null ? "" : String(set.rpe),
+  };
+};
+
+const cancelEdit = () => {
+  editingSetId.value = null;
+  editError.value = null;
+};
+
+const saveEdit = async (set: SetLog) => {
+  const draft = editDrafts[set.id];
+  if (!draft) return;
+  editError.value = null;
+  try {
+    await editSetLog.mutateAsync({
+      sessionId: sessionId.value,
+      setLogId: set.id,
+      expectedVersion: set.version,
+      weightKg: draft.weightKg === "" ? null : Number(draft.weightKg),
+      reps: draft.reps === "" ? null : Number(draft.reps),
+      rpe: draft.rpe === "" ? null : Number(draft.rpe),
+    });
+    editingSetId.value = null;
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number } | null)?.statusCode;
+    if (statusCode === 409) {
+      editError.value = "This set was updated elsewhere — refreshing.";
+      await refetch();
+    } else {
+      editError.value = "Couldn't save that correction. Please try again.";
+    }
+  }
+};
 
 const logNextSet = async (exerciseLogId: string) => {
   const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
@@ -103,11 +149,28 @@ const finish = async () => {
         <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
       </div>
 
-      <div v-for="set in exercise.sets" :key="set.id" class="flex items-center gap-3 text-sm text-muted-foreground">
-        <span class="w-6">{{ set.setNumber }}</span>
-        <span>{{ set.weightKg ?? "–" }}kg</span>
-        <span>{{ set.reps ?? "–" }} reps</span>
-        <span v-if="set.rpe">RPE {{ set.rpe }}</span>
+      <div v-for="set in exercise.sets" :key="set.id" class="space-y-1">
+        <div v-if="editingSetId === set.id" class="flex items-center gap-2">
+          <span class="w-6 text-sm text-muted-foreground">{{ set.setNumber }}</span>
+          <Input v-model="editDrafts[set.id].weightKg" type="number" placeholder="kg" class="w-20" />
+          <Input v-model="editDrafts[set.id].reps" type="number" placeholder="reps" class="w-20" />
+          <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-16" />
+          <Button size="icon" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
+            <CheckIcon class="size-4" />
+          </Button>
+          <button class="text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
+        </div>
+        <button
+          v-else
+          class="flex w-full items-center gap-3 text-left text-sm text-muted-foreground"
+          @click="startEdit(set)"
+        >
+          <span class="w-6">{{ set.setNumber }}</span>
+          <span>{{ set.weightKg ?? "–" }}kg</span>
+          <span>{{ set.reps ?? "–" }} reps</span>
+          <span v-if="set.rpe">RPE {{ set.rpe }}</span>
+        </button>
+        <p v-if="editingSetId === set.id && editError" class="text-sm text-destructive">{{ editError }}</p>
       </div>
 
       <div class="flex items-center gap-2">
