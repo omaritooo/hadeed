@@ -615,3 +615,54 @@ describe('SessionRepository.countTrainedDaysInRange', () => {
     expect(count).toBe(0)
   })
 })
+
+describe('SessionRepository.findRecentCompletedSummaries', () => {
+  let db: Client
+  let sessions: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
+  })
+
+  it('findRecentCompletedSummaries returns multiple sessions, most recent first', async () => {
+    for (const [id, weight] of [['s1', 100], ['s2', 110], ['s3', 120]] as const) {
+      await sessions.startSession('user-1', { id, splitDayId: null, exercises: [] })
+      await sessions.addFreeformExercise({ id: `${id}-ex`, sessionId: id, exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+      await sessions.logSet({ id: `${id}-set`, exerciseLogId: `${id}-ex`, setNumber: 1, weightKg: weight, reps: 5, rpe: 8 })
+      await sessions.completeSession(id, 1)
+    }
+
+    const results = await sessions.findRecentCompletedSummaries('user-1', 2)
+
+    expect(results).toHaveLength(2)
+    expect(results[0]?.sessionId).toBe('s3')
+    expect(results[1]?.sessionId).toBe('s2')
+  })
+
+  it('findRecentCompletedSummaries returns an empty array when there are no completed sessions', async () => {
+    const results = await sessions.findRecentCompletedSummaries('user-1', 5)
+    expect(results).toEqual([])
+  })
+
+  it('findMostRecentCompletedSummary delegates to findRecentCompletedSummaries with a limit of 1', async () => {
+    for (const [id, weight] of [['s1', 100], ['s2', 110]] as const) {
+      await sessions.startSession('user-1', { id, splitDayId: null, exercises: [] })
+      await sessions.addFreeformExercise({ id: `${id}-ex`, sessionId: id, exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+      await sessions.logSet({ id: `${id}-set`, exerciseLogId: `${id}-ex`, setNumber: 1, weightKg: weight, reps: 5, rpe: 8 })
+      await sessions.completeSession(id, 1)
+    }
+
+    const summary = await sessions.findMostRecentCompletedSummary('user-1')
+
+    expect(summary?.sessionId).toBe('s2')
+    expect(summary?.topWeightKg).toBe(110)
+  })
+
+  it('findMostRecentCompletedSummary returns null when there are no completed sessions', async () => {
+    const summary = await sessions.findMostRecentCompletedSummary('user-1')
+    expect(summary).toBeNull()
+  })
+})

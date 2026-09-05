@@ -529,39 +529,45 @@ export class SessionRepository {
     return row ? (row.split_day_id as number) : null
   }
 
-  async findMostRecentCompletedSummary(userId: string): Promise<RecentSessionSummary | null> {
+  async findRecentCompletedSummaries(userId: string, limit: number): Promise<RecentSessionSummary[]> {
     const sessionResult = await this.db.execute({
       sql: `SELECT workout_sessions.*, split_days.name AS day_name,
                    ROUND((julianday(completed_at) - julianday(started_at)) * 24 * 60) AS duration_minutes
             FROM workout_sessions
             LEFT JOIN split_days ON split_days.id = workout_sessions.split_day_id
             WHERE workout_sessions.user_id = ? AND workout_sessions.status = 'completed'
-            ORDER BY completed_at DESC LIMIT 1`,
-      args: [userId],
+            ORDER BY completed_at DESC, workout_sessions.rowid DESC LIMIT ?`,
+      args: [userId, limit],
     })
-    const sessionRow = sessionResult.rows[0] as unknown as Record<string, unknown> | undefined
-    if (!sessionRow) return null
 
-    const topSetResult = await this.db.execute({
-      sql: `SELECT e.name AS exercise_name, sl.weight_kg, sl.reps
-            FROM set_logs sl
-            JOIN exercise_logs el ON el.id = sl.exercise_log_id
-            JOIN exercises e ON e.id = el.exercise_id
-            WHERE el.session_id = ? AND sl.weight_kg IS NOT NULL
-            ORDER BY sl.weight_kg DESC, sl.reps DESC LIMIT 1`,
-      args: [sessionRow.id as string],
-    })
-    const topSetRow = topSetResult.rows[0] as unknown as Record<string, unknown> | undefined
+    return Promise.all(sessionResult.rows.map(async (row) => {
+      const sessionRow = row as unknown as Record<string, unknown>
+      const topSetResult = await this.db.execute({
+        sql: `SELECT e.name AS exercise_name, sl.weight_kg, sl.reps
+              FROM set_logs sl
+              JOIN exercise_logs el ON el.id = sl.exercise_log_id
+              JOIN exercises e ON e.id = el.exercise_id
+              WHERE el.session_id = ? AND sl.weight_kg IS NOT NULL
+              ORDER BY sl.weight_kg DESC, sl.reps DESC LIMIT 1`,
+        args: [sessionRow.id as string],
+      })
+      const topSetRow = topSetResult.rows[0] as unknown as Record<string, unknown> | undefined
 
-    return {
-      sessionId: sessionRow.id as string,
-      dayName: (sessionRow.day_name as string) ?? null,
-      startedAt: sessionRow.started_at as string,
-      completedAt: sessionRow.completed_at as string,
-      durationMinutes: sessionRow.duration_minutes as number | null,
-      topExerciseName: (topSetRow?.exercise_name as string) ?? null,
-      topWeightKg: (topSetRow?.weight_kg as number) ?? null,
-      topReps: (topSetRow?.reps as number) ?? null,
-    }
+      return {
+        sessionId: sessionRow.id as string,
+        dayName: (sessionRow.day_name as string) ?? null,
+        startedAt: sessionRow.started_at as string,
+        completedAt: sessionRow.completed_at as string,
+        durationMinutes: sessionRow.duration_minutes as number | null,
+        topExerciseName: (topSetRow?.exercise_name as string) ?? null,
+        topWeightKg: (topSetRow?.weight_kg as number) ?? null,
+        topReps: (topSetRow?.reps as number) ?? null,
+      }
+    }))
+  }
+
+  async findMostRecentCompletedSummary(userId: string): Promise<RecentSessionSummary | null> {
+    const [summary] = await this.findRecentCompletedSummaries(userId, 1)
+    return summary ?? null
   }
 }
