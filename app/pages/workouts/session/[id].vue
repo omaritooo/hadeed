@@ -82,7 +82,12 @@ const finish = async () => {
   <div v-if="session" class="flex flex-col gap-y-4 px-4 py-4">
     <div class="flex items-center justify-between">
       <div>
-        <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">{{ elapsed }}</p>
+        <ClientOnly>
+          <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">{{ elapsed }}</p>
+          <template #fallback>
+            <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">--:--</p>
+          </template>
+        </ClientOnly>
         <h1 class="font-heading text-2xl font-semibold text-foreground">
           {{ session.splitDayId ? "Workout" : "Freeform Workout" }}
         </h1>
