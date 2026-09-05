@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 
 const { data: summary, isLoading } = useWorkoutsSummary();
 const startSession = useStartSession();
+const now = useNow();
 
 const startWorkout = async () => {
   const workout = summary.value?.todaysWorkout;
@@ -33,7 +34,7 @@ const resumeWorkout = async () => {
 
 <template>
   <div class="px-4 py-4 flex flex-col gap-y-4" v-if="!isLoading">
-    <span class="font-mono text-muted-foreground">{{ useDateFormat(useNow(), "MMM DD, YYYY") }}</span>
+    <span class="font-mono text-muted-foreground">{{ useDateFormat(now, "MMM DD, YYYY") }}</span>
     <h1 class="font-heading text-3xl font-semibold text-foreground">Workouts</h1>
 
     <UiCard v-if="summary?.activeSession" class="space-y-3">
