@@ -1,8 +1,12 @@
 export interface TodaysWorkoutExercise {
   exerciseId: string
   exerciseName: string
+  splitExerciseId: number
+  position: number
+  setType: import('./split.types').SetType
   targetSets: number | null
   targetReps: number | null
+  targetRpe: number | null
 }
 
 export interface TodaysWorkout {

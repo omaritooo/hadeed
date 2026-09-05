@@ -131,8 +131,12 @@ export class HomeService extends BaseService {
       exercises: day.exercises.map(exercise => ({
         exerciseId: exercise.exerciseId,
         exerciseName: names[exercise.exerciseId] ?? exercise.exerciseId,
+        splitExerciseId: exercise.id,
+        position: exercise.position,
+        setType: exercise.setType,
         targetSets: exercise.targetSets,
         targetReps: exercise.targetReps,
+        targetRpe: exercise.targetRpe,
       })),
     }
   }
