@@ -12,6 +12,7 @@ export const useStartSession = () => {
       method: 'POST',
       body: { ...input, id: crypto.randomUUID() },
     }),
+    // A new in-progress session must show up in the workouts summary's active-session banner.
     onSuccess: () => queryCache.invalidateQueries({ key: queryKeys.workouts() }),
   })
 }

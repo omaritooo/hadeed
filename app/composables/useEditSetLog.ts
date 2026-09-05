@@ -20,6 +20,11 @@ export const useEditSetLog = () => {
       method: 'PATCH',
       body,
     }),
-    onSuccess: (_result, { sessionId }) => queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
+    // Corrected weight/reps also feed volumeKgInRange's weekly sum on home, even though
+    // (unlike useLogSet) an edit never re-triggers PR/XP gamification.
+    onSuccess: (_result, { sessionId }) => Promise.all([
+      queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
+      queryCache.invalidateQueries({ key: queryKeys.home() }),
+    ]),
   })
 }

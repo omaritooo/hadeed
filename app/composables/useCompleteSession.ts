@@ -11,6 +11,8 @@ export const useCompleteSession = () => {
       method: 'POST',
       body: { expectedVersion },
     }),
+    // Completion updates this session's status, drops it from the workouts summary's active
+    // banner, and — via streak/XP awarded on completion — home's streak and XP bar.
     onSuccess: (_result, { sessionId }) => Promise.all([
       queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
       queryCache.invalidateQueries({ key: queryKeys.workouts() }),
