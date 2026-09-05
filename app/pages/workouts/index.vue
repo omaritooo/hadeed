@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PlayIcon, TrophyIcon } from "@lucide/vue";
+import { LayoutGridIcon, PlayIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { kgToLbs } from "~~/shared/lib/formulas";
 
@@ -91,9 +91,15 @@ const resumeWorkout = async () => {
       <p v-if="startError" class="text-sm text-destructive">{{ startError }}</p>
     </UiCard>
 
-    <UiCard v-else class="space-y-2">
+    <UiCard v-else class="space-y-3">
       <p class="font-heading text-xl text-foreground">No active program</p>
       <p class="text-sm text-muted-foreground">Set up a training split to see today's workout here.</p>
+      <Button size="lg" variant="secondary" class="w-full" as-child>
+        <NuxtLink to="/builder">
+          <LayoutGridIcon class="size-4" />
+          Build a Program
+        </NuxtLink>
+      </Button>
     </UiCard>
 
     <div v-if="summary?.recentPrs.length" class="space-y-2">

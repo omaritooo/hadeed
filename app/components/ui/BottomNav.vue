@@ -3,8 +3,8 @@ import {
   ChartLineIcon,
   DumbbellIcon,
   HomeIcon,
-  LayoutGridIcon,
   UserIcon,
+  UtensilsIcon,
 } from "@lucide/vue";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ const route = useRoute();
 const items = [
   { to: "/", label: "Home", icon: HomeIcon },
   { to: "/workouts", label: "Workouts", icon: DumbbellIcon },
-  { to: "/builder", label: "Builder", icon: LayoutGridIcon },
+  { to: "/nutrition", label: "Nutrition", icon: UtensilsIcon },
   { to: "/stats", label: "Stats", icon: ChartLineIcon },
   { to: "/profile", label: "Profile", icon: UserIcon },
 ];
