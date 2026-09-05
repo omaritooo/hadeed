@@ -16,13 +16,15 @@ describe('WorkoutsService', () => {
   let db: Client
   let sessions: SessionRepository
   let blocks: BlockRepository
+  let xp: XpRepository
   let service: WorkoutsService
 
   beforeEach(async () => {
     db = await createTestDb()
     sessions = new SessionRepository(db)
     blocks = new BlockRepository(db)
-    service = new WorkoutsService(ctx(), sessions, blocks, new ExerciseRepository(db), new XpRepository(db))
+    xp = new XpRepository(db)
+    service = new WorkoutsService(ctx(), sessions, blocks, new ExerciseRepository(db), xp)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
   })
@@ -65,5 +67,20 @@ describe('WorkoutsService', () => {
     const summary = await service.getSummary()
 
     expect(summary.activeSession?.sessionId).toBe('session-1')
+  })
+
+  it('surfaces a completed session and its PR in recentSessions/recentPrs', async () => {
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 8 })
+    await sessions.completeSession('session-1', 1)
+    await xp.award('user-1', 50, 'pr', 'set-1')
+
+    const summary = await service.getSummary()
+
+    expect(summary.recentSessions).toHaveLength(1)
+    expect(summary.recentSessions[0]).toMatchObject({ sessionId: 'session-1', topWeightKg: 100, topReps: 5 })
+    expect(summary.recentPrs).toHaveLength(1)
+    expect(summary.recentPrs[0]).toMatchObject({ exerciseName: 'Squat', weightKg: 100, reps: 5 })
   })
 })
