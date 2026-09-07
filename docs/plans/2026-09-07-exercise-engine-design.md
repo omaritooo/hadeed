@@ -54,12 +54,25 @@ different equipment," not to win an anatomy exam.
 - `mechanic IS NULL` (87 rows) → fall back to Tier 2 as a safe default; these are largely
   cardio/stretching/plyometric rows unlikely to be selected as a split's primary lift anyway.
 
-**Equipment-fallback grouping** — no new table. A fallback candidate set for exercise X is
-`WHERE movement_pattern = X.movement_pattern AND primary_muscle = X.primary_muscle`, filtered to the
-target equipment tier and ranked by tier proximity (same tier first, then adjacent). This directly
-implements the "match pattern + muscle, not the specific exercise" principle from the equipment-
-substitution research, and means adding a new exercise to the catalog later never requires manually
-wiring its fallbacks.
+**Equipment-fallback grouping** — no new table. There is no `primary_muscle` scalar column on `exercises`
+today (primary muscle only exists via `exercise_muscles WHERE role = 'primary'`), so the fallback query is
+a join, not a flat comparison: a fallback candidate set for exercise X is every exercise sharing the same
+`movement_pattern` and joined to the same primary muscle via `exercise_muscles`, filtered to the target
+equipment tier and ranked by tier proximity (same tier first, then adjacent):
+
+```sql
+SELECT e2.* FROM exercises e2
+JOIN exercise_muscles em2 ON em2.exercise_id = e2.id AND em2.role = 'primary'
+WHERE e2.movement_pattern = :pattern
+  AND em2.muscle_id = :primaryMuscleId
+  AND e2.equipment IN (:tierEquipmentValues)
+  AND e2.id != :excludeId
+ORDER BY ABS(e2.tier - :sourceTier), e2.name
+```
+
+This directly implements the "match pattern + muscle, not the specific exercise" principle from the
+equipment-substitution research, and means adding a new exercise to the catalog later never requires
+manually wiring its fallbacks.
 
 **Process**: a one-time offline script (`server/database/classify-exercises.ts` or similar), not a live
 endpoint. Deterministic rules run first and cover ~85%+ of rows; the LLM pass only touches the
@@ -86,17 +99,34 @@ two consecutive non-rest days both containing a Tier 1 exercise sharing a primar
 warning: *"[Muscle] is targeted with heavy compound work on back-to-back days — consider spacing these out
 or inserting a lower-body/rest day."* This is a pure read: given a block's days (already fully loaded by
 `BlockRepository.findWithDays`), walk consecutive day pairs and check for a Tier-1/shared-muscle overlap.
-Runs client-side in the builder (Task in the custom/preset confirm step) using data already fetched — no
-new endpoint needed.
+Runs client-side in `/builder`'s **confirm step** (`app/pages/builder.vue`, the name/start-date step that
+both the preset and custom paths funnel into before submit — not inside `PresetPicker.vue` itself, which
+has no confirm step of its own) using the `days` array already held in that page's state — no new endpoint
+needed.
 
-## 4. Equipment profile (Phase 3 — needs Phase 0's `movement_pattern` + `primary_muscle`)
+## 4. Equipment profile (Phase 3 — needs Phase 0's `movement_pattern` + fallback join)
 
-Today's `preset_splits.equipment` is `'gym' | 'home' | 'both'` (2.5 tiers) and per-exercise equipment is a
-single free-text value with no substitution logic. This phase:
-- Extends the *user-facing* equipment concept to the PRD's 4 tiers (`full_gym`, `home_barbell_dumbbell`,
-  `home_dumbbell_only`, `bodyweight`) as a new field on the user profile (`shared/types/profile.types.ts`'s
-  `Equipment` type currently only has `'gym' | 'home' | 'both'` — this widens it; existing rows migrate
-  `gym → full_gym`, `home → home_barbell_dumbbell`, `both` stays a valid preset-matching value).
+Today's `preset_splits.equipment` and `user_profiles.equipment` both have a `CHECK (equipment IN
+('gym','home','both'))` constraint, and `PresetPicker.vue` currently hardcodes
+`equipment: null` in its recommendation request — it does not read or send the user's equipment profile at
+all today (only `daysPerWeek` is wired from profile). This phase:
+- Widens `Equipment` (`shared/types/preset.types.ts`) to the PRD's 4 tiers: `full_gym`,
+  `home_barbell_dumbbell`, `home_dumbbell_only`, `bodyweight`. SQLite can't `ALTER` a `CHECK` constraint in
+  place — this repo's own precedent for that exact situation is `seed.ts`'s `migrateIngredientsUserIdNullable`
+  (a guarded rebuild: create a new table with the desired constraint, copy data across with a `CASE`
+  mapping old→new values, drop the old table, rename). Both `user_profiles.equipment` and
+  `preset_splits.equipment` need this rebuild treatment, each guarded by a `PRAGMA table_info` check so
+  it's a no-op on repeat runs, following that exact existing pattern. Value mapping: `gym → full_gym`,
+  `home → home_barbell_dumbbell`, `both → both` (kept as a valid "any tier" preset value, not removed).
+- Fixes `scorePreset`'s equipment check (`server/services/preset-split.service.ts`), which today is a flat
+  string-equality comparison (`preset.equipment === input.equipment || preset.equipment === 'both'`) — this
+  cannot express "a user with `full_gym` access should still match a preset that only requires
+  `home_dumbbell_only`." Equipment tiers form a hierarchy (`bodyweight` ⊂ `home_dumbbell_only` ⊂
+  `home_barbell_dumbbell` ⊂ `full_gym`); a preset is compatible with a user's tier whenever the user's tier
+  is at or above the preset's required tier in that ordering, or the preset is tagged `both`. This is a
+  small ordered-index comparison, not a rewrite of `scorePreset`'s overall shape.
+- Wires `PresetPicker.vue` to actually send `profile.value.profile.equipment` in `recommendationInput`
+  instead of the current hardcoded `null` — this is new wiring, not a widening of existing wiring.
 - Adds an exercise-substitution step to split *creation*: when a preset or custom day includes an exercise
   whose `equipment` doesn't fit the user's tier, the fallback query from §1 offers same-pattern/same-muscle
   alternatives that do fit, ranked same-tier-first. This is surfaced at the point the split is being built
@@ -161,11 +191,11 @@ fixtures that enumerate goals.
 
 ## 8. Wizard / profile wiring (Phase 6)
 
-The 4-tier `Equipment` type change (§4) surfaces in: the onboarding equipment-selection step (currently
-2.5-tier), the `/builder` preset picker's implicit equipment passthrough (today it reads
-`profile.equipment` and sends it straight to `/api/preset-splits/recommend` — the recommend endpoint's own
-scoring already treats equipment as an opaque enum match, so widening the enum is compatible, not a scoring
-rewrite), and profile settings (if editable there).
+The 4-tier `Equipment` type change (§4) surfaces in: the onboarding equipment-selection step
+(`app/components/onboarding/FifthStep.vue`, currently 3 options: gym/home/both — widens to 4), and
+`PresetPicker.vue`'s new equipment wiring (§4 — this is net-new passthrough, not a widening of existing
+passthrough, since none exists today). Profile settings editing, if this app exposes an equipment field
+there post-onboarding, gets the same 4-option list.
 
 ## Explicitly out of scope
 
