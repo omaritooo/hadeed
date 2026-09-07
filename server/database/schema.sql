@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS exercises (
   instructions  TEXT                -- JSON array of strings
 );
 
+ALTER TABLE exercises ADD COLUMN movement_pattern TEXT;
+ALTER TABLE exercises ADD COLUMN tier INTEGER CHECK (tier IN (1, 2, 3));
+
 CREATE TABLE IF NOT EXISTS muscles (
   id    INTEGER PRIMARY KEY AUTOINCREMENT,
   name  TEXT NOT NULL UNIQUE
