@@ -14,3 +14,9 @@ export const toSqliteDatetime = (date: Date): string => {
 export const fromSqliteDatetime = (value: string): Date => {
   return new Date(`${value.replace(' ', 'T')}Z`)
 }
+
+export const dayBefore = (dateString: string): string => {
+  const date = new Date(`${dateString}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() - 1)
+  return date.toISOString().slice(0, 10)
+}
