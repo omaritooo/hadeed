@@ -171,8 +171,8 @@ const finish = async () => {
             <span class="w-6 shrink-0">{{ set.setNumber }}</span>
             <span class="flex flex-1 items-center justify-end gap-1">
               <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.weightKg ?? "–" }}kg</span>
-              <span class="w-12 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
-              <span class="w-12 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
+              <span class="w-14 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
+              <span class="w-14 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
             </span>
           </button>
           <p v-if="editingSetId === set.id && editError" class="text-sm text-destructive">{{ editError }}</p>
