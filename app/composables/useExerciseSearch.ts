@@ -8,8 +8,8 @@ export const useExerciseSearch = (search: MaybeRefOrGetter<string>) => {
   const { $api } = useNuxtApp()
 
   return useQuery<Exercise[], FetchError<{ statusMessage: string }>>({
-    key: () => queryKeys.exerciseSearch(toValue(search)),
-    query: () => $api<Exercise[]>('/api/exercises', { query: { search: toValue(search) } }),
+    key: () => queryKeys.exerciseSearch(toValue(search).trim()),
+    query: () => $api<Exercise[]>('/api/exercises', { query: { search: toValue(search).trim() } }),
     enabled: () => toValue(search).trim() !== '',
   })
 }
