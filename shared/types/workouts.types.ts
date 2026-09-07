@@ -6,3 +6,11 @@ export interface WorkoutsSummary {
   recentSessions: RecentSessionSummary[]
   recentPrs: RecentPr[]
 }
+
+export type VolumeBand = 'low' | 'optimal' | 'high'
+
+export interface MuscleVolume {
+  muscleName: string
+  setCount: number
+  band: VolumeBand
+}

@@ -5,9 +5,10 @@ import type { ExerciseRepository } from '~~/server/repositories/exercise.reposit
 import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActiveSessionSummary, TodaysWorkout } from '~~/shared/types/home.types'
-import type { WorkoutsSummary } from '~~/shared/types/workouts.types'
+import type { MuscleVolume, WorkoutsSummary } from '~~/shared/types/workouts.types'
 import type { WorkoutSession } from '~~/shared/types/session.types'
 import type { SplitDay, SplitExercise } from '~~/shared/types/split.types'
+import { startOfWeek, toSqliteDatetime } from '~~/server/utils/date'
 
 const RECENT_SESSIONS_LIMIT = 5
 const RECENT_PRS_LIMIT = 5
@@ -45,6 +46,24 @@ export class WorkoutsService extends BaseService {
     ])
 
     return { todaysWorkout, activeSession, recentSessions, recentPrs }
+  }
+
+  async getWeeklyVolume(userId: string): Promise<MuscleVolume[]> {
+    const weekStart = startOfWeek(new Date())
+    const weekEnd = new Date(weekStart)
+    weekEnd.setUTCDate(weekStart.getUTCDate() + 7)
+
+    const rows = await this.sessions.weeklySetsByMuscle(
+      userId,
+      toSqliteDatetime(weekStart),
+      toSqliteDatetime(weekEnd),
+    )
+
+    return rows.map(row => ({
+      muscleName: row.muscleName,
+      setCount: row.setCount,
+      band: row.setCount < 10 ? 'low' : row.setCount > 22 ? 'high' : 'optimal',
+    }))
   }
 
   async buildActiveSession(session: WorkoutSession | null): Promise<ActiveSessionSummary | null> {

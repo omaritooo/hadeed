@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { kgToLbs } from "~~/shared/lib/formulas";
 
 const { data: summary, isLoading } = useWorkoutsSummary();
+const { data: weeklyVolume } = useWeeklyVolume();
 const startSession = useStartSession();
 const { data: profileData } = useProfile();
 const now = useNow();
@@ -22,6 +23,14 @@ const formatWeight = (weightKg: number): string => {
   }
   return `${Math.round(weightKg)} kg`;
 };
+
+const volumeBandClass: Record<"low" | "optimal" | "high", string> = {
+  low: "bg-muted-foreground",
+  optimal: "bg-lime",
+  high: "bg-destructive",
+};
+
+const volumeProgress = (setCount: number): number => Math.min(100, (setCount / 22) * 100);
 
 const formatHistoryDate = (dateString: string): string => {
   const date = new Date(`${dateString.replace(" ", "T")}Z`);
@@ -137,6 +146,21 @@ const resumeWorkout = async () => {
           Build a Program
         </NuxtLink>
       </Button>
+    </UiCard>
+
+    <UiCard v-if="weeklyVolume?.length" class="space-y-3">
+      <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Weekly Volume</span>
+      <div v-for="muscle in weeklyVolume" :key="muscle.muscleName" class="space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold capitalize text-foreground">{{ muscle.muscleName }}</span>
+          <span class="font-mono text-xs text-muted-foreground">{{ muscle.setCount }} sets</span>
+        </div>
+        <UiProgress
+          :model-value="volumeProgress(muscle.setCount)"
+          class="h-1.5 bg-muted"
+          :indicator-class="volumeBandClass[muscle.band]"
+        />
+      </div>
     </UiCard>
 
     <div v-if="summary?.recentPrs.length" class="space-y-2">
