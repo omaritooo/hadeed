@@ -24,16 +24,26 @@ const props = defineProps<{
   emptyText?: string;
   disabled?: boolean;
   class?: HTMLAttributes["class"];
+  resetSearchTermOnBlur?: boolean;
+  resetSearchTermOnSelect?: boolean;
 }>();
 
 const model = defineModel<AcceptableValue>();
+// By default reka-ui resets this back to the selected value (via `display-value` below) on
+// blur/select. Pass `:reset-search-term-on-select="false"` (and/or `-on-blur`) to keep full
+// control over `searchTerm`, e.g. when driving a remote search.
 const searchTerm = defineModel<string>("searchTerm", { default: "" });
 
 const selectedLabel = computed(() => props.items.find((item) => item.value === model.value)?.label);
 </script>
 
 <template>
-  <ComboboxRoot v-model="model" class="w-full" reset-search-term-on-blur reset-search-term-on-select>
+  <ComboboxRoot
+    v-model="model"
+    class="w-full"
+    :reset-search-term-on-blur="resetSearchTermOnBlur ?? true"
+    :reset-search-term-on-select="resetSearchTermOnSelect ?? true"
+  >
     <ComboboxAnchor as-child>
       <ComboboxTrigger
         as-child
@@ -70,6 +80,7 @@ const selectedLabel = computed(() => props.items.find((item) => item.value === m
           <SearchIcon class="text-muted-foreground size-4 shrink-0" />
           <ComboboxInput
             v-model="searchTerm"
+            :display-value="() => selectedLabel ?? ''"
             :placeholder="searchPlaceholder ?? 'Search…'"
             class="placeholder:text-muted-foreground h-11 w-full min-w-0 bg-transparent text-[16px] text-foreground outline-none"
           />
