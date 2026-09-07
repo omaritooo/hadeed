@@ -27,10 +27,20 @@ const chooseMode = (chosen: Exclude<Mode, null>) => {
 const backToMode = () => {
   mode.value = null;
   step.value = "mode";
+  selectedPresetId.value = null;
+  customDays.value = [];
 };
 
 const proceedToConfirm = () => {
   step.value = "confirm";
+};
+
+const goBack = () => {
+  if (step.value === "confirm") {
+    step.value = "build";
+  } else {
+    backToMode();
+  }
 };
 
 const submitting = computed(() => createFromPreset.isLoading.value || createFromScratch.isLoading.value);
@@ -64,7 +74,7 @@ const submit = async () => {
 
 <template>
   <main class="mx-auto flex max-w-xl flex-col gap-y-4 p-4">
-    <button v-if="step !== 'mode'" class="flex items-center gap-1 text-sm text-muted-foreground" @click="step === 'confirm' ? (step = 'build') : backToMode()">
+    <button v-if="step !== 'mode'" class="flex items-center gap-1 text-sm text-muted-foreground" @click="goBack">
       <ArrowLeftIcon class="size-4" /> Back
     </button>
 
