@@ -149,17 +149,19 @@ const finish = async () => {
 
       <div class="space-y-2">
         <div v-for="set in exercise.sets" :key="set.id" class="space-y-1">
-          <div v-if="editingSetId === set.id" class="flex items-center gap-2">
-            <span class="w-6 shrink-0 text-sm text-muted-foreground">{{ set.setNumber }}</span>
-            <div class="flex flex-1 items-center justify-end gap-2">
-              <Input v-model="editDrafts[set.id].weightKg" type="number" placeholder="kg" class="w-20 text-right" />
-              <Input v-model="editDrafts[set.id].reps" type="number" placeholder="reps" class="w-20 text-right" />
-              <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-16 text-right" />
+          <div v-if="editingSetId === set.id" class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="w-6 shrink-0 text-sm text-muted-foreground">{{ set.setNumber }}</span>
+              <div class="flex flex-1 items-center justify-end gap-1">
+                <Input v-model="editDrafts[set.id].weightKg" type="number" placeholder="kg" class="w-16 shrink-0 text-right text-sm" />
+                <Input v-model="editDrafts[set.id].reps" type="number" placeholder="reps" class="w-12 shrink-0 text-right text-sm" />
+                <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
+              </div>
+              <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
+                <CheckIcon class="size-4" />
+              </Button>
             </div>
-            <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
-              <CheckIcon class="size-4" />
-            </Button>
-            <button class="shrink-0 text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
+            <button class="block w-full text-right text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
           </div>
           <button
             v-else
@@ -167,10 +169,10 @@ const finish = async () => {
             @click="startEdit(set)"
           >
             <span class="w-6 shrink-0">{{ set.setNumber }}</span>
-            <span class="flex flex-1 items-center justify-end gap-2">
-              <span class="w-20 text-right">{{ set.weightKg ?? "–" }}kg</span>
-              <span class="w-20 text-right">{{ set.reps ?? "–" }} reps</span>
-              <span class="w-16 text-right">{{ set.rpe ? `RPE ${set.rpe}` : "" }}</span>
+            <span class="flex flex-1 items-center justify-end gap-1">
+              <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.weightKg ?? "–" }}kg</span>
+              <span class="w-12 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
+              <span class="w-12 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
             </span>
           </button>
           <p v-if="editingSetId === set.id && editError" class="text-sm text-destructive">{{ editError }}</p>
@@ -179,10 +181,10 @@ const finish = async () => {
 
       <div class="flex items-center gap-2 border-t border-surface-strong pt-3">
         <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
-        <div class="flex flex-1 items-center justify-end gap-2">
-          <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-20 text-right" />
-          <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-20 text-right" />
-          <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-16 text-right" />
+        <div class="flex flex-1 items-center justify-end gap-1">
+          <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-16 shrink-0 text-right text-sm" />
+          <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-12 shrink-0 text-right text-sm" />
+          <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
         </div>
         <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
           <CheckIcon class="size-4" />
