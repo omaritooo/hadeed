@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyMovementPattern } from '~~/server/utils/exercise-classification'
+import { classifyMovementPattern, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
 
 describe('classifyMovementPattern', () => {
   it('classifies overhead/incline pressing as vertical push', () => {
@@ -82,5 +82,38 @@ describe('classifyMovementPattern', () => {
     expect(classifyMovementPattern({ name: 'Dumbbell Flyes', force: 'push', mechanic: 'isolation', primaryMuscles: ['chest'] })).toBe('horizontal_push')
     expect(classifyMovementPattern({ name: 'Pushups', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('horizontal_push')
     expect(classifyMovementPattern({ name: 'Pullups', force: 'pull', mechanic: 'compound', primaryMuscles: ['lats'] })).toBe('vertical_pull')
+  })
+})
+
+describe('classifyTierDeterministic', () => {
+  it('classifies isolation exercises as Tier 3 regardless of equipment', () => {
+    expect(classifyTierDeterministic({ mechanic: 'isolation', equipment: 'cable' })).toBe(3)
+    expect(classifyTierDeterministic({ mechanic: 'isolation', equipment: 'barbell' })).toBe(3)
+  })
+
+  it('classifies compound barbell/bodyweight exercises as Tier 1', () => {
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'barbell' })).toBe(1)
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'body only' })).toBe(1)
+  })
+
+  it('classifies compound machine/cable/smith exercises as Tier 2', () => {
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'machine' })).toBe(2)
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'cable' })).toBe(2)
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'smith machine' })).toBe(2)
+  })
+
+  it('returns null for compound dumbbell exercises (ambiguous, needs LLM pass)', () => {
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'dumbbell' })).toBeNull()
+  })
+
+  it('defaults to Tier 2 when mechanic is unknown', () => {
+    expect(classifyTierDeterministic({ mechanic: null, equipment: 'kettlebells' })).toBe(2)
+  })
+
+  it('defaults to Tier 2 for compound exercises with unrecognized or missing equipment (real dataset has 77 rows with null equipment)', () => {
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: null })).toBe(2)
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'kettlebells' })).toBe(2)
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'bands' })).toBe(2)
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'other' })).toBe(2)
   })
 })

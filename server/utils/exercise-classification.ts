@@ -84,3 +84,25 @@ export const classifyMovementPattern = (exercise: ClassifiableExercise): Movemen
 
   return null
 }
+
+// Equipment values verified against the seeded dataset (gym_exercises.json,
+// inserted into `exercises` verbatim by server/database/seed.ts): 'body only',
+// 'machine', 'other', 'foam roll', 'kettlebells', 'dumbbell', 'cable',
+// 'barbell', 'bands', 'medicine ball', 'exercise ball', 'e-z curl bar', and
+// null (77 rows). There is no distinct 'smith machine' value in the real
+// data — Smith-machine lifts are tagged equipment: 'machine' — so that check
+// below never fires today; it's kept as a harmless forward-compatible guard
+// in case that literal value is ever introduced (it would correctly map to
+// Tier 2, same as 'machine').
+export const classifyTierDeterministic = (exercise: { mechanic: string | null, equipment: string | null }): 1 | 2 | 3 | null => {
+  if (exercise.mechanic === 'isolation') return 3
+  if (exercise.mechanic === null) return 2
+  // mechanic === 'compound' from here
+  if (exercise.equipment === 'barbell' || exercise.equipment === 'body only') return 1
+  if (exercise.equipment === 'machine' || exercise.equipment === 'cable' || exercise.equipment === 'smith machine') return 2
+  if (exercise.equipment === 'dumbbell') return null // ambiguous — Task 4's LLM pass resolves this
+  // Any other equipment value (kettlebells, bands, medicine ball, exercise
+  // ball, foam roll, e-z curl bar, other) or null equipment (77 rows in the
+  // real data) is treated as Tier 2 by default.
+  return 2
+}
