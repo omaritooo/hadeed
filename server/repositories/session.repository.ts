@@ -523,6 +523,8 @@ export class SessionRepository {
     return (result.rows[0]?.total as number) ?? 0
   }
 
+  // Assumes every logged exercise has at least one primary-muscle row in exercise_muscles;
+  // sets against an untagged exercise are silently excluded from every muscle's count.
   async weeklySetsByMuscle(userId: string, startIso: string, endIso: string): Promise<{ muscleId: number, muscleName: string, setCount: number }[]> {
     const result = await this.db.execute({
       sql: `SELECT muscles.id AS muscle_id, muscles.name AS muscle_name, COUNT(DISTINCT sl.id) AS set_count
