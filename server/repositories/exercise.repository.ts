@@ -17,6 +17,8 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
       primaryMuscles: [],
       secondaryMuscles: [],
       images: [],
+      tier: row.tier as 1 | 2 | 3 | null,
+      movementPattern: row.movement_pattern as string | null,
     }
   }
 

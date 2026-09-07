@@ -17,6 +17,8 @@ export interface Exercise {
   primaryMuscles: string[]
   secondaryMuscles: string[]
   images: string[]
+  tier: 1 | 2 | 3 | null
+  movementPattern: string | null
 }
 
 export interface ExerciseMuscle {

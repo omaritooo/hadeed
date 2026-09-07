@@ -34,6 +34,26 @@ describe('ExerciseRepository', () => {
     expect(found?.instructions).toEqual(['Lie down', 'Press up'])
   })
 
+  it('surfaces tier and movementPattern on findById', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions, movement_pattern, tier)
+            VALUES ('squat', 'Barbell Squat', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]', 'knee_dominant', 1)`,
+    })
+    const found = await repo.findById('squat')
+    expect(found?.tier).toBe(1)
+    expect(found?.movementPattern).toBe('knee_dominant')
+  })
+
+  it('surfaces null tier/movementPattern for unclassified exercises', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('plank', 'Plank', 'strength', null, 'static', 'beginner', 'isolation', '[]')`,
+    })
+    const found = await repo.findById('plank')
+    expect(found?.tier).toBeNull()
+    expect(found?.movementPattern).toBeNull()
+  })
+
   it('finds exercises that target a given muscle', async () => {
     const muscles = new MuscleRepository(db)
     const chest = await muscles.getOrCreate('chest')
