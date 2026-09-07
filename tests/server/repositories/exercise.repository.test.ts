@@ -162,4 +162,13 @@ describe('ExerciseRepository', () => {
   it('search returns an empty array for an empty query', async () => {
     expect(await repo.search('')).toEqual([])
   })
+
+  it('trims the query before matching, so trailing whitespace does not break results', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('bench-press', 'Bench Press', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+    const results = await repo.search('bench press ')
+    expect(results.map(e => e.id)).toEqual(['bench-press'])
+  })
 })
