@@ -122,6 +122,33 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
     return this.attachDetails(exercises)
   }
 
+  async findFallbacks(exerciseId: string, equipmentTiers: string[]): Promise<Exercise[]> {
+    if (equipmentTiers.length === 0) return []
+    const source = await this.findById(exerciseId)
+    if (!source || !source.movementPattern) return []
+
+    const primaryMuscleResult = await this.db.execute({
+      sql: `SELECT muscle_id FROM exercise_muscles WHERE exercise_id = ? AND role = 'primary' LIMIT 1`,
+      args: [exerciseId],
+    })
+    const primaryMuscleId = (primaryMuscleResult.rows[0] as unknown as Record<string, unknown> | undefined)?.muscle_id
+    if (primaryMuscleId === undefined) return []
+
+    const placeholders = equipmentTiers.map(() => '?').join(', ')
+    const result = await this.db.execute({
+      sql: `SELECT e2.* FROM exercises e2
+            JOIN exercise_muscles em2 ON em2.exercise_id = e2.id AND em2.role = 'primary'
+            WHERE e2.movement_pattern = ?
+              AND em2.muscle_id = ?
+              AND e2.equipment IN (${placeholders})
+              AND e2.id != ?
+            ORDER BY ABS(COALESCE(e2.tier, 2) - ?), e2.name`,
+      args: [source.movementPattern, primaryMuscleId, ...equipmentTiers, exerciseId, source.tier ?? 2],
+    })
+    const exercises = result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
+    return this.attachDetails(exercises)
+  }
+
   async search(query: string, limit = 30): Promise<Exercise[]> {
     const trimmed = query.trim()
     if (trimmed === '') return []

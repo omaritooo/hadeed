@@ -191,4 +191,34 @@ describe('ExerciseRepository', () => {
     const results = await repo.search('bench press ')
     expect(results.map(e => e.id)).toEqual(['bench-press'])
   })
+
+  it('finds fallback exercises sharing movement pattern and primary muscle', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('bb-bench', 'Barbell Bench Press', 'barbell', 'compound', 'horizontal_push', 1)` })
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('db-bench', 'Dumbbell Bench Press', 'dumbbell', 'compound', 'horizontal_push', 1)` })
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('pushup', 'Push-Up', 'body only', 'compound', 'horizontal_push', 1)` })
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('leg-press', 'Leg Press', 'machine', 'compound', 'knee_dominant', 2)` })
+    for (const id of ['bb-bench', 'db-bench', 'pushup', 'leg-press']) {
+      await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: [id, chest.id, 'primary'] })
+    }
+
+    const fallbacks = await repo.findFallbacks('bb-bench', ['dumbbell', 'body only'])
+    expect(fallbacks.map(e => e.id).sort()).toEqual(['db-bench', 'pushup'])
+  })
+
+  it('excludes the source exercise itself and orders by tier proximity then name', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('src', 'Source', 'barbell', 'compound', 'horizontal_push', 1)` })
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('t3', 'Zzz Isolation', 'cable', 'isolation', 'horizontal_push', 3)` })
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('t1', 'Aaa Compound', 'body only', 'compound', 'horizontal_push', 1)` })
+    for (const id of ['src', 't3', 't1']) {
+      await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: [id, chest.id, 'primary'] })
+    }
+
+    const fallbacks = await repo.findFallbacks('src', ['cable', 'body only'])
+    expect(fallbacks.map(e => e.id)).toEqual(['t1', 't3']) // t1 (tier 1, closest) before t3 (tier 3)
+  })
 })
