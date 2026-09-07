@@ -26,11 +26,6 @@ export class SessionService extends BaseService {
   async completeSession(sessionId: string, expectedVersion: number) {
     await this.requireOwnedSession(sessionId)
 
-    const complete = await this.sessions.isComplete(sessionId)
-    if (!complete) {
-      throw createError({ statusCode: 422, statusMessage: 'Session is not complete' })
-    }
-
     const result = await this.sessions.completeSession(sessionId, expectedVersion)
     if (result.conflict) return result
 

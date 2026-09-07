@@ -65,7 +65,7 @@ describe('SessionService', () => {
     expect(facts.missedScheduledDay).toBe(false)
   })
 
-  it('rejects completing a planned session that has not hit its target sets', async () => {
+  it('allows completing a planned session that has not hit its target sets', async () => {
     await seedUserWithActiveBlock(db, 1)
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench', '[]')" })
     const day = await db.execute({ sql: 'SELECT id FROM split_days LIMIT 1' })
@@ -82,11 +82,11 @@ describe('SessionService', () => {
     })
     await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
 
-    await expect(service.completeSession('session-1', 1)).rejects.toThrow(/not complete/i)
-    expect(onSessionCompleted).not.toHaveBeenCalled()
+    await service.completeSession('session-1', 1)
+    expect(onSessionCompleted).toHaveBeenCalledTimes(1)
 
-    const stillInProgress = await sessions.findSessionById('session-1')
-    expect(stillInProgress?.status).toBe('in_progress')
+    const completed = await sessions.findSessionById('session-1')
+    expect(completed?.status).toBe('completed')
   })
 
   it('excludes rest days from scheduledDaysThisWeek', async () => {
