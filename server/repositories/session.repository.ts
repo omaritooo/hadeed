@@ -523,6 +523,25 @@ export class SessionRepository {
     return (result.rows[0]?.total as number) ?? 0
   }
 
+  async weeklySetsByMuscle(userId: string, startIso: string, endIso: string): Promise<{ muscleId: number, muscleName: string, setCount: number }[]> {
+    const result = await this.db.execute({
+      sql: `SELECT muscles.id AS muscle_id, muscles.name AS muscle_name, COUNT(DISTINCT sl.id) AS set_count
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN workout_sessions ws ON ws.id = el.session_id
+            JOIN exercise_muscles em ON em.exercise_id = el.exercise_id AND em.role = 'primary'
+            JOIN muscles ON muscles.id = em.muscle_id
+            WHERE ws.user_id = ? AND sl.logged_at >= ? AND sl.logged_at < ?
+            GROUP BY muscles.id
+            ORDER BY set_count DESC`,
+      args: [userId, startIso, endIso],
+    })
+    return result.rows.map((row) => {
+      const r = row as unknown as Record<string, unknown>
+      return { muscleId: r.muscle_id as number, muscleName: r.muscle_name as string, setCount: r.set_count as number }
+    })
+  }
+
   async findActiveForUser(userId: string): Promise<WorkoutSession | null> {
     const result = await this.db.execute({
       sql: `SELECT * FROM workout_sessions WHERE user_id = ? AND status = 'in_progress' ORDER BY started_at DESC LIMIT 1`,

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { SessionRepository } from '~~/server/repositories/session.repository'
+import { MuscleRepository } from '~~/server/repositories/muscle.repository'
 
 async function seedUserAndBlock(db: Client) {
   await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
@@ -698,5 +699,51 @@ describe('SessionRepository.findLastPerformedForExercises', () => {
   it('returns an empty object for an empty exerciseIds array', async () => {
     const result = await sessions.findLastPerformedForExercises('user-1', [])
     expect(result).toEqual({})
+  })
+})
+
+describe('SessionRepository.weeklySetsByMuscle', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench', '[]')" })
+  })
+
+  it('counts distinct logged sets per primary muscle within a date range', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['bench-press', chest.id, 'primary'] })
+
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+    await repo.logSet({ id: 'set-2', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 7 })
+
+    const results = await repo.weeklySetsByMuscle('user-1', '2020-01-01 00:00:00', '2030-01-01 00:00:00')
+    expect(results).toEqual([{ muscleId: chest.id, muscleName: 'chest', setCount: 2 }])
+  })
+
+  it('only counts sets within the given date range', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['bench-press', chest.id, 'primary'] })
+
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+
+    // Push the logged set's timestamp just outside the query range, following the same
+    // out-of-range boundary convention as countTrainedDaysInRange's own range test.
+    await db.execute({
+      sql: `UPDATE set_logs SET logged_at = ? WHERE id = ?`,
+      args: ['2019-12-31 23:59:59', 'set-1'],
+    })
+
+    const results = await repo.weeklySetsByMuscle('user-1', '2020-01-01 00:00:00', '2030-01-01 00:00:00')
+    expect(results).toEqual([])
   })
 })
