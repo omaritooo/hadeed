@@ -120,4 +120,14 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
     return this.attachDetails(exercises)
   }
 
+  async search(query: string, limit = 30): Promise<Exercise[]> {
+    if (query.trim() === '') return []
+    const result = await this.db.execute({
+      sql: 'SELECT * FROM exercises WHERE name LIKE ? ORDER BY name LIMIT ?',
+      args: [`%${query}%`, limit],
+    })
+    const exercises = result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
+    return this.attachDetails(exercises)
+  }
+
 }

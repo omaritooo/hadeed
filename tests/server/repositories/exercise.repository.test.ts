@@ -128,4 +128,38 @@ describe('ExerciseRepository', () => {
     const results = await repo.findByIds([])
     expect(results).toEqual([])
   })
+
+  it('searches exercises by a case-insensitive name substring', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('bench-press', 'Barbell Bench Press', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('squat', 'Barbell Squat', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+
+    const results = await repo.search('bench')
+    expect(results.map(e => e.id)).toEqual(['bench-press'])
+
+    const caseInsensitive = await repo.search('BARBELL')
+    expect(caseInsensitive.map(e => e.id).sort()).toEqual(['bench-press', 'squat'])
+  })
+
+  it('search results are ordered by name and respect the limit', async () => {
+    for (const name of ['Zercise C', 'Zercise A', 'Zercise B']) {
+      await db.execute({
+        sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+              VALUES (?, ?, 'strength', null, 'push', 'beginner', 'compound', '[]')`,
+        args: [name, name],
+      })
+    }
+
+    const results = await repo.search('zercise', 2)
+    expect(results.map(e => e.name)).toEqual(['Zercise A', 'Zercise B'])
+  })
+
+  it('search returns an empty array for an empty query', async () => {
+    expect(await repo.search('')).toEqual([])
+  })
 })
