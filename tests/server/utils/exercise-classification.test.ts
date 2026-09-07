@@ -102,8 +102,12 @@ describe('classifyTierDeterministic', () => {
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'smith machine' })).toBe(2)
   })
 
-  it('returns null for compound dumbbell exercises (ambiguous, needs LLM pass)', () => {
+  it('returns null for compound dumbbell exercises (ambiguous, resolved by the hardcoded residual table)', () => {
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'dumbbell' })).toBeNull()
+  })
+
+  it('returns null for compound kettlebells exercises (ambiguous, resolved by the hardcoded residual table)', () => {
+    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'kettlebells' })).toBeNull()
   })
 
   it('defaults to Tier 2 when mechanic is unknown', () => {
@@ -112,7 +116,6 @@ describe('classifyTierDeterministic', () => {
 
   it('defaults to Tier 2 for compound exercises with unrecognized or missing equipment (real dataset has 77 rows with null equipment)', () => {
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: null })).toBe(2)
-    expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'kettlebells' })).toBe(2)
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'bands' })).toBe(2)
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'other' })).toBe(2)
   })

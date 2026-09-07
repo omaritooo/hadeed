@@ -100,9 +100,9 @@ export const classifyTierDeterministic = (exercise: { mechanic: string | null, e
   // mechanic === 'compound' from here
   if (exercise.equipment === 'barbell' || exercise.equipment === 'body only') return 1
   if (exercise.equipment === 'machine' || exercise.equipment === 'cable' || exercise.equipment === 'smith machine') return 2
-  if (exercise.equipment === 'dumbbell') return null // ambiguous — Task 4's LLM pass resolves this
-  // Any other equipment value (kettlebells, bands, medicine ball, exercise
-  // ball, foam roll, e-z curl bar, other) or null equipment (77 rows in the
-  // real data) is treated as Tier 2 by default.
+  if (exercise.equipment === 'dumbbell' || exercise.equipment === 'kettlebells') return null // ambiguous — resolved by the hardcoded table in classify-exercises.ts
+  // Any other equipment value (bands, medicine ball, exercise ball, foam
+  // roll, e-z curl bar, other) or null equipment (77 rows in the real data)
+  // is treated as Tier 2 by default.
   return 2
 }
