@@ -60,7 +60,7 @@ const submit = async () => {
         name: confirmName.value,
         startDate: confirmStartDate.value,
         endDate: null,
-        days: customDays.value,
+        days: customDays.value.map((day, index) => ({ ...day, dayOfWeek: index })),
       });
     } else {
       return;
