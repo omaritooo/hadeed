@@ -22,7 +22,8 @@ export class SplitService extends BaseService {
   private async retireActiveBlock(newStartDate: string): Promise<void> {
     const active = await this.blocks.findActiveForUser(this.ctx.userId, newStartDate)
     if (!active) return
-    await this.blocks.setEndDate(active.id, dayBefore(newStartDate))
+    const endDate = active.startDate >= newStartDate ? active.startDate : dayBefore(newStartDate)
+    await this.blocks.setEndDate(active.id, endDate)
   }
 
   async createFromScratch(input: CreateFromScratchInput) {

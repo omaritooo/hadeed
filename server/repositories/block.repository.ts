@@ -152,7 +152,7 @@ export class BlockRepository {
     const result = await this.db.execute({
       sql: `SELECT id FROM blocks
             WHERE user_id = ? AND start_date <= ? AND (end_date IS NULL OR end_date >= ?)
-            ORDER BY start_date DESC LIMIT 1`,
+            ORDER BY start_date DESC, id DESC LIMIT 1`,
       args: [userId, asOfDate, asOfDate],
     })
     const row = result.rows[0]

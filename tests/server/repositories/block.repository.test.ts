@@ -101,4 +101,23 @@ describe('BlockRepository.findActiveForUser', () => {
     const repo = new BlockRepository(db)
     expect(await repo.findActiveForUser('user-1', '2026-08-21')).toBeNull()
   })
+
+  it('breaks ties on identical start_date by returning the more-recently-created block', async () => {
+    const db = await createTestDb()
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    const repo = new BlockRepository(db)
+
+    const first = await repo.createWithDays('user-1', {
+      programId: null, name: 'First', startDate: '2026-09-06', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null, days: [],
+    })
+    const second = await repo.createWithDays('user-1', {
+      programId: null, name: 'Second', startDate: '2026-09-06', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null, days: [],
+    })
+
+    const found = await repo.findActiveForUser('user-1', '2026-09-06')
+    expect(found?.id).toBe(second.id)
+    expect(found?.id).not.toBe(first.id)
+  })
 })

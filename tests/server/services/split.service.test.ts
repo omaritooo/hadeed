@@ -163,4 +163,15 @@ describe('SplitService — retiring the previously active block', () => {
     const retired = await service.getOwnedBlock(original.id)
     expect(retired?.endDate).toBe('2026-09-05')
   })
+
+  it('clamps the end date instead of producing an inverted range when both blocks share a start date', async () => {
+    const service = new SplitService(ctx, new BlockRepository(db))
+    const original = await service.createFromScratch({ name: 'Old', startDate: '2026-09-06', endDate: null, days: [] })
+
+    await service.createFromScratch({ name: 'New', startDate: '2026-09-06', endDate: null, days: [] })
+
+    const retired = await service.getOwnedBlock(original.id)
+    expect(retired?.endDate).toBe('2026-09-06')
+    expect(retired!.endDate! >= retired!.startDate).toBe(true)
+  })
 })
