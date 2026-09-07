@@ -112,9 +112,7 @@ const finish = async () => {
     await navigateTo("/workouts");
   } catch (err) {
     const statusCode = (err as { statusCode?: number } | null)?.statusCode;
-    if (statusCode === 422) {
-      finishError.value = "Log the remaining target sets before finishing this workout.";
-    } else if (statusCode === 409) {
+    if (statusCode === 409) {
       finishError.value = "This session was updated elsewhere — refreshing.";
     } else {
       finishError.value = "Something went wrong. Please try again.";
@@ -144,41 +142,49 @@ const finish = async () => {
     <p v-if="finishError" class="text-sm text-destructive">{{ finishError }}</p>
 
     <UiCard v-for="exercise in session.exercises" :key="exercise.id" class="space-y-3">
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between border-b border-surface-strong pb-3">
         <p class="font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
         <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
       </div>
 
-      <div v-for="set in exercise.sets" :key="set.id" class="space-y-1">
-        <div v-if="editingSetId === set.id" class="flex items-center gap-2">
-          <span class="w-6 text-sm text-muted-foreground">{{ set.setNumber }}</span>
-          <Input v-model="editDrafts[set.id].weightKg" type="number" placeholder="kg" class="w-20" />
-          <Input v-model="editDrafts[set.id].reps" type="number" placeholder="reps" class="w-20" />
-          <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-16" />
-          <Button size="icon" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
-            <CheckIcon class="size-4" />
-          </Button>
-          <button class="text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
+      <div class="space-y-2">
+        <div v-for="set in exercise.sets" :key="set.id" class="space-y-1">
+          <div v-if="editingSetId === set.id" class="flex items-center gap-2">
+            <span class="w-6 shrink-0 text-sm text-muted-foreground">{{ set.setNumber }}</span>
+            <div class="flex flex-1 items-center justify-end gap-2">
+              <Input v-model="editDrafts[set.id].weightKg" type="number" placeholder="kg" class="w-20 text-right" />
+              <Input v-model="editDrafts[set.id].reps" type="number" placeholder="reps" class="w-20 text-right" />
+              <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-16 text-right" />
+            </div>
+            <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
+              <CheckIcon class="size-4" />
+            </Button>
+            <button class="shrink-0 text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
+          </div>
+          <button
+            v-else
+            class="flex w-full items-center gap-2 text-left text-sm text-muted-foreground"
+            @click="startEdit(set)"
+          >
+            <span class="w-6 shrink-0">{{ set.setNumber }}</span>
+            <span class="flex flex-1 items-center justify-end gap-2">
+              <span class="w-20 text-right">{{ set.weightKg ?? "–" }}kg</span>
+              <span class="w-20 text-right">{{ set.reps ?? "–" }} reps</span>
+              <span class="w-16 text-right">{{ set.rpe ? `RPE ${set.rpe}` : "" }}</span>
+            </span>
+          </button>
+          <p v-if="editingSetId === set.id && editError" class="text-sm text-destructive">{{ editError }}</p>
         </div>
-        <button
-          v-else
-          class="flex w-full items-center gap-3 text-left text-sm text-muted-foreground"
-          @click="startEdit(set)"
-        >
-          <span class="w-6">{{ set.setNumber }}</span>
-          <span>{{ set.weightKg ?? "–" }}kg</span>
-          <span>{{ set.reps ?? "–" }} reps</span>
-          <span v-if="set.rpe">RPE {{ set.rpe }}</span>
-        </button>
-        <p v-if="editingSetId === set.id && editError" class="text-sm text-destructive">{{ editError }}</p>
       </div>
 
-      <div class="flex items-center gap-2">
-        <span class="w-6 text-sm text-muted-foreground">{{ exercise.sets.length + 1 }}</span>
-        <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-20" />
-        <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-20" />
-        <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-16" />
-        <Button size="icon" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
+      <div class="flex items-center gap-2 border-t border-surface-strong pt-3">
+        <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
+        <div class="flex flex-1 items-center justify-end gap-2">
+          <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-20 text-right" />
+          <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-20 text-right" />
+          <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-16 text-right" />
+        </div>
+        <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
           <CheckIcon class="size-4" />
         </Button>
       </div>
