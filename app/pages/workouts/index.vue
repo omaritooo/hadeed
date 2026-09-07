@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DumbbellIcon, LayoutGridIcon, PlayIcon, TrophyIcon } from "@lucide/vue";
+import { DumbbellIcon, LayoutGridIcon, PlayIcon, SettingsIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { kgToLbs } from "~~/shared/lib/formulas";
 
@@ -83,7 +83,12 @@ const resumeWorkout = async () => {
     </UiCard>
 
     <UiCard v-else-if="summary?.todaysWorkout" class="space-y-3">
-      <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Today</span>
+      <div class="flex items-center justify-between">
+        <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Today</span>
+        <NuxtLink to="/builder" class="text-muted-foreground" aria-label="Edit split">
+          <SettingsIcon class="size-4" />
+        </NuxtLink>
+      </div>
       <p class="font-heading text-2xl font-semibold text-foreground">{{ summary.todaysWorkout.dayName }}</p>
       <ul class="space-y-2">
         <li
