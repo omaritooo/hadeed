@@ -33,6 +33,13 @@ const db = createClient({ url, authToken })
 // examples (a named angle modifier, and a "One-Arm" unilateral variant) by
 // the classification rule this table is implementing, so they default below
 // rather than being listed here.
+//
+// Carve-out: unilateral LOWER-BODY patterns (split squats, lunges) are kept Tier 1 despite being
+// single-limb, because they're commonly programmed as a session's primary lower-body lift in
+// dumbbell/kettlebell-only training — unlike unilateral UPPER-BODY variants (one-arm rows/presses),
+// which are supplementary to an available bilateral equivalent and are classified Tier 2. This is
+// why "Bulgarian Split Squat", "Split Squat with Dumbbells", and "Dumbbell Lunges" are listed below
+// as Tier 1 even though "One-Arm Dumbbell Row" (also unilateral) is not.
 const AMBIGUOUS_TIER_OVERRIDES: Record<string, 1 | 2> = {
   'Arnold Dumbbell Press': 1,
   'Bent Over Two-Dumbbell Row': 1,
@@ -65,6 +72,7 @@ async function main() {
   let ruleClassified = 0
   let overrideClassified = 0
   let defaultedAmbiguous = 0
+  let changed = 0
   const samples: { id: string, name: string, tier: number | null, pattern: string | null }[] = []
 
   for (const row of rows) {
@@ -96,6 +104,10 @@ async function main() {
       ruleClassified++
     }
 
+    const previousTier = row.tier === null || row.tier === undefined ? null : Number(row.tier)
+    const previousPattern = row.movement_pattern as string | null ?? null
+    if (previousTier !== tier || previousPattern !== movementPattern) changed++
+
     await db.execute({
       sql: 'UPDATE exercises SET movement_pattern = ?, tier = ? WHERE id = ?',
       args: [movementPattern, tier, row.id as string],
@@ -107,6 +119,7 @@ async function main() {
   }
 
   console.log(`Classified ${rows.length} exercises: ${ruleClassified} by rule, ${overrideClassified} by the hardcoded residual table, ${defaultedAmbiguous} ambiguous names defaulted to Tier 2 (not in the table — review these).`)
+  console.log(`${changed} row(s) had a different tier and/or movement_pattern than what was already stored (0 is expected on a true no-op re-run; a non-zero count on an "unrelated" re-run may indicate this script just overwrote a manual fix — check before trusting it).`)
   console.log('Spot-check sample:')
   console.table(samples)
 }
