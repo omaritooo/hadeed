@@ -137,4 +137,47 @@ describe('WorkoutsService', () => {
     expect(summary.recentPrs).toHaveLength(1)
     expect(summary.recentPrs[0]).toMatchObject({ exerciseName: 'Squat', weightKg: 100, reps: 5 })
   })
+
+  describe('getWeeklyVolume', () => {
+    let exerciseLogId: string
+
+    beforeEach(async () => {
+      const muscles = new MuscleRepository(db)
+      const chest = await muscles.getOrCreate('chest')
+      await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['squat', chest.id, 'primary'] })
+      await sessions.startSession('user-1', { id: 'volume-session', splitDayId: null, exercises: [] })
+      await sessions.addFreeformExercise({ id: 'volume-exlog', sessionId: 'volume-session', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+      exerciseLogId = 'volume-exlog'
+    })
+
+    const logSets = async (count: number): Promise<void> => {
+      for (let setNumber = 1; setNumber <= count; setNumber++) {
+        await sessions.logSet({ id: `volume-set-${setNumber}`, exerciseLogId, setNumber, weightKg: 50, reps: 8, rpe: 7 })
+      }
+    }
+
+    it('bands 9 sets as low (below the low threshold)', async () => {
+      await logSets(9)
+      const result = await service.getWeeklyVolume('user-1')
+      expect(result).toEqual([{ muscleName: 'chest', setCount: 9, band: 'low' }])
+    })
+
+    it('bands 10 sets as optimal (low threshold boundary)', async () => {
+      await logSets(10)
+      const result = await service.getWeeklyVolume('user-1')
+      expect(result).toEqual([{ muscleName: 'chest', setCount: 10, band: 'optimal' }])
+    })
+
+    it('bands 22 sets as optimal (high threshold boundary)', async () => {
+      await logSets(22)
+      const result = await service.getWeeklyVolume('user-1')
+      expect(result).toEqual([{ muscleName: 'chest', setCount: 22, band: 'optimal' }])
+    })
+
+    it('bands 23 sets as high (above the high threshold)', async () => {
+      await logSets(23)
+      const result = await service.getWeeklyVolume('user-1')
+      expect(result).toEqual([{ muscleName: 'chest', setCount: 23, band: 'high' }])
+    })
+  })
 })

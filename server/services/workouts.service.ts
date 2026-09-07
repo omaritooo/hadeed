@@ -6,12 +6,14 @@ import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActiveSessionSummary, TodaysWorkout } from '~~/shared/types/home.types'
 import type { MuscleVolume, WorkoutsSummary } from '~~/shared/types/workouts.types'
+import { WEEKLY_VOLUME_HIGH_THRESHOLD, WEEKLY_VOLUME_LOW_THRESHOLD } from '~~/shared/types/workouts.types'
 import type { WorkoutSession } from '~~/shared/types/session.types'
 import type { SplitDay, SplitExercise } from '~~/shared/types/split.types'
 import { startOfWeek, toSqliteDatetime } from '~~/server/utils/date'
 
 const RECENT_SESSIONS_LIMIT = 5
 const RECENT_PRS_LIMIT = 5
+const WEEKLY_VOLUME_LIMIT = 8
 
 type TrainingDay = SplitDay & { exercises: SplitExercise[] }
 
@@ -59,11 +61,17 @@ export class WorkoutsService extends BaseService {
       toSqliteDatetime(weekEnd),
     )
 
-    return rows.map(row => ({
-      muscleName: row.muscleName,
-      setCount: row.setCount,
-      band: row.setCount < 10 ? 'low' : row.setCount > 22 ? 'high' : 'optimal',
-    }))
+    return rows
+      .map(row => ({
+        muscleName: row.muscleName,
+        setCount: row.setCount,
+        band: row.setCount < WEEKLY_VOLUME_LOW_THRESHOLD
+          ? 'low' as const
+          : row.setCount > WEEKLY_VOLUME_HIGH_THRESHOLD
+            ? 'high' as const
+            : 'optimal' as const,
+      }))
+      .slice(0, WEEKLY_VOLUME_LIMIT)
   }
 
   async buildActiveSession(session: WorkoutSession | null): Promise<ActiveSessionSummary | null> {

@@ -2,6 +2,8 @@
 import { DumbbellIcon, LayoutGridIcon, PlayIcon, SettingsIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { kgToLbs } from "~~/shared/lib/formulas";
+import type { VolumeBand } from "~~/shared/types/workouts.types";
+import { WEEKLY_VOLUME_HIGH_THRESHOLD } from "~~/shared/types/workouts.types";
 
 const { data: summary, isLoading } = useWorkoutsSummary();
 const { data: weeklyVolume } = useWeeklyVolume();
@@ -24,13 +26,14 @@ const formatWeight = (weightKg: number): string => {
   return `${Math.round(weightKg)} kg`;
 };
 
-const volumeBandClass: Record<"low" | "optimal" | "high", string> = {
-  low: "bg-muted-foreground",
-  optimal: "bg-lime",
-  high: "bg-destructive",
+const volumeBandStyles: Record<VolumeBand, { bar: string; text: string; label: string }> = {
+  low: { bar: "bg-muted-foreground", text: "text-muted-foreground", label: "Low" },
+  optimal: { bar: "bg-lime", text: "text-lime", label: "Optimal" },
+  high: { bar: "bg-destructive", text: "text-destructive", label: "High" },
 };
 
-const volumeProgress = (setCount: number): number => Math.min(100, (setCount / 22) * 100);
+const volumeProgress = (setCount: number): number =>
+  Math.min(100, (setCount / WEEKLY_VOLUME_HIGH_THRESHOLD) * 100);
 
 const formatHistoryDate = (dateString: string): string => {
   const date = new Date(`${dateString.replace(" ", "T")}Z`);
@@ -153,12 +156,20 @@ const resumeWorkout = async () => {
       <div v-for="muscle in weeklyVolume" :key="muscle.muscleName" class="space-y-1">
         <div class="flex items-center justify-between">
           <span class="text-sm font-semibold capitalize text-foreground">{{ muscle.muscleName }}</span>
-          <span class="font-mono text-xs text-muted-foreground">{{ muscle.setCount }} sets</span>
+          <span class="flex items-center gap-2">
+            <span
+              class="font-mono text-[10px] font-bold uppercase tracking-[1px]"
+              :class="volumeBandStyles[muscle.band].text"
+            >
+              {{ volumeBandStyles[muscle.band].label }}
+            </span>
+            <span class="font-mono text-xs text-muted-foreground">{{ muscle.setCount }} sets</span>
+          </span>
         </div>
         <UiProgress
           :model-value="volumeProgress(muscle.setCount)"
           class="h-1.5 bg-muted"
-          :indicator-class="volumeBandClass[muscle.band]"
+          :indicator-class="volumeBandStyles[muscle.band].bar"
         />
       </div>
     </UiCard>
