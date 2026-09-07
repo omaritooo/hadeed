@@ -3,6 +3,7 @@ import type { BlockRepository, CreateSplitDayInput } from '~~/server/repositorie
 import type { PresetSplitWithDays } from '~~/server/repositories/preset-split.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { MacroTarget } from '~~/shared/types/split.types'
+import { dayBefore } from '~~/server/utils/date'
 
 export interface CreateFromScratchInput {
   name: string
@@ -18,7 +19,14 @@ export class SplitService extends BaseService {
     super(ctx)
   }
 
-  createFromScratch(input: CreateFromScratchInput) {
+  private async retireActiveBlock(newStartDate: string): Promise<void> {
+    const active = await this.blocks.findActiveForUser(this.ctx.userId, newStartDate)
+    if (!active) return
+    await this.blocks.setEndDate(active.id, dayBefore(newStartDate))
+  }
+
+  async createFromScratch(input: CreateFromScratchInput) {
+    await this.retireActiveBlock(input.startDate)
     return this.blocks.createWithDays(this.ctx.userId, {
       programId: null,
       name: input.name,
@@ -34,6 +42,7 @@ export class SplitService extends BaseService {
     preset: PresetSplitWithDays,
     overrides: { name: string, startDate: string, endDate: string | null },
   ) {
+    await this.retireActiveBlock(overrides.startDate)
     return this.blocks.createWithDays(this.ctx.userId, {
       programId: null,
       name: overrides.name,

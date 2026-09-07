@@ -98,6 +98,13 @@ export class BlockRepository {
     return block
   }
 
+  async setEndDate(blockId: number, endDate: string): Promise<void> {
+    await this.db.execute({
+      sql: 'UPDATE blocks SET end_date = ? WHERE id = ?',
+      args: [endDate, blockId],
+    })
+  }
+
   async findWithDays(blockId: number): Promise<BlockWithDays | null> {
     const blockResult = await this.db.execute({ sql: 'SELECT * FROM blocks WHERE id = ?', args: [blockId] })
     const blockRow = blockResult.rows[0]

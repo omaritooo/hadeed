@@ -103,3 +103,64 @@ describe('SplitService.createFromPreset', () => {
     expect(stillCloned?.days[0]?.exercises[0]?.targetReps).toBe(8)
   })
 })
+
+describe('SplitService — retiring the previously active block', () => {
+  let db: Client
+  const ctx: RequestContext = { userId: 'user-1', roles: [], permissions: [] }
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+  })
+
+  it('end-dates the currently active block the day before a new from-scratch block starts', async () => {
+    const service = new SplitService(ctx, new BlockRepository(db))
+    const original = await service.createFromScratch({ name: 'Old', startDate: '2026-01-01', endDate: null, days: [] })
+
+    await service.createFromScratch({ name: 'New', startDate: '2026-09-06', endDate: null, days: [] })
+
+    const retired = await service.getOwnedBlock(original.id)
+    expect(retired?.endDate).toBe('2026-09-05')
+  })
+
+  it('does nothing to retire when there is no currently active block', async () => {
+    const service = new SplitService(ctx, new BlockRepository(db))
+    const block = await service.createFromScratch({ name: 'First', startDate: '2026-09-06', endDate: null, days: [] })
+    expect(block.endDate).toBeNull()
+  })
+
+  it('only retires a block belonging to the same user', async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    const otherCtx: RequestContext = { userId: 'user-2', roles: [], permissions: [] }
+    const owner = new SplitService(ctx, new BlockRepository(db))
+    const intruder = new SplitService(otherCtx, new BlockRepository(db))
+
+    const original = await owner.createFromScratch({ name: 'Mine', startDate: '2026-01-01', endDate: null, days: [] })
+    await intruder.createFromScratch({ name: 'Theirs', startDate: '2026-09-06', endDate: null, days: [] })
+
+    const untouched = await owner.getOwnedBlock(original.id)
+    expect(untouched?.endDate).toBeNull()
+  })
+
+  it('also retires the active block when replacing via createFromPreset', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('bench-press', 'Bench Press', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+    const presets = new PresetSplitRepository(db)
+    const preset = await presets.createWithDays({
+      name: 'PPL', description: null, frequencyMinDays: 6, frequencyMaxDays: 6,
+      goal: null, experienceLevel: null, equipment: 'gym', isPublished: true,
+      days: [{ name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [], exercises: [] }],
+    })
+    const presetWithDays = await presets.findWithDays(preset.id)
+
+    const service = new SplitService(ctx, new BlockRepository(db))
+    const original = await service.createFromScratch({ name: 'Old', startDate: '2026-01-01', endDate: null, days: [] })
+
+    await service.createFromPreset(presetWithDays!, { name: 'New', startDate: '2026-09-06', endDate: null })
+
+    const retired = await service.getOwnedBlock(original.id)
+    expect(retired?.endDate).toBe('2026-09-05')
+  })
+})
