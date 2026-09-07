@@ -221,4 +221,30 @@ describe('ExerciseRepository', () => {
     const fallbacks = await repo.findFallbacks('src', ['cable', 'body only'])
     expect(fallbacks.map(e => e.id)).toEqual(['t1', 't3']) // t1 (tier 1, closest) before t3 (tier 3)
   })
+
+  it('findFallbacks returns an empty array for an unknown exerciseId', async () => {
+    const fallbacks = await repo.findFallbacks('does-not-exist', ['barbell'])
+    expect(fallbacks).toEqual([])
+  })
+
+  it('findFallbacks returns an empty array when the source has no movement_pattern', async () => {
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, tier) VALUES ('no-pattern', 'No Pattern', 'barbell', 'compound', 1)` })
+    await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['no-pattern', chest.id, 'primary'] })
+
+    const fallbacks = await repo.findFallbacks('no-pattern', ['dumbbell'])
+    expect(fallbacks).toEqual([])
+  })
+
+  it('findFallbacks returns an empty array when the source has no primary muscle row', async () => {
+    const muscles = new MuscleRepository(db)
+    const back = await muscles.getOrCreate('back')
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('no-primary', 'No Primary', 'barbell', 'compound', 'horizontal_push', 1)` })
+    // only a secondary muscle row, no primary
+    await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['no-primary', back.id, 'secondary'] })
+
+    const fallbacks = await repo.findFallbacks('no-primary', ['dumbbell'])
+    expect(fallbacks).toEqual([])
+  })
 })

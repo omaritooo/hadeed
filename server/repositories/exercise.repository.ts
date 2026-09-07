@@ -124,15 +124,24 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
 
   async findFallbacks(exerciseId: string, equipmentTiers: string[]): Promise<Exercise[]> {
     if (equipmentTiers.length === 0) return []
-    const source = await this.findById(exerciseId)
-    if (!source || !source.movementPattern) return []
 
-    const primaryMuscleResult = await this.db.execute({
-      sql: `SELECT muscle_id FROM exercise_muscles WHERE exercise_id = ? AND role = 'primary' LIMIT 1`,
+    // exercise_muscles doesn't enforce at most one 'primary' row per exercise; if that ever happens,
+    // deterministically pick the lowest muscle_id rather than relying on arbitrary row order.
+    const sourceResult = await this.db.execute({
+      sql: `SELECT e.movement_pattern, e.tier, em.muscle_id
+            FROM exercises e
+            LEFT JOIN exercise_muscles em ON em.exercise_id = e.id AND em.role = 'primary'
+            WHERE e.id = ?
+            ORDER BY em.muscle_id
+            LIMIT 1`,
       args: [exerciseId],
     })
-    const primaryMuscleId = (primaryMuscleResult.rows[0] as unknown as Record<string, unknown> | undefined)?.muscle_id
-    if (primaryMuscleId === undefined) return []
+    const sourceRow = sourceResult.rows[0] as unknown as Record<string, unknown> | undefined
+    if (!sourceRow || !sourceRow.movement_pattern || sourceRow.muscle_id == null) return []
+
+    const movementPattern = sourceRow.movement_pattern as string
+    const primaryMuscleId = sourceRow.muscle_id
+    const tier = sourceRow.tier as number | null
 
     const placeholders = equipmentTiers.map(() => '?').join(', ')
     const result = await this.db.execute({
@@ -143,7 +152,7 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
               AND e2.equipment IN (${placeholders})
               AND e2.id != ?
             ORDER BY ABS(COALESCE(e2.tier, 2) - ?), e2.name`,
-      args: [source.movementPattern, primaryMuscleId, ...equipmentTiers, exerciseId, source.tier ?? 2],
+      args: [movementPattern, primaryMuscleId, ...equipmentTiers, exerciseId, tier ?? 2],
     })
     const exercises = result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
     return this.attachDetails(exercises)
