@@ -7,21 +7,27 @@ const emit = defineEmits<{ continue: [] }>();
 
 const { data: profile } = useProfile();
 const daysPerWeek = ref(3);
+const daysPerWeekInitialized = ref(false);
 
 watchEffect(() => {
-  if (profile.value?.profile?.trainingDaysPerWeek) {
+  if (!daysPerWeekInitialized.value && profile.value?.profile?.trainingDaysPerWeek) {
     daysPerWeek.value = profile.value.profile.trainingDaysPerWeek;
+    daysPerWeekInitialized.value = true;
   }
 });
 
 const recommendationInput = computed(() => ({
-  daysPerWeek: daysPerWeek.value,
+  daysPerWeek: Math.min(7, Math.max(1, daysPerWeek.value || 1)),
   experienceLevel: null,
   goal: null,
   equipment: null,
 }));
 
-const { data: recommendations, isLoading } = useRecommendedSplits(recommendationInput);
+const { data: recommendations, isLoading, error } = useRecommendedSplits(recommendationInput);
+
+watch(recommendations, () => {
+  selectedPresetId.value = null;
+});
 </script>
 
 <template>
@@ -32,6 +38,7 @@ const { data: recommendations, isLoading } = useRecommendedSplits(recommendation
     </label>
 
     <p v-if="isLoading" class="text-sm text-muted-foreground">Loading recommendations…</p>
+    <p v-else-if="error" class="text-sm text-destructive">Couldn't load recommendations. Please try again.</p>
     <p v-else-if="!recommendations?.length" class="text-sm text-muted-foreground">
       No presets match yet — try a different days-per-week value, or build your own instead.
     </p>
@@ -45,7 +52,7 @@ const { data: recommendations, isLoading } = useRecommendedSplits(recommendation
     >
       <p class="font-heading text-lg text-foreground">{{ rec.preset.name }}</p>
       <p v-if="rec.preset.description" class="text-sm text-muted-foreground">{{ rec.preset.description }}</p>
-      <p class="text-xs text-muted-foreground">{{ rec.reasons.join(" · ") }}</p>
+      <p v-if="rec.reasons.length" class="text-xs text-muted-foreground">{{ rec.reasons.join(" · ") }}</p>
     </UiCard>
 
     <Button size="lg" :disabled="selectedPresetId === null" @click="emit('continue')">Continue</Button>
