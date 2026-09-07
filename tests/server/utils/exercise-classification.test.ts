@@ -51,4 +51,36 @@ describe('classifyMovementPattern', () => {
   it('returns null when there is not enough signal to classify confidently', () => {
     expect(classifyMovementPattern({ name: 'Foam Roll', force: null, mechanic: null, primaryMuscles: [] })).toBeNull()
   })
+
+  it('disambiguates "dip" by chest vs triceps in the name', () => {
+    expect(classifyMovementPattern({ name: 'Dips - Chest Version', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('horizontal_push')
+    expect(classifyMovementPattern({ name: 'Dips - Triceps Version', force: 'push', mechanic: 'compound', primaryMuscles: ['triceps'] })).toBe('elbow_extension')
+  })
+
+  it('reaches the push+shoulders fallback when no name keyword matches', () => {
+    expect(classifyMovementPattern({ name: 'Mystery Shoulder Movement', force: 'push', mechanic: 'isolation', primaryMuscles: ['shoulders'] })).toBe('lateral_isolation')
+  })
+
+  it('does not treat a keyword as matched when it is embedded inside a longer word', () => {
+    // 'row' inside 'Prowler' must not trigger horizontal_pull; falls back to hamstrings -> hip_dominant.
+    expect(classifyMovementPattern({ name: 'Prowler Sprint', force: 'push', mechanic: 'compound', primaryMuscles: ['hamstrings'] })).toBe('hip_dominant')
+
+    // 'fly' inside 'Butterfly' must not trigger horizontal_push; no other signal -> null.
+    expect(classifyMovementPattern({ name: 'Butterfly', force: 'pull', mechanic: 'isolation', primaryMuscles: ['chest'] })).toBeNull()
+
+    // 'row' inside 'Throw' must not trigger horizontal_pull; falls back to shoulders+push -> lateral_isolation.
+    expect(classifyMovementPattern({ name: 'Backward Medicine Ball Throw', force: 'push', mechanic: 'compound', primaryMuscles: ['shoulders'] })).toBe('lateral_isolation')
+
+    // 'rdl' inside 'hurdle' must not trigger hip_dominant; falls back to quadriceps -> knee_dominant.
+    expect(classifyMovementPattern({ name: 'Front Cone Hops (or hurdle hops)', force: 'push', mechanic: 'compound', primaryMuscles: ['quadriceps'] })).toBe('knee_dominant')
+  })
+
+  it('still matches plural/suffixed forms of keywords that only satisfy a leading boundary', () => {
+    expect(classifyMovementPattern({ name: 'Barbell Curls', force: 'pull', mechanic: 'isolation', primaryMuscles: ['biceps'] })).toBe('elbow_flexion')
+    expect(classifyMovementPattern({ name: 'Barbell Squats', force: 'push', mechanic: 'compound', primaryMuscles: ['quadriceps'] })).toBe('knee_dominant')
+    expect(classifyMovementPattern({ name: 'Barbell Rows', force: 'pull', mechanic: 'compound', primaryMuscles: ['middle back'] })).toBe('horizontal_pull')
+    expect(classifyMovementPattern({ name: 'Dumbbell Flyes', force: 'push', mechanic: 'isolation', primaryMuscles: ['chest'] })).toBe('horizontal_push')
+    expect(classifyMovementPattern({ name: 'Pushups', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('horizontal_push')
+    expect(classifyMovementPattern({ name: 'Pullups', force: 'pull', mechanic: 'compound', primaryMuscles: ['lats'] })).toBe('vertical_pull')
+  })
 })

@@ -12,9 +12,28 @@ interface ClassifiableExercise {
   primaryMuscles: string[]
 }
 
+const isLetter = (char: string): boolean => /[a-z]/i.test(char)
+
+// Plain substring matching produces false positives on real exercise names:
+// 'row' inside 'throw'/'narrow'/'Prowler', 'rdl' inside 'hurdle', 'fly'
+// inside 'Butterfly'. Require that a match isn't preceded by a letter (so
+// it starts at a word boundary or the start of the string), but don't
+// require a trailing boundary too, since plenty of matches we DO want are
+// plurals or suffixed forms of the keyword ('Curls', 'Squats', 'Rows',
+// 'Flyes', 'Pushups', 'Pullups') that a full \b...\b regex would reject.
 const nameHas = (name: string, ...keywords: string[]): boolean => {
   const lower = name.toLowerCase()
-  return keywords.some(k => lower.includes(k))
+  return keywords.some((keyword) => {
+    let fromIndex = 0
+    while (fromIndex <= lower.length) {
+      const index = lower.indexOf(keyword, fromIndex)
+      if (index === -1) return false
+      const precedingChar = index > 0 ? lower[index - 1] : undefined
+      if (!precedingChar || !isLetter(precedingChar)) return true
+      fromIndex = index + 1
+    }
+    return false
+  })
 }
 
 export const classifyMovementPattern = (exercise: ClassifiableExercise): MovementPattern | null => {
