@@ -7,7 +7,7 @@ import type { CreateSplitExerciseInput } from "~~/server/repositories/block.repo
 const exercises = defineModel<CreateSplitExerciseInput[]>("exercises", { required: true });
 
 const searchTerm = ref("");
-const { data: results } = useExerciseSearch(searchTerm);
+const { data: results, isLoading, error } = useExerciseSearch(searchTerm);
 
 const options = computed<ComboboxOption[]>(
   () => results.value?.map(exercise => ({ value: exercise.id, label: exercise.name })) ?? [],
@@ -40,9 +40,21 @@ const removeExercise = (index: number) => {
   <div class="flex flex-col gap-y-2">
     <div v-for="(exercise, index) in exercises" :key="exerciseRowIds[index]" class="flex items-center gap-2">
       <span class="flex-1 text-sm text-foreground">{{ exerciseNames[exercise.exerciseId] ?? exercise.exerciseId }}</span>
-      <Input v-model.number="exercise.targetSets" type="number" placeholder="sets" class="w-16" />
-      <Input v-model.number="exercise.targetReps" type="number" placeholder="reps" class="w-16" />
-      <button @click="removeExercise(index)"><TrashIcon class="size-4 text-muted-foreground" /></button>
+      <Input
+        :model-value="exercise.targetSets ?? ''"
+        type="number"
+        placeholder="sets"
+        class="w-16"
+        @update:model-value="(v) => exercise.targetSets = v === '' ? null : Number(v)"
+      />
+      <Input
+        :model-value="exercise.targetReps ?? ''"
+        type="number"
+        placeholder="reps"
+        class="w-16"
+        @update:model-value="(v) => exercise.targetReps = v === '' ? null : Number(v)"
+      />
+      <button aria-label="Remove exercise" @click="removeExercise(index)"><TrashIcon class="size-4 text-muted-foreground" /></button>
     </div>
 
     <Combobox
@@ -52,6 +64,7 @@ const removeExercise = (index: number) => {
       :reset-search-term-on-select="false"
       placeholder="Add an exercise"
       search-placeholder="Search exercises…"
+      :empty-text="error ? 'Couldn\'t search exercises.' : isLoading ? 'Searching…' : 'No results found.'"
     />
   </div>
 </template>
