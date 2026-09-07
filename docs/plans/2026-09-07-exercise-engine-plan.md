@@ -9,15 +9,17 @@ split support, and 3 new preset templates (Bro Split, Mobility, Fat-Loss Circuit
 strength splits.
 
 **Architecture:** Phase 0 (exercise classification) is the dependency root — Phases 2-4 all read the
-`tier`/`movement_pattern` columns it adds. Movement pattern is derived by deterministic rules (no LLM);
-tier is deterministic except for the compound+dumbbell residual, which gets a small LLM-assisted batch.
+`tier`/`movement_pattern` columns it adds. Movement pattern is derived entirely by deterministic rules.
+Tier is deterministic except for the compound+dumbbell/kettlebell residual (~95 exercises), which is
+classified by hand once and checked into the classification script as a lookup table — no external LLM
+API, no new dependency, no API key. The user's only LLM access is Claude itself (this session), and
+classifying ~95 exercise names by judgment is exactly the kind of task done directly rather than scripted.
 Equipment-fallback matching (used by both Phase 3's substitution and Phase 4's swap sheet) is a single
 shared repository method — a join query, not a maintained mapping table. Phases 1 and 5 are independent of
 Phase 0 and can run in parallel with it.
 
 **Tech Stack:** Nuxt/Nitro, `@libsql/client`, Vitest, `tsx` (for the one-time classification script,
-matching `seed.ts`'s convention), an LLM SDK for the classification residual (see Task 4 — this repo has no
-existing LLM client, so this task also picks/adds one).
+matching `seed.ts`'s convention). No LLM SDK or API key needed — see Task 4's revision note.
 
 **Context this plan assumes:**
 - Design doc: `docs/plans/2026-09-07-exercise-engine-design.md` — read it first, especially the two
@@ -278,26 +280,88 @@ git commit -m "feat(exercises): add deterministic tier classifier"
 
 ---
 
-## Task 4: One-time classification script (deterministic pass + LLM residual + spot-check)
+## Task 4: One-time classification script (deterministic pass + hardcoded residual table)
+
+**Revision note**: the original version of this task called out to an external LLM API for the ambiguous
+compound+dumbbell residual. The user has no separate LLM API access — they only use Claude (this session).
+Since classifying ~95 ambiguous exercise names by judgment is exactly the kind of task an LLM does
+directly, there is no need for a script to call out to anything at runtime: **the classification is done
+once, by hand/by-Claude, as a hardcoded lookup table checked into the script itself**, not computed live.
+No new dependency, no API key, no `.env` change.
+
+This also folds in a fix surfaced by Task 3's own code-quality review: `classifyTierDeterministic`'s
+"any other equipment" catch-all silently defaults 35% of compound exercises (174 of 494) to Tier 2,
+mixing genuinely-Tier-1 movements (heavy kettlebell cleans/presses/squats, strongman-style lifts) with
+genuinely-Tier-3 ones (band work, medicine-ball throws) with no distinction. Widen the ambiguous set this
+task resolves by hand to **compound + (dumbbell OR kettlebells)** — 95 exercises total, still small and
+tractable — rather than just the 46 compound-dumbbell ones.
 
 **Files:**
+- Modify: `server/utils/exercise-classification.ts` (widen the ambiguous-residual condition)
+- Modify: `tests/server/utils/exercise-classification.test.ts` (add a kettlebells case)
 - Create: `server/database/classify-exercises.ts`
 - Modify: `package.json` (add a script entry)
 
-**Step 1: Add the LLM dependency**
+**Step 1: Widen `classifyTierDeterministic`'s ambiguous residual**
 
-This repo has no existing LLM client. Add `@anthropic-ai/sdk` (`npm install @anthropic-ai/sdk`) and a
-`ANTHROPIC_API_KEY` entry to `.env` (the user needs to supply their own key — **ask the user for this before
-running the script for real**; do not fabricate or hardcode a key).
+In `server/utils/exercise-classification.ts`, change:
+```ts
+  if (exercise.equipment === 'dumbbell') return null // ambiguous — Task 4's LLM pass resolves this
+  return 2 // other equipment (kettlebells, bands, etc.) treated as Tier 2 by default
+```
+to:
+```ts
+  if (exercise.equipment === 'dumbbell' || exercise.equipment === 'kettlebells') return null // ambiguous — resolved by the hardcoded table in classify-exercises.ts
+  return 2 // other equipment (bands, medicine ball, etc.) treated as Tier 2 by default
+```
+Add a test confirming `classifyTierDeterministic({ mechanic: 'compound', equipment: 'kettlebells' })`
+returns `null`. Run the existing test file, confirm the prior `mechanic: null, equipment: 'kettlebells'`
+test (a *different* case — mechanic is null there, not compound) still passes unchanged. Commit this small
+change on its own first:
+```bash
+git add server/utils/exercise-classification.ts tests/server/utils/exercise-classification.test.ts
+git commit -m "fix(exercises): also treat compound kettlebell exercises as an ambiguous tier residual"
+```
 
-**Step 2: Implement the script**
+**Step 2: Classify the 95 ambiguous exercises directly**
+
+Query the real dataset for the exact residual set (`mechanic: 'compound'` and `equipment` in
+`('dumbbell', 'kettlebells')`) and classify each by name, applying the Tier 1 vs. Tier 2 criteria from the
+design doc (Tier 1 = foundational/bilateral/primary-lift-in-its-category; Tier 2 = unilateral variant,
+named modifier like "Incline"/"Decline"/"Close-Grip"/"One-Arm", or a technical/ballistic/skill-focused
+kettlebell movement not typically used as a session's main strength assessment). Below is a reference
+classification already produced this way — sanity-check it against the actual current dataset (exercise
+names could have drifted since this plan was written) rather than trusting it blindly, and adjust any call
+that looks wrong to you:
+
+```ts
+const AMBIGUOUS_TIER_OVERRIDES: Record<string, 1 | 2> = {
+  'Arnold Dumbbell Press': 1, 'Bent Over Two-Dumbbell Row': 1, 'Dumbbell Bench Press': 1,
+  'Dumbbell Lunges': 1, 'Dumbbell Rear Lunge': 1, 'Dumbbell Shoulder Press': 1, 'Dumbbell Squat': 1,
+  'Front Squats With Two Kettlebells': 1, 'Goblet Squat': 1, 'Incline Dumbbell Press': 1,
+  'One-Arm Dumbbell Row': 1, 'Seated Dumbbell Press': 1, 'Standing Dumbbell Press': 1,
+  'Stiff-Legged Dumbbell Deadlift': 1, 'Two-Arm Kettlebell Jerk': 1, 'Two-Arm Kettlebell Military Press': 1,
+  'Two-Arm Kettlebell Row': 1, 'Bulgarian Split Squat': 1, 'Split Squat with Dumbbells': 1,
+  'Double Kettlebell Jerk': 1, 'Double Kettlebell Push Press': 1,
+  // Everything else in the residual set defaults to 2 (see below) — this list is the Tier-1 allowlist,
+  // not an exhaustive map of all 95 names, to keep it maintainable as the shorter of the two lists.
+}
+```
+
+Every ambiguous exercise NOT in this allowlist defaults to Tier 2 — this keeps the checked-in table short
+(only the Tier-1 exceptions need listing) while still resolving the full residual, since Tier 2 is the far
+more common outcome for unilateral/variant/technical movements in this bucket. When you regenerate this
+list against the live dataset, re-derive it yourself (don't just copy the block above unexamined) — if a
+name in the real data isn't covered by your own judgment pass, it falls to Tier 2 by the same default,
+which is a safe direction to err (Tier 2 is the "supplemental," not "ignored," bucket).
+
+**Step 3: Implement the script**
 
 Follow `server/database/seed.ts`'s exact shape (standalone `tsx` script, `createClient` from env vars
 directly, `main().catch(...).finally(() => db.close())`):
 
 ```ts
 import { createClient } from '@libsql/client'
-import Anthropic from '@anthropic-ai/sdk'
 import { classifyMovementPattern, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
 
 const db = createClient({
@@ -305,33 +369,16 @@ const db = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN!,
 })
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-
-async function classifyAmbiguousTier(exercise: { name: string, primaryMuscles: string[], instructions: string[] }): Promise<1 | 2> {
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-5',
-    max_tokens: 10,
-    messages: [{
-      role: 'user',
-      content: `Classify this dumbbell compound exercise as strength-training Tier 1 or Tier 2.
-Tier 1 = a foundational, primarily multi-joint lift typically used to assess overall strength for its movement category, usually the first/heaviest exercise of a session (e.g. a dumbbell bench press or dumbbell Romanian deadlift used as a primary lift).
-Tier 2 = a supplemental/secondary compound movement in a similar plane but not typically used as the session's main strength assessment (e.g. dumbbell step-ups, dumbbell incline press as an accessory to a barbell press day).
-Exercise: "${exercise.name}"
-Primary muscle: ${exercise.primaryMuscles[0] ?? 'unknown'}
-Reply with only the digit 1 or 2.`,
-    }],
-  })
-  const text = message.content[0]?.type === 'text' ? message.content[0].text.trim() : '2'
-  return text === '1' ? 1 : 2
-}
+// AMBIGUOUS_TIER_OVERRIDES from Step 2 goes here.
 
 async function main() {
   const result = await db.execute('SELECT * FROM exercises')
   const rows = result.rows as unknown as Record<string, unknown>[]
 
   let ruleClassified = 0
-  let llmClassified = 0
-  const samples: { id: string, name: string, tier: number, pattern: string | null }[] = []
+  let overrideClassified = 0
+  let defaultedAmbiguous = 0
+  const samples: { id: string, name: string, tier: number | null, pattern: string | null }[] = []
 
   for (const row of rows) {
     const primaryMusclesResult = await db.execute({
@@ -345,15 +392,19 @@ async function main() {
       mechanic: row.mechanic as string | null,
       equipment: row.equipment as string | null,
       primaryMuscles,
-      instructions: JSON.parse((row.instructions as string) ?? '[]') as string[],
     }
 
     const movementPattern = classifyMovementPattern(exercise)
     let tier = classifyTierDeterministic(exercise)
 
     if (tier === null) {
-      tier = await classifyAmbiguousTier(exercise)
-      llmClassified++
+      if (exercise.name in AMBIGUOUS_TIER_OVERRIDES) {
+        tier = AMBIGUOUS_TIER_OVERRIDES[exercise.name]!
+        overrideClassified++
+      } else {
+        tier = 2 // safe default for anything in the residual set not explicitly listed
+        defaultedAmbiguous++
+      }
     } else {
       ruleClassified++
     }
@@ -368,7 +419,7 @@ async function main() {
     }
   }
 
-  console.log(`Classified ${rows.length} exercises: ${ruleClassified} by rule, ${llmClassified} by LLM.`)
+  console.log(`Classified ${rows.length} exercises: ${ruleClassified} by rule, ${overrideClassified} by the hardcoded residual table, ${defaultedAmbiguous} ambiguous names defaulted to Tier 2 (not in the table — review these).`)
   console.log('Spot-check sample:')
   console.table(samples)
 }
@@ -380,30 +431,29 @@ main()
 
 Add to `package.json` scripts: `"db:classify-exercises": "tsx --env-file=.env server/database/classify-exercises.ts"`.
 
-**Step 3: Manual verification**
+**Step 4: Manual verification**
 
 Run: `npm run db:classify-exercises` against the dev DB. Review the printed spot-check table by eye —
 does "Barbell Squat" read Tier 1 / knee_dominant? Does "Triceps Pushdown" read Tier 3 / elbow_extension?
-If anything looks systematically wrong (not a one-off), fix the relevant rule in Task 2/3 and re-run — the
-script is fully idempotent (it overwrites, doesn't append).
+Pay particular attention to the `defaultedAmbiguous` count printed — if it's non-zero, those are ambiguous
+names your `AMBIGUOUS_TIER_OVERRIDES` table didn't cover (e.g. the real dataset has names not on the
+reference list above); query them directly (`SELECT name FROM exercises WHERE tier = 2 AND mechanic =
+'compound' AND equipment IN ('dumbbell','kettlebells')`) and decide whether any deserve a Tier-1 override,
+adding them to the table and re-running (the script is fully idempotent — it overwrites, doesn't append).
 
 Then spot-check via direct query:
 ```sql
 SELECT name, mechanic, equipment, tier, movement_pattern FROM exercises WHERE tier IS NULL;
 ```
-Expected: very few or zero rows (only exercises with no `mechanic` fall through to the Tier 2 default, so
-`tier IS NULL` should be empty — if it's not, something in the script's UPDATE didn't run for those rows,
-worth investigating before moving on).
+Expected: zero rows — every exercise gets a tier now (rule-based, hardcoded override, or the Tier-2
+default), unlike the movement_pattern column which can legitimately stay `NULL` for low-signal names.
 
-**Step 4: Commit**
+**Step 5: Commit**
 
 ```bash
-git add server/database/classify-exercises.ts package.json package-lock.json .env.example
-git commit -m "feat(exercises): add one-time classification script (rule-based + LLM-assisted)"
+git add server/database/classify-exercises.ts package.json
+git commit -m "feat(exercises): add one-time classification script with hand-classified ambiguous residual"
 ```
-
-(Do not commit the real `.env` — only `.env.example` if this repo maintains one; check `git status` before
-staging to make sure the actual `.env` with the real API key isn't accidentally included.)
 
 ---
 
