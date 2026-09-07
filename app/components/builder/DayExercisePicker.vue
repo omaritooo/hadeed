@@ -16,16 +16,21 @@ const options = computed<ComboboxOption[]>(
 const picked = ref<string | undefined>(undefined);
 const exerciseNames = ref<Record<string, string>>({});
 const exerciseRowIds = ref<string[]>(exercises.value.map(() => crypto.randomUUID()));
+const exerciseCatalogCache = useExerciseCatalogCache();
 
 watch(picked, (exerciseId) => {
   if (!exerciseId || typeof exerciseId !== "string") return;
-  const label = options.value.find(o => o.value === exerciseId)?.label ?? exerciseId;
+  const exercise = results.value?.find(e => e.id === exerciseId);
+  const label = exercise?.name ?? options.value.find(o => o.value === exerciseId)?.label ?? exerciseId;
   exercises.value = [
     ...exercises.value,
     { exerciseId, position: exercises.value.length, setType: "weight_reps", targetSets: 3, targetReps: 10, targetRpe: null },
   ];
   exerciseRowIds.value = [...exerciseRowIds.value, crypto.randomUUID()];
   exerciseNames.value[exerciseId] = label;
+  // Cache tier/primaryMuscles now, while we have the full Exercise from search results — the confirm
+  // step's recovery-conflict check needs this later but CreateSplitExerciseInput only carries the id.
+  if (exercise) exerciseCatalogCache.set(exerciseId, exercise);
   picked.value = undefined;
   searchTerm.value = "";
 });

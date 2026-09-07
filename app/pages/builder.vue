@@ -3,6 +3,7 @@ import { ArrowLeftIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { CreateSplitDayInput } from "~~/server/repositories/block.repository";
+import { checkRecoveryConflicts } from "~~/shared/lib/recovery-checker";
 
 type Mode = "preset" | "custom" | null;
 
@@ -18,6 +19,25 @@ const submitError = ref<string | null>(null);
 
 const createFromPreset = useCreateBlockFromPreset();
 const createFromScratch = useCreateBlock();
+const exerciseCatalogCache = useExerciseCatalogCache();
+
+// Recovery-conflict check is advisory only and, per the design doc, runs off whatever days array is
+// already held in this page's state — no new endpoint needed. That's only available for the custom path
+// today: the preset path never loads a preset's day/exercise list client-side (`PresetPicker.vue` only
+// fetches scored recommendations), so there's nothing to check there yet.
+const recoveryConflicts = computed(() => {
+  if (mode.value !== "custom") return [];
+  const days = customDays.value.map(day => ({
+    isRestDay: day.isRestDay ?? false,
+    exercises: day.exercises.map((exercise) => {
+      const cached = exerciseCatalogCache.get(exercise.exerciseId);
+      return { tier: cached?.tier ?? null, primaryMuscle: cached?.primaryMuscles[0] ?? null };
+    }),
+  }));
+  return checkRecoveryConflicts(days);
+});
+
+const formatMuscle = (muscle: string) => muscle.charAt(0).toUpperCase() + muscle.slice(1);
 
 const chooseMode = (chosen: Exclude<Mode, null>) => {
   mode.value = chosen;
@@ -107,6 +127,14 @@ const submit = async () => {
       <Input v-model="confirmName" placeholder="Split name" />
       <Input v-model="confirmStartDate" type="date" />
       <p v-if="submitError" class="text-sm text-destructive">{{ submitError }}</p>
+      <p
+        v-for="conflict in recoveryConflicts"
+        :key="`${conflict.muscle}-${conflict.dayIndexes.join('-')}`"
+        class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+      >
+        {{ formatMuscle(conflict.muscle) }} is targeted with heavy compound work on back-to-back days — consider
+        spacing these out or inserting a lower-body/rest day.
+      </p>
       <Button size="lg" :disabled="submitting || !confirmName" @click="submit">Save Split</Button>
     </div>
   </main>
