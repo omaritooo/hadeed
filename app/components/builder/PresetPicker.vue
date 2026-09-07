@@ -25,8 +25,10 @@ const recommendationInput = computed(() => ({
 
 const { data: recommendations, isLoading, error } = useRecommendedSplits(recommendationInput);
 
-watch(recommendations, () => {
-  selectedPresetId.value = null;
+watch(recommendations, (list) => {
+  if (list && !list.some(rec => rec.preset.id === selectedPresetId.value)) {
+    selectedPresetId.value = null;
+  }
 });
 </script>
 
