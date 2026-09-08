@@ -30,7 +30,7 @@ watch(picked, (exerciseId) => {
   exerciseNames.value[exerciseId] = label;
   // Cache tier/primaryMuscles now, while we have the full Exercise from search results — the confirm
   // step's recovery-conflict check needs this later but CreateSplitExerciseInput only carries the id.
-  if (exercise) exerciseCatalogCache.set(exerciseId, exercise);
+  if (exercise) exerciseCatalogCache.value.set(exerciseId, exercise);
   picked.value = undefined;
   searchTerm.value = "";
 });

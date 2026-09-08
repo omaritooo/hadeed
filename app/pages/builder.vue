@@ -29,9 +29,12 @@ const recoveryConflicts = computed(() => {
   if (mode.value !== "custom") return [];
   const days = customDays.value.map(day => ({
     isRestDay: day.isRestDay ?? false,
-    exercises: day.exercises.map((exercise) => {
-      const cached = exerciseCatalogCache.get(exercise.exerciseId);
-      return { tier: cached?.tier ?? null, primaryMuscle: cached?.primaryMuscles[0] ?? null };
+    exercises: day.exercises.flatMap((exercise) => {
+      const cached = exerciseCatalogCache.value.get(exercise.exerciseId);
+      if (!cached || cached.primaryMuscles.length === 0) {
+        return [{ tier: cached?.tier ?? null, primaryMuscle: null }];
+      }
+      return cached.primaryMuscles.map(primaryMuscle => ({ tier: cached.tier, primaryMuscle }));
     }),
   }));
   return checkRecoveryConflicts(days);
@@ -49,6 +52,7 @@ const backToMode = () => {
   step.value = "mode";
   selectedPresetId.value = null;
   customDays.value = [];
+  exerciseCatalogCache.value.clear();
 };
 
 const proceedToConfirm = () => {
