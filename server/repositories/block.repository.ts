@@ -1,5 +1,5 @@
 import type { Client } from '@libsql/client'
-import type { Block, MacroTarget, SetType, SplitDay, SplitExercise } from '~~/shared/types/split.types'
+import type { Block, MacroTarget, SetType, SplitDay, SplitExercise, SplitFormat } from '~~/shared/types/split.types'
 
 export interface CreateSplitExerciseInput {
   exerciseId: string
@@ -8,6 +8,7 @@ export interface CreateSplitExerciseInput {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  restSeconds?: number | null
 }
 
 export interface CreateSplitDayInput {
@@ -15,6 +16,8 @@ export interface CreateSplitDayInput {
   dayOfWeek: number
   location: 'gym' | 'home'
   isRestDay?: boolean
+  format?: SplitFormat
+  rounds?: number
   exercises: CreateSplitExerciseInput[]
 }
 
@@ -79,8 +82,8 @@ export class BlockRepository {
 
     for (const day of input.days) {
       const dayResult = await this.db.execute({
-        sql: 'INSERT INTO split_days (block_id, name, day_of_week, location, is_rest_day) VALUES (?, ?, ?, ?, ?) RETURNING *',
-        args: [block.id, day.name, day.dayOfWeek, day.location, day.isRestDay ? 1 : 0],
+        sql: 'INSERT INTO split_days (block_id, name, day_of_week, location, is_rest_day, format, rounds) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *',
+        args: [block.id, day.name, day.dayOfWeek, day.location, day.isRestDay ? 1 : 0, day.format ?? 'straight_sets', day.rounds ?? 1],
       })
       const dayRow = dayResult.rows[0]
       if (!dayRow) throw new Error('Failed to create split day')
@@ -88,9 +91,9 @@ export class BlockRepository {
 
       for (const exercise of day.exercises) {
         await this.db.execute({
-          sql: `INSERT INTO split_exercises (split_day_id, exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          args: [dayId, exercise.exerciseId, exercise.position, exercise.setType, exercise.targetSets, exercise.targetReps, exercise.targetRpe],
+          sql: `INSERT INTO split_exercises (split_day_id, exercise_id, position, set_type, target_sets, target_reps, target_rpe, rest_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [dayId, exercise.exerciseId, exercise.position, exercise.setType, exercise.targetSets, exercise.targetReps, exercise.targetRpe, exercise.restSeconds ?? null],
         })
       }
     }
@@ -131,6 +134,7 @@ export class BlockRepository {
             targetSets: ex.target_sets as number | null,
             targetReps: ex.target_reps as number | null,
             targetRpe: ex.target_rpe as number | null,
+            restSeconds: ex.rest_seconds as number | null,
           }
         })
         return {
@@ -140,6 +144,8 @@ export class BlockRepository {
           dayOfWeek: day.day_of_week as number,
           location: day.location as 'gym' | 'home',
           isRestDay: Boolean(day.is_rest_day),
+          format: day.format as SplitFormat,
+          rounds: day.rounds as number,
           exercises,
         }
       }),

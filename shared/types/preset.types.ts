@@ -1,5 +1,5 @@
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
-import type { DayLocation } from '~~/shared/types/split.types'
+import type { DayLocation, SplitFormat } from '~~/shared/types/split.types'
 
 export type Equipment = 'full_gym' | 'home_barbell_dumbbell' | 'home_dumbbell_only' | 'bodyweight' | 'both'
 
@@ -22,6 +22,8 @@ export interface PresetSplitDay {
   dayIndex: number
   location: DayLocation
   targetMuscleIds: number[]
+  format: SplitFormat
+  rounds: number
 }
 
 export interface PresetSplitExercise {
@@ -32,6 +34,7 @@ export interface PresetSplitExercise {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  restSeconds: number | null
 }
 
 export interface SplitRecommendation {

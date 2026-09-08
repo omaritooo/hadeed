@@ -1,7 +1,7 @@
 import type { Client } from '@libsql/client'
 import type { Equipment, PresetSplit, PresetSplitDay, PresetSplitExercise } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
-import type { DayLocation } from '~~/shared/types/split.types'
+import type { DayLocation, SplitFormat } from '~~/shared/types/split.types'
 
 export interface CreatePresetExerciseInput {
   exerciseId: string
@@ -9,6 +9,7 @@ export interface CreatePresetExerciseInput {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  restSeconds?: number | null
 }
 
 export interface CreatePresetDayInput {
@@ -16,6 +17,8 @@ export interface CreatePresetDayInput {
   dayIndex: number
   location: DayLocation
   targetMuscleIds: number[]
+  format?: SplitFormat
+  rounds?: number
   exercises: CreatePresetExerciseInput[]
 }
 
@@ -67,8 +70,8 @@ export class PresetSplitRepository {
 
     for (const day of input.days) {
       const dayResult = await this.db.execute({
-        sql: 'INSERT INTO preset_split_days (preset_split_id, name, day_index, location) VALUES (?, ?, ?, ?) RETURNING *',
-        args: [preset.id, day.name, day.dayIndex, day.location],
+        sql: 'INSERT INTO preset_split_days (preset_split_id, name, day_index, location, format, rounds) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
+        args: [preset.id, day.name, day.dayIndex, day.location, day.format ?? 'straight_sets', day.rounds ?? 1],
       })
       const dayRow = dayResult.rows[0]
       if (!dayRow) throw new Error('Failed to create preset split day')
@@ -83,9 +86,9 @@ export class PresetSplitRepository {
 
       for (const exercise of day.exercises) {
         await this.db.execute({
-          sql: `INSERT INTO preset_split_exercises (preset_split_day_id, exercise_id, position, target_sets, target_reps, target_rpe)
-                VALUES (?, ?, ?, ?, ?, ?)`,
-          args: [dayId, exercise.exerciseId, exercise.position, exercise.targetSets, exercise.targetReps, exercise.targetRpe],
+          sql: `INSERT INTO preset_split_exercises (preset_split_day_id, exercise_id, position, target_sets, target_reps, target_rpe, rest_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          args: [dayId, exercise.exerciseId, exercise.position, exercise.targetSets, exercise.targetReps, exercise.targetRpe, exercise.restSeconds ?? null],
         })
       }
     }
@@ -134,6 +137,7 @@ export class PresetSplitRepository {
             targetSets: ex.target_sets as number | null,
             targetReps: ex.target_reps as number | null,
             targetRpe: ex.target_rpe as number | null,
+            restSeconds: ex.rest_seconds as number | null,
           }
         })
 
@@ -144,6 +148,8 @@ export class PresetSplitRepository {
           dayIndex: day.day_index as number,
           location: day.location as DayLocation,
           targetMuscleIds,
+          format: day.format as SplitFormat,
+          rounds: day.rounds as number,
           exercises,
         }
       }),

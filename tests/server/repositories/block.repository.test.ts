@@ -41,6 +41,32 @@ describe('BlockRepository', () => {
     expect(full?.days[0]?.exercises[0]?.exerciseId).toBe('bench-press')
   })
 
+  it('creates a circuit day with rounds and a per-exercise rest_seconds', async () => {
+    const block = await repo.createWithDays('user-1', {
+      programId: null,
+      name: 'Push Pull Legs',
+      startDate: '2026-08-18',
+      endDate: null,
+      trainingDayMacroTarget: null,
+      restDayMacroTarget: null,
+      days: [
+        {
+          name: 'Push',
+          dayOfWeek: 1,
+          location: 'gym',
+          format: 'circuit',
+          rounds: 4,
+          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetReps: 8, targetRpe: 8, restSeconds: 30 }],
+        },
+      ],
+    })
+
+    const full = await repo.findWithDays(block.id)
+    expect(full?.days[0]?.format).toBe('circuit')
+    expect(full?.days[0]?.rounds).toBe(4)
+    expect(full?.days[0]?.exercises[0]?.restSeconds).toBe(30)
+  })
+
   it('defaults isRestDay to false, and persists an explicit true, on each split day', async () => {
     const block = await repo.createWithDays('user-1', {
       programId: null,

@@ -46,6 +46,37 @@ describe('PresetSplitRepository', () => {
     expect(full?.days[0]?.exercises[0]?.exerciseId).toBe('bench-press')
   })
 
+  it('creates a circuit day with rounds and a per-exercise rest_seconds', async () => {
+    const chest = await new MuscleRepository(db).getOrCreate('chest')
+
+    const preset = await repo.createWithDays({
+      name: 'Push Pull Legs',
+      description: 'Classic 6-day PPL',
+      frequencyMinDays: 5,
+      frequencyMaxDays: 6,
+      goal: 'muscle_gain',
+      experienceLevel: 'intermediate',
+      equipment: 'full_gym',
+      isPublished: true,
+      days: [
+        {
+          name: 'Push',
+          dayIndex: 0,
+          location: 'gym',
+          format: 'circuit',
+          rounds: 4,
+          targetMuscleIds: [chest.id],
+          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8, restSeconds: 30 }],
+        },
+      ],
+    })
+
+    const full = await repo.findWithDays(preset.id)
+    expect(full?.days[0]?.format).toBe('circuit')
+    expect(full?.days[0]?.rounds).toBe(4)
+    expect(full?.days[0]?.exercises[0]?.restSeconds).toBe(30)
+  })
+
   it('findPublished only returns published presets', async () => {
     await repo.createWithDays({
       name: 'Draft', description: null, frequencyMinDays: 3, frequencyMaxDays: 3,

@@ -1,5 +1,6 @@
 export type DayLocation = 'gym' | 'home'
 export type SetType = 'weight_reps' | 'bodyweight_reps' | 'time'
+export type SplitFormat = 'straight_sets' | 'circuit'
 
 export interface Program {
   id: number
@@ -32,6 +33,8 @@ export interface SplitDay {
   dayOfWeek: number
   location: DayLocation
   isRestDay: boolean
+  format: SplitFormat
+  rounds: number
 }
 
 export interface SplitExercise {
@@ -43,4 +46,5 @@ export interface SplitExercise {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  restSeconds: number | null
 }
