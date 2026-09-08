@@ -1,7 +1,7 @@
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 import type { DayLocation } from '~~/shared/types/split.types'
 
-export type Equipment = 'gym' | 'home' | 'both'
+export type Equipment = 'full_gym' | 'home_barbell_dumbbell' | 'home_dumbbell_only' | 'bodyweight' | 'both'
 
 export interface PresetSplit {
   id: number

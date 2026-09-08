@@ -2,6 +2,7 @@ import { BaseService } from '~~/server/services/base.service'
 import type { CreatePresetSplitInput, PresetSplitRepository } from '~~/server/repositories/preset-split.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { PresetSplit, RecommendationInput, SplitRecommendation } from '~~/shared/types/preset.types'
+import { equipmentSatisfies } from '~~/shared/lib/equipment'
 
 const frequencyScore = (daysPerWeek: number, min: number, max: number): number => {
   if (daysPerWeek >= min && daysPerWeek <= max) return 3
@@ -28,7 +29,7 @@ const scorePreset = (preset: PresetSplit, input: RecommendationInput): { score: 
     reasons.push(`matches your ${input.goal.replace('_', ' ')} goal`)
   }
 
-  if (input.equipment && (preset.equipment === input.equipment || preset.equipment === 'both')) {
+  if (input.equipment && equipmentSatisfies(input.equipment, preset.equipment)) {
     score += 2
     reasons.push(`works with your ${input.equipment} access`)
   }
