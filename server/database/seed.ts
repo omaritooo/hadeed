@@ -736,6 +736,425 @@ const main = async () => {
     })
   }
 
+  {
+    // Push Pull Legs (6-Day): 6-day intermediate/advanced split hitting each muscle group
+    // twice per week via A/B variants of push, pull, and leg days.
+    const [benchPress, inclineDumbbellPress, shoulderPress, lateralRaise, tricepsExtension] = await Promise.all([
+      requireExerciseId('Barbell Bench Press - Medium Grip'),
+      requireExerciseId('Incline Dumbbell Press'),
+      requireExerciseId('Dumbbell Shoulder Press'),
+      requireExerciseId('Side Lateral Raise'),
+      requireExerciseId('Cable Rope Overhead Triceps Extension'),
+    ])
+    const [row, latPulldown, facePull, hammerCurl] = await Promise.all([
+      requireExerciseId('Bent Over Barbell Row'),
+      requireExerciseId('Wide-Grip Lat Pulldown'),
+      requireExerciseId('Face Pull'),
+      requireExerciseId('Hammer Curls'),
+    ])
+    const [squat, romanianDeadlift, legPress, hipThrust, calfRaise] = await Promise.all([
+      requireExerciseId('Barbell Squat'),
+      requireExerciseId('Romanian Deadlift'),
+      requireExerciseId('Leg Press'),
+      requireExerciseId('Barbell Hip Thrust'),
+      requireExerciseId('Standing Barbell Calf Raise'),
+    ])
+    const [declinePress, dumbbellBenchPress, arnoldPress, frontRaise, tricepsPushdownRope] = await Promise.all([
+      requireExerciseId('Decline Barbell Bench Press'),
+      requireExerciseId('Dumbbell Bench Press'),
+      requireExerciseId('Arnold Dumbbell Press'),
+      requireExerciseId('Front Dumbbell Raise'),
+      requireExerciseId('Triceps Pushdown - Rope Attachment'),
+    ])
+    const [seatedCableRow, chinUp, closeGripLatPulldown, cableRearDeltFly, barbellCurl] = await Promise.all([
+      requireExerciseId('Seated Cable Rows'),
+      requireExerciseId('Chin-Up'),
+      requireExerciseId('Close-Grip Front Lat Pulldown'),
+      requireExerciseId('Cable Rear Delt Fly'),
+      requireExerciseId('Barbell Curl'),
+    ])
+    const [frontSquat, bulgarianSplitSquat, lyingLegCurl, legExtension, seatedCalfRaise] = await Promise.all([
+      requireExerciseId('Front Barbell Squat'),
+      requireExerciseId('Bulgarian Split Squat'),
+      requireExerciseId('Lying Leg Curls'),
+      requireExerciseId('Leg Extensions'),
+      requireExerciseId('Seated Calf Raise'),
+    ])
+    const [chest, shoulders, triceps, lats, middleBack, biceps, quadriceps, hamstrings, glutes, calves] = await Promise.all([
+      requireMuscleId('chest'),
+      requireMuscleId('shoulders'),
+      requireMuscleId('triceps'),
+      requireMuscleId('lats'),
+      requireMuscleId('middle back'),
+      requireMuscleId('biceps'),
+      requireMuscleId('quadriceps'),
+      requireMuscleId('hamstrings'),
+      requireMuscleId('glutes'),
+      requireMuscleId('calves'),
+    ])
+
+    await seedPresetSplit({
+      name: 'Push Pull Legs (6-Day)',
+      description: 'A 6-day intermediate/advanced split running push, pull, and leg days twice through the week (A/B variants) for higher per-muscle training frequency than the 3-day PPL rotation.',
+      frequencyMinDays: 6,
+      frequencyMaxDays: 6,
+      goal: 'muscle_gain',
+      experienceLevel: 'intermediate',
+      equipment: 'full_gym',
+      isPublished: true,
+      days: [
+        {
+          name: 'Push A',
+          dayIndex: 0,
+          location: 'gym',
+          targetMuscleIds: [chest, shoulders, triceps],
+          exercises: [
+            { exerciseId: benchPress, position: 0, targetSets: 4, targetReps: 6, targetRpe: 8 },
+            { exerciseId: inclineDumbbellPress, position: 1, targetSets: 3, targetReps: 10, targetRpe: 8 },
+            { exerciseId: shoulderPress, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: lateralRaise, position: 3, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: tricepsExtension, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Pull A',
+          dayIndex: 1,
+          location: 'gym',
+          targetMuscleIds: [lats, middleBack, biceps, shoulders],
+          exercises: [
+            { exerciseId: row, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: latPulldown, position: 1, targetSets: 3, targetReps: 10, targetRpe: 8 },
+            { exerciseId: facePull, position: 2, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: hammerCurl, position: 3, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Legs A',
+          dayIndex: 2,
+          location: 'gym',
+          targetMuscleIds: [quadriceps, hamstrings, glutes, calves],
+          exercises: [
+            { exerciseId: squat, position: 0, targetSets: 4, targetReps: 6, targetRpe: 8 },
+            { exerciseId: romanianDeadlift, position: 1, targetSets: 3, targetReps: 8, targetRpe: 8 },
+            { exerciseId: legPress, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: hipThrust, position: 3, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: calfRaise, position: 4, targetSets: 4, targetReps: 15, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Push B',
+          dayIndex: 3,
+          location: 'gym',
+          targetMuscleIds: [chest, shoulders, triceps],
+          exercises: [
+            { exerciseId: declinePress, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: dumbbellBenchPress, position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: arnoldPress, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: frontRaise, position: 3, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: tricepsPushdownRope, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Pull B',
+          dayIndex: 4,
+          location: 'gym',
+          targetMuscleIds: [lats, middleBack, biceps, shoulders],
+          exercises: [
+            { exerciseId: seatedCableRow, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: chinUp, position: 1, targetSets: 3, targetReps: 8, targetRpe: 8 },
+            { exerciseId: closeGripLatPulldown, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: cableRearDeltFly, position: 3, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: barbellCurl, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Legs B',
+          dayIndex: 5,
+          location: 'gym',
+          targetMuscleIds: [quadriceps, hamstrings, glutes, calves],
+          exercises: [
+            { exerciseId: frontSquat, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: bulgarianSplitSquat, position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: lyingLegCurl, position: 2, targetSets: 3, targetReps: 12, targetRpe: 7 },
+            { exerciseId: legExtension, position: 3, targetSets: 3, targetReps: 12, targetRpe: 7 },
+            { exerciseId: seatedCalfRaise, position: 4, targetSets: 4, targetReps: 15, targetRpe: 7 },
+          ],
+        },
+      ],
+    })
+  }
+
+  {
+    // UL-PPL Hybrid: 5-day intermediate split combining two upper/lower days with a
+    // push/pull/legs rotation for balanced frequency and volume.
+    const [benchPress, row, standingMilitaryPress, preacherCurl, ezSkullcrusher] = await Promise.all([
+      requireExerciseId('Barbell Bench Press - Medium Grip'),
+      requireExerciseId('Bent Over Barbell Row'),
+      requireExerciseId('Standing Military Press'),
+      requireExerciseId('Preacher Curl'),
+      requireExerciseId('EZ-Bar Skullcrusher'),
+    ])
+    const [squat, romanianDeadlift, legPress, calfRaise] = await Promise.all([
+      requireExerciseId('Barbell Squat'),
+      requireExerciseId('Romanian Deadlift'),
+      requireExerciseId('Leg Press'),
+      requireExerciseId('Standing Calf Raises'),
+    ])
+    const [inclinePress, dumbbellShoulderPress, cableCrossover, lateralRaise, tricepsPushdown] = await Promise.all([
+      requireExerciseId('Incline Dumbbell Press'),
+      requireExerciseId('Dumbbell Shoulder Press'),
+      requireExerciseId('Cable Crossover'),
+      requireExerciseId('Side Lateral Raise'),
+      requireExerciseId('Triceps Pushdown'),
+    ])
+    const [latPulldown, oneArmRow, facePull, hammerCurl] = await Promise.all([
+      requireExerciseId('Wide-Grip Lat Pulldown'),
+      requireExerciseId('One-Arm Dumbbell Row'),
+      requireExerciseId('Face Pull'),
+      requireExerciseId('Hammer Curls'),
+    ])
+    const [frontSquat, lyingLegCurl, bulgarianSplitSquat, hipThrust, seatedCalfRaise] = await Promise.all([
+      requireExerciseId('Front Barbell Squat'),
+      requireExerciseId('Lying Leg Curls'),
+      requireExerciseId('Bulgarian Split Squat'),
+      requireExerciseId('Barbell Hip Thrust'),
+      requireExerciseId('Seated Calf Raise'),
+    ])
+    const [chest, lats, shoulders, biceps, triceps, quadriceps, hamstrings, glutes, calves, middleBack] = await Promise.all([
+      requireMuscleId('chest'),
+      requireMuscleId('lats'),
+      requireMuscleId('shoulders'),
+      requireMuscleId('biceps'),
+      requireMuscleId('triceps'),
+      requireMuscleId('quadriceps'),
+      requireMuscleId('hamstrings'),
+      requireMuscleId('glutes'),
+      requireMuscleId('calves'),
+      requireMuscleId('middle back'),
+    ])
+
+    await seedPresetSplit({
+      name: 'UL-PPL Hybrid',
+      description: 'A 5-day intermediate split blending two upper/lower days with a push, pull, and legs day, giving major muscle groups extra frequency without a full 6-day commitment.',
+      frequencyMinDays: 5,
+      frequencyMaxDays: 5,
+      goal: 'muscle_gain',
+      experienceLevel: 'intermediate',
+      equipment: 'full_gym',
+      isPublished: true,
+      days: [
+        {
+          name: 'Upper',
+          dayIndex: 0,
+          location: 'gym',
+          targetMuscleIds: [chest, lats, shoulders, biceps, triceps],
+          exercises: [
+            { exerciseId: benchPress, position: 0, targetSets: 4, targetReps: 6, targetRpe: 8 },
+            { exerciseId: row, position: 1, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: standingMilitaryPress, position: 2, targetSets: 3, targetReps: 8, targetRpe: 7 },
+            { exerciseId: preacherCurl, position: 3, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: ezSkullcrusher, position: 4, targetSets: 3, targetReps: 10, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Lower',
+          dayIndex: 1,
+          location: 'gym',
+          targetMuscleIds: [quadriceps, hamstrings, glutes, calves],
+          exercises: [
+            { exerciseId: squat, position: 0, targetSets: 4, targetReps: 6, targetRpe: 8 },
+            { exerciseId: romanianDeadlift, position: 1, targetSets: 3, targetReps: 8, targetRpe: 8 },
+            { exerciseId: legPress, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: calfRaise, position: 3, targetSets: 4, targetReps: 15, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Push',
+          dayIndex: 2,
+          location: 'gym',
+          targetMuscleIds: [chest, shoulders, triceps],
+          exercises: [
+            { exerciseId: inclinePress, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: dumbbellShoulderPress, position: 1, targetSets: 3, targetReps: 10, targetRpe: 8 },
+            { exerciseId: cableCrossover, position: 2, targetSets: 3, targetReps: 12, targetRpe: 7 },
+            { exerciseId: lateralRaise, position: 3, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: tricepsPushdown, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Pull',
+          dayIndex: 3,
+          location: 'gym',
+          targetMuscleIds: [lats, middleBack, biceps],
+          exercises: [
+            { exerciseId: latPulldown, position: 0, targetSets: 4, targetReps: 10, targetRpe: 8 },
+            { exerciseId: oneArmRow, position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: facePull, position: 2, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: hammerCurl, position: 3, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Legs',
+          dayIndex: 4,
+          location: 'gym',
+          targetMuscleIds: [quadriceps, hamstrings, glutes, calves],
+          exercises: [
+            { exerciseId: frontSquat, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: lyingLegCurl, position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: bulgarianSplitSquat, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: hipThrust, position: 3, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: seatedCalfRaise, position: 4, targetSets: 4, targetReps: 15, targetRpe: 7 },
+          ],
+        },
+      ],
+    })
+  }
+
+  {
+    // Arnold Split: 6-day advanced split cycling Chest+Back, Shoulders+Arms, and Legs
+    // twice through the week, in the style of Arnold Schwarzenegger's classic program.
+    const [benchPress, row, inclineDumbbellPress, latPulldown, cableCrossover] = await Promise.all([
+      requireExerciseId('Barbell Bench Press - Medium Grip'),
+      requireExerciseId('Bent Over Barbell Row'),
+      requireExerciseId('Incline Dumbbell Press'),
+      requireExerciseId('Wide-Grip Lat Pulldown'),
+      requireExerciseId('Cable Crossover'),
+    ])
+    const [shoulderPress, lateralRaise, barbellCurl, closeGripBench, hammerCurl] = await Promise.all([
+      requireExerciseId('Barbell Shoulder Press'),
+      requireExerciseId('Side Lateral Raise'),
+      requireExerciseId('Barbell Curl'),
+      requireExerciseId('Close-Grip Barbell Bench Press'),
+      requireExerciseId('Hammer Curls'),
+    ])
+    const [squat, romanianDeadlift, legPress, calfRaise] = await Promise.all([
+      requireExerciseId('Barbell Squat'),
+      requireExerciseId('Romanian Deadlift'),
+      requireExerciseId('Leg Press'),
+      requireExerciseId('Standing Barbell Calf Raise'),
+    ])
+    const [declinePress, tBarRow, butterfly, chinUp, reverseGripRow] = await Promise.all([
+      requireExerciseId('Decline Barbell Bench Press'),
+      requireExerciseId('T-Bar Row with Handle'),
+      requireExerciseId('Butterfly'),
+      requireExerciseId('Chin-Up'),
+      requireExerciseId('Reverse Grip Bent-Over Rows'),
+    ])
+    const [arnoldPress, cableRearDeltFly, preacherCurl, ezSkullcrusher, concentrationCurl] = await Promise.all([
+      requireExerciseId('Arnold Dumbbell Press'),
+      requireExerciseId('Cable Rear Delt Fly'),
+      requireExerciseId('Preacher Curl'),
+      requireExerciseId('EZ-Bar Skullcrusher'),
+      requireExerciseId('Concentration Curls'),
+    ])
+    const [frontSquat, lyingLegCurl, hackSquat, seatedCalfRaise] = await Promise.all([
+      requireExerciseId('Front Barbell Squat'),
+      requireExerciseId('Lying Leg Curls'),
+      requireExerciseId('Hack Squat'),
+      requireExerciseId('Seated Calf Raise'),
+    ])
+    const [chest, lats, middleBack, shoulders, biceps, triceps, quadriceps, hamstrings, calves] = await Promise.all([
+      requireMuscleId('chest'),
+      requireMuscleId('lats'),
+      requireMuscleId('middle back'),
+      requireMuscleId('shoulders'),
+      requireMuscleId('biceps'),
+      requireMuscleId('triceps'),
+      requireMuscleId('quadriceps'),
+      requireMuscleId('hamstrings'),
+      requireMuscleId('calves'),
+    ])
+
+    await seedPresetSplit({
+      name: 'Arnold Split',
+      description: 'A 6-day advanced split in the style of Arnold Schwarzenegger\'s classic program, pairing Chest+Back, Shoulders+Arms, and Legs and running the rotation twice a week.',
+      frequencyMinDays: 6,
+      frequencyMaxDays: 6,
+      goal: 'muscle_gain',
+      experienceLevel: 'advanced',
+      equipment: 'full_gym',
+      isPublished: true,
+      days: [
+        {
+          name: 'Chest + Back A',
+          dayIndex: 0,
+          location: 'gym',
+          targetMuscleIds: [chest, lats, middleBack],
+          exercises: [
+            { exerciseId: benchPress, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: row, position: 1, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: inclineDumbbellPress, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: latPulldown, position: 3, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: cableCrossover, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Shoulders + Arms A',
+          dayIndex: 1,
+          location: 'gym',
+          targetMuscleIds: [shoulders, biceps, triceps],
+          exercises: [
+            { exerciseId: shoulderPress, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: lateralRaise, position: 1, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: barbellCurl, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: closeGripBench, position: 3, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: hammerCurl, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Legs A',
+          dayIndex: 2,
+          location: 'gym',
+          targetMuscleIds: [quadriceps, hamstrings, calves],
+          exercises: [
+            { exerciseId: squat, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: romanianDeadlift, position: 1, targetSets: 3, targetReps: 10, targetRpe: 8 },
+            { exerciseId: legPress, position: 2, targetSets: 3, targetReps: 12, targetRpe: 7 },
+            { exerciseId: calfRaise, position: 3, targetSets: 4, targetReps: 15, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Chest + Back B',
+          dayIndex: 3,
+          location: 'gym',
+          targetMuscleIds: [chest, lats, middleBack],
+          exercises: [
+            { exerciseId: declinePress, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: tBarRow, position: 1, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: butterfly, position: 2, targetSets: 3, targetReps: 12, targetRpe: 7 },
+            { exerciseId: chinUp, position: 3, targetSets: 3, targetReps: 8, targetRpe: 7 },
+            { exerciseId: reverseGripRow, position: 4, targetSets: 3, targetReps: 10, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Shoulders + Arms B',
+          dayIndex: 4,
+          location: 'gym',
+          targetMuscleIds: [shoulders, biceps, triceps],
+          exercises: [
+            { exerciseId: arnoldPress, position: 0, targetSets: 4, targetReps: 10, targetRpe: 8 },
+            { exerciseId: cableRearDeltFly, position: 1, targetSets: 3, targetReps: 15, targetRpe: 7 },
+            { exerciseId: preacherCurl, position: 2, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: ezSkullcrusher, position: 3, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: concentrationCurl, position: 4, targetSets: 3, targetReps: 12, targetRpe: 7 },
+          ],
+        },
+        {
+          name: 'Legs B',
+          dayIndex: 5,
+          location: 'gym',
+          targetMuscleIds: [quadriceps, hamstrings, calves],
+          exercises: [
+            { exerciseId: frontSquat, position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+            { exerciseId: lyingLegCurl, position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+            { exerciseId: hackSquat, position: 2, targetSets: 3, targetReps: 12, targetRpe: 7 },
+            { exerciseId: seatedCalfRaise, position: 3, targetSets: 4, targetReps: 15, targetRpe: 7 },
+          ],
+        },
+      ],
+    })
+  }
+
   console.log('Done.')
 }
 
