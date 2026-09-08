@@ -7,6 +7,7 @@ export const queryKeys = {
   exercise: (id: string) => ['exercise', id] as const,
   exerciseHistory: (id: string) => ['exercise-history', id] as const,
   exerciseSearch: (query: string) => ['exercise-search', query] as const,
+  exerciseFallbacks: (id: string, equipmentTiers: string[]) => ['exercise-fallbacks', id, equipmentTiers] as const,
   presetSplits: () => ['preset-splits'] as const,
   presetSplitsRecommend: (input: RecommendationInput) => ['preset-splits', 'recommend', input] as const,
   nutrition: () => ['nutrition'] as const,
