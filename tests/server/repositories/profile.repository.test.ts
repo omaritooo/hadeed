@@ -2,6 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
+import type { Goal } from '~~/shared/types/profile.types'
+
+// Record<Goal, true> rather than a plain array: if the Goal union ever grows,
+// TypeScript will flag this literal as missing the new key, which is what
+// forces this test to be updated instead of silently under-covering the
+// widened type. This is the drift-prevention mechanism itself -- Task 19
+// widened Goal to include 'mobility' at the type/zod/UI layer without
+// widening the schema.sql CHECK constraint on user_profiles.primary_goal,
+// which SQLite can't relax via ALTER TABLE. createTestDb() applies the real
+// schema.sql (CHECK constraints included), so this loop is the one place a
+// future Goal-widening PR would actually see that gap surface as a failure.
+const ALL_GOALS: Record<Goal, true> = {
+  fat_loss: true,
+  muscle_gain: true,
+  maintenance: true,
+  general_fitness: true,
+  mobility: true,
+}
 
 describe('ProfileRepository', () => {
   let db: Client
@@ -136,6 +154,32 @@ describe('ProfileRepository', () => {
     const profile = await repo.findByUserId('user-1')
     expect(profile?.nutritionTarget).toBeNull()
   })
+
+  it.each(Object.keys(ALL_GOALS) as Goal[])(
+    'creates and updates a user_profiles row with primary_goal %s against the real schema.sql CHECK constraint',
+    async (goal) => {
+      await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: [`user-${goal}`, `${goal}@example.com`] })
+
+      const created = await repo.upsert(`user-${goal}`, {
+        dateOfBirth: '1995-01-01',
+        gender: 'male',
+        height: 180,
+        primaryGoal: goal,
+      })
+      expect(created.primaryGoal).toBe(goal)
+
+      const fetched = await repo.findByUserId(`user-${goal}`)
+      expect(fetched?.primaryGoal).toBe(goal)
+
+      const updated = await repo.upsert(`user-${goal}`, {
+        dateOfBirth: '1995-01-01',
+        gender: 'male',
+        height: 180,
+        primaryGoal: goal,
+      })
+      expect(updated.primaryGoal).toBe(goal)
+    },
+  )
 
   it('sets and clears the nutrition target', async () => {
     await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })

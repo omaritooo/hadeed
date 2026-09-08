@@ -6,6 +6,7 @@ import { RoleRepository } from '~~/server/repositories/role.repository'
 import { PresetSplitRepository, type CreatePresetSplitInput } from '~~/server/repositories/preset-split.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { migrateUserProfilesEquipmentTiers, migratePresetSplitsEquipmentTiers } from './migrations/equipment-tiers'
+import { migrateUserProfilesGoalTiers } from './migrations/goal-tiers'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -36,6 +37,7 @@ interface RawExercise {
 const main = async () => {
   await migrateUserProfilesEquipmentTiers(db)
   await migratePresetSplitsEquipmentTiers(db)
+  await migrateUserProfilesGoalTiers(db)
 
   const schema = readFileSync(resolve(__dirname, 'schema.sql'), 'utf-8')
   for (const statement of schema.split(';').map(s => s.trim()).filter(Boolean)) {

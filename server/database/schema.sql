@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   activity_level   TEXT CHECK (activity_level IN
                      ('sedentary','lightly_active','moderately_active','very_active','extremely_active')),
   experience_level TEXT CHECK (experience_level IN ('beginner','intermediate','advanced')),
-  primary_goal     TEXT CHECK (primary_goal IN ('fat_loss','muscle_gain','maintenance','general_fitness')),
+  primary_goal     TEXT CHECK (primary_goal IN ('fat_loss','muscle_gain','maintenance','general_fitness','mobility')),
   updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

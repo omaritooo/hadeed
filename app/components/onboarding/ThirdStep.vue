@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DumbbellIcon, FlameIcon, HeartIcon, StretchHorizontalIcon, WrenchIcon } from "@lucide/vue";
+import { AccessibilityIcon, DumbbellIcon, FlameIcon, HeartIcon, WrenchIcon } from "@lucide/vue";
 import { useOnboardingStore } from "~/store/onboarding";
 import { stepSchemas } from "~~/shared/schemas/onboarding";
 const store = useOnboardingStore();
@@ -12,7 +12,7 @@ const goalOptions = [
   { value: "muscle_gain", icon: DumbbellIcon, title: "Muscle Gain", description: "Hypertrophy & Size" },
   { value: "maintenance", icon: WrenchIcon, title: "Maintenance", description: "3+ years" },
   { value: "general_fitness", icon: HeartIcon, title: "General Health", description: "3+ years" },
-  { value: "mobility", icon: StretchHorizontalIcon, title: "Mobility", description: "Flexibility & Movement" },
+  { value: "mobility", icon: AccessibilityIcon, title: "Mobility", description: "Flexibility & Movement" },
 ];
 defineExpose({
   validate() {
