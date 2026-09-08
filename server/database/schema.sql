@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 );
 
 ALTER TABLE user_profiles ADD COLUMN training_days_per_week INTEGER;
-ALTER TABLE user_profiles ADD COLUMN equipment TEXT CHECK (equipment IN ('gym','home','both'));
+ALTER TABLE user_profiles ADD COLUMN equipment TEXT CHECK (equipment IN ('full_gym','home_barbell_dumbbell','home_dumbbell_only','bodyweight'));
 ALTER TABLE user_profiles ADD COLUMN unit_system TEXT NOT NULL DEFAULT 'metric' CHECK (unit_system IN ('metric','imperial'));
 ALTER TABLE user_profiles ADD COLUMN timezone TEXT;
 ALTER TABLE user_profiles ADD COLUMN hydration_target_ml INTEGER;
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS preset_splits (
   frequency_max_days  INTEGER NOT NULL,
   goal                TEXT,
   experience_level    TEXT,
-  equipment           TEXT NOT NULL CHECK (equipment IN ('gym','home','both')),
+  equipment           TEXT NOT NULL CHECK (equipment IN ('full_gym','home_barbell_dumbbell','home_dumbbell_only','bodyweight','both')),
   is_published        INTEGER NOT NULL DEFAULT 0
 );
 

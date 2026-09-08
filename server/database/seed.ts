@@ -32,7 +32,122 @@ interface RawExercise {
   images: string[]
 }
 
+// SQLite can't relax a CHECK constraint via ALTER TABLE, so a database created
+// before user_profiles.equipment became a 4-tier column needs its `user_profiles`
+// table rebuilt. No-ops once the CHECK already allows the new values. 'both' has
+// no direct equivalent for a user profile, so it lands on the closest existing
+// tier, 'home_barbell_dumbbell'.
+const migrateUserProfilesEquipmentTiers = async () => {
+  const info = await db.execute(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'user_profiles'`)
+  const createSql = info.rows[0]?.sql as string | undefined
+  if (!createSql || createSql.includes('full_gym')) return
+
+  console.log('Migrating user_profiles.equipment to the 4-tier system...')
+  // With foreign_keys enforcement on, DROP TABLE performs an implicit DELETE FROM
+  // first, which fires any ON DELETE CASCADE rules of tables referencing this one --
+  // disable enforcement for the rebuild so that implicit delete can't cascade, then
+  // always restore it afterwards.
+  await db.execute('PRAGMA foreign_keys = OFF')
+  try {
+    await db.execute(`
+      CREATE TABLE user_profiles_new (
+        user_id          TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        date_of_birth    TEXT NOT NULL,
+        gender           TEXT NOT NULL CHECK (gender IN ('male', 'female', 'other')),
+        height_cm        REAL NOT NULL,
+        activity_level   TEXT CHECK (activity_level IN
+                           ('sedentary','lightly_active','moderately_active','very_active','extremely_active')),
+        experience_level TEXT CHECK (experience_level IN ('beginner','intermediate','advanced')),
+        primary_goal     TEXT CHECK (primary_goal IN ('fat_loss','muscle_gain','maintenance','general_fitness')),
+        updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+        training_days_per_week INTEGER,
+        equipment        TEXT CHECK (equipment IN ('full_gym','home_barbell_dumbbell','home_dumbbell_only','bodyweight')),
+        unit_system      TEXT NOT NULL DEFAULT 'metric' CHECK (unit_system IN ('metric','imperial')),
+        timezone         TEXT,
+        hydration_target_ml INTEGER,
+        hydration_reminders_enabled INTEGER NOT NULL DEFAULT 0,
+        hydration_reminder_interval_minutes INTEGER NOT NULL DEFAULT 120,
+        hydration_last_reminded_at TEXT,
+        nutrition_target_calories REAL,
+        nutrition_target_protein_g REAL,
+        nutrition_target_carbs_g REAL,
+        nutrition_target_fat_g REAL
+      )
+    `)
+    await db.execute(`
+      INSERT INTO user_profiles_new
+      SELECT
+        user_id, date_of_birth, gender, height_cm, activity_level, experience_level, primary_goal, updated_at,
+        training_days_per_week,
+        CASE equipment
+          WHEN 'gym' THEN 'full_gym'
+          WHEN 'home' THEN 'home_barbell_dumbbell'
+          WHEN 'both' THEN 'home_barbell_dumbbell'
+          ELSE equipment
+        END,
+        unit_system, timezone, hydration_target_ml, hydration_reminders_enabled,
+        hydration_reminder_interval_minutes, hydration_last_reminded_at,
+        nutrition_target_calories, nutrition_target_protein_g, nutrition_target_carbs_g, nutrition_target_fat_g
+      FROM user_profiles
+    `)
+    await db.execute('DROP TABLE user_profiles')
+    await db.execute('ALTER TABLE user_profiles_new RENAME TO user_profiles')
+  } finally {
+    await db.execute('PRAGMA foreign_keys = ON')
+  }
+}
+
+// Same rebuild as migrateUserProfilesEquipmentTiers, but for preset_splits, whose
+// equipment column keeps 'both' as a valid value -- presets can genuinely be
+// equipment-agnostic even though a user's own profile now picks one concrete tier.
+const migratePresetSplitsEquipmentTiers = async () => {
+  const info = await db.execute(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'preset_splits'`)
+  const createSql = info.rows[0]?.sql as string | undefined
+  if (!createSql || createSql.includes('full_gym')) return
+
+  console.log('Migrating preset_splits.equipment to the 4-tier system...')
+  // preset_split_days.preset_split_id has ON DELETE CASCADE onto this table, so
+  // (as above) foreign_keys must be off for the rebuild or DROP TABLE's implicit
+  // delete wipes every preset's days/muscles/exercises along with it.
+  await db.execute('PRAGMA foreign_keys = OFF')
+  try {
+    await db.execute(`
+      CREATE TABLE preset_splits_new (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        name                TEXT NOT NULL,
+        description         TEXT,
+        frequency_min_days  INTEGER NOT NULL,
+        frequency_max_days  INTEGER NOT NULL,
+        goal                TEXT,
+        experience_level    TEXT,
+        equipment           TEXT NOT NULL CHECK (equipment IN ('full_gym','home_barbell_dumbbell','home_dumbbell_only','bodyweight','both')),
+        is_published        INTEGER NOT NULL DEFAULT 0
+      )
+    `)
+    await db.execute(`
+      INSERT INTO preset_splits_new
+      SELECT
+        id, name, description, frequency_min_days, frequency_max_days, goal, experience_level,
+        CASE equipment
+          WHEN 'gym' THEN 'full_gym'
+          WHEN 'home' THEN 'home_barbell_dumbbell'
+          WHEN 'both' THEN 'both'
+          ELSE equipment
+        END,
+        is_published
+      FROM preset_splits
+    `)
+    await db.execute('DROP TABLE preset_splits')
+    await db.execute('ALTER TABLE preset_splits_new RENAME TO preset_splits')
+  } finally {
+    await db.execute('PRAGMA foreign_keys = ON')
+  }
+}
+
 const main = async () => {
+  await migrateUserProfilesEquipmentTiers()
+  await migratePresetSplitsEquipmentTiers()
+
   const schema = readFileSync(resolve(__dirname, 'schema.sql'), 'utf-8')
   for (const statement of schema.split(';').map(s => s.trim()).filter(Boolean)) {
     try {
