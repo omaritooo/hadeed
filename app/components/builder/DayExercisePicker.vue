@@ -90,7 +90,11 @@ const removeExercise = (index: number) => {
 
 // Swap sheet: one shared instance toggled via swapRowIndex/swapExerciseId (same
 // single-instance-per-list pattern as ExerciseDetailDrawer), rather than mounting a sheet
-// per row.
+// per row. onSwapSelect below applies the swap by this index, which is only safe because
+// UiDrawer is modal by default and traps focus/interaction — so no Remove-row click (which
+// would shift indices) can happen while the sheet is open. If the drawer ever becomes
+// non-modal, this needs a defensive check instead (e.g. confirming
+// exercises.value[index]?.exerciseId === swapExerciseId.value before applying).
 const swapSheetOpen = ref(false);
 const swapRowIndex = ref<number | null>(null);
 const swapExerciseId = ref("");
@@ -132,7 +136,8 @@ const onSwapSelect = (exercise: Exercise) => {
       />
       <button
         aria-label="Swap exercise"
-        :disabled="!!pendingSubstitution"
+        :disabled="!!pendingSubstitution || fallbackEquipmentValues.length === 0"
+        :title="fallbackEquipmentValues.length === 0 ? 'Set your equipment in your profile to find swaps' : undefined"
         class="disabled:pointer-events-none disabled:opacity-50"
         @click="openSwapSheet(index)"
       >
