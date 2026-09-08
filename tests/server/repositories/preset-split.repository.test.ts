@@ -27,7 +27,7 @@ describe('PresetSplitRepository', () => {
       frequencyMaxDays: 6,
       goal: 'muscle_gain',
       experienceLevel: 'intermediate',
-      equipment: 'gym',
+      equipment: 'full_gym',
       isPublished: true,
       days: [
         {

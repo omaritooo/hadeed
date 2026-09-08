@@ -82,7 +82,7 @@ describe('SplitService.createFromPreset', () => {
   it('materializes an independent block/days/exercises from a preset', async () => {
     const preset = await presets.createWithDays({
       name: 'PPL', description: null, frequencyMinDays: 6, frequencyMaxDays: 6,
-      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'gym', isPublished: true,
+      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'full_gym', isPublished: true,
       days: [{
         name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [],
         exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 }],
@@ -150,7 +150,7 @@ describe('SplitService — retiring the previously active block', () => {
     const presets = new PresetSplitRepository(db)
     const preset = await presets.createWithDays({
       name: 'PPL', description: null, frequencyMinDays: 6, frequencyMaxDays: 6,
-      goal: null, experienceLevel: null, equipment: 'gym', isPublished: true,
+      goal: null, experienceLevel: null, equipment: 'full_gym', isPublished: true,
       days: [{ name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [], exercises: [] }],
     })
     const presetWithDays = await presets.findWithDays(preset.id)

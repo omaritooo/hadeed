@@ -62,7 +62,7 @@ describe('ProfileService', () => {
       height: 178,
       weight: 75,
       trainingDaysPerWeek: 4,
-      equipment: 'home',
+      equipment: 'home_barbell_dumbbell',
       unitSystem: 'imperial',
       timezone: 'America/New_York',
     })
@@ -70,7 +70,7 @@ describe('ProfileService', () => {
     const profile = await service.getProfile()
     expect(profile?.gender).toBe('other')
     expect(profile?.trainingDaysPerWeek).toBe(4)
-    expect(profile?.equipment).toBe('home')
+    expect(profile?.equipment).toBe('home_barbell_dumbbell')
     expect(profile?.unitSystem).toBe('imperial')
     expect(profile?.timezone).toBe('America/New_York')
 

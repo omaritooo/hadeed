@@ -28,12 +28,12 @@ describe('ProfileRepository', () => {
     await db.execute({
       sql: `UPDATE user_profiles SET training_days_per_week = ?, equipment = ?, unit_system = ?, timezone = ?
             WHERE user_id = ?`,
-      args: [4, 'gym', 'imperial', 'America/New_York', 'user-1'],
+      args: [4, 'home_barbell_dumbbell', 'imperial', 'America/New_York', 'user-1'],
     })
     const result = await db.execute({ sql: 'SELECT * FROM user_profiles WHERE user_id = ?', args: ['user-1'] })
     const row = result.rows[0] as unknown as Record<string, unknown>
     expect(row.training_days_per_week).toBe(4)
-    expect(row.equipment).toBe('gym')
+    expect(row.equipment).toBe('home_barbell_dumbbell')
     expect(row.unit_system).toBe('imperial')
     expect(row.timezone).toBe('America/New_York')
   })
@@ -48,14 +48,14 @@ describe('ProfileRepository', () => {
       gender: 'male',
       height: 180,
       trainingDaysPerWeek: 4,
-      equipment: 'gym',
+      equipment: 'home_barbell_dumbbell',
       unitSystem: 'imperial',
       timezone: 'America/New_York',
     })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBe(4)
-    expect(profile?.equipment).toBe('gym')
+    expect(profile?.equipment).toBe('home_barbell_dumbbell')
     expect(profile?.unitSystem).toBe('imperial')
     expect(profile?.timezone).toBe('America/New_York')
   })
@@ -92,13 +92,13 @@ describe('ProfileRepository', () => {
   it('preserves trainingDaysPerWeek, equipment, and timezone when a later upsert call omits them', async () => {
     await repo.upsert('user-1', {
       dateOfBirth: '1995-01-01', gender: 'male', height: 180,
-      trainingDaysPerWeek: 4, equipment: 'gym', timezone: 'America/New_York',
+      trainingDaysPerWeek: 4, equipment: 'home_barbell_dumbbell', timezone: 'America/New_York',
     })
     await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 181 })
 
     const profile = await repo.findByUserId('user-1')
     expect(profile?.trainingDaysPerWeek).toBe(4)
-    expect(profile?.equipment).toBe('gym')
+    expect(profile?.equipment).toBe('home_barbell_dumbbell')
     expect(profile?.timezone).toBe('America/New_York')
   })
 

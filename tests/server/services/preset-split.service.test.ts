@@ -21,21 +21,21 @@ describe('PresetSplitService.recommend', () => {
     })
     await repo.createWithDays({
       name: 'Upper/Lower', description: null, frequencyMinDays: 4, frequencyMaxDays: 4,
-      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'gym', isPublished: true, days: [],
+      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'full_gym', isPublished: true, days: [],
     })
     await repo.createWithDays({
       name: 'PPL', description: null, frequencyMinDays: 5, frequencyMaxDays: 6,
-      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'gym', isPublished: true, days: [],
+      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'full_gym', isPublished: true, days: [],
     })
     await repo.createWithDays({
       name: 'Unpublished Draft', description: null, frequencyMinDays: 5, frequencyMaxDays: 6,
-      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'gym', isPublished: false, days: [],
+      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'full_gym', isPublished: false, days: [],
     })
   })
 
   it('ranks an exact frequency + goal + experience + equipment match highest', async () => {
     const results = await service.recommend({
-      daysPerWeek: 6, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'gym',
+      daysPerWeek: 6, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'full_gym',
     })
     expect(results[0]!.preset.name).toBe('PPL')
     expect(results[0]!.score).toBe(9)
@@ -43,7 +43,7 @@ describe('PresetSplitService.recommend', () => {
 
   it('gives partial credit for a frequency one day outside the range', async () => {
     const results = await service.recommend({
-      daysPerWeek: 5, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'gym',
+      daysPerWeek: 5, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'full_gym',
     })
     const upperLower = results.find(r => r.preset.name === 'Upper/Lower')!
     expect(upperLower.score).toBe(1 + 2 + 2 + 2)
@@ -56,7 +56,7 @@ describe('PresetSplitService.recommend', () => {
 
   it('includes human-readable reasons for the top match', async () => {
     const results = await service.recommend({
-      daysPerWeek: 3, experienceLevel: 'beginner', goal: 'general_fitness', equipment: 'home',
+      daysPerWeek: 3, experienceLevel: 'beginner', goal: 'general_fitness', equipment: 'home_barbell_dumbbell',
     })
     expect(results[0]!.preset.name).toBe('Full Body')
     expect(results[0]!.reasons.join(' ')).toMatch(/days/i)
