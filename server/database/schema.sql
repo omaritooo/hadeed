@@ -174,6 +174,9 @@ CREATE TABLE IF NOT EXISTS split_days (
   location     TEXT NOT NULL CHECK (location IN ('gym','home'))
 );
 
+ALTER TABLE split_days ADD COLUMN format TEXT NOT NULL DEFAULT 'straight_sets' CHECK (format IN ('straight_sets', 'circuit'));
+ALTER TABLE split_days ADD COLUMN rounds INTEGER NOT NULL DEFAULT 1;
+
 CREATE TABLE IF NOT EXISTS split_exercises (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   split_day_id  INTEGER NOT NULL REFERENCES split_days(id) ON DELETE CASCADE,
@@ -184,6 +187,8 @@ CREATE TABLE IF NOT EXISTS split_exercises (
   target_reps   INTEGER,
   target_rpe    REAL
 );
+
+ALTER TABLE split_exercises ADD COLUMN rest_seconds INTEGER;
 
 -- Preset splits: admin-managed catalog, independent of any user's Block.
 
@@ -207,6 +212,9 @@ CREATE TABLE IF NOT EXISTS preset_split_days (
   location         TEXT NOT NULL CHECK (location IN ('gym','home'))
 );
 
+ALTER TABLE preset_split_days ADD COLUMN format TEXT NOT NULL DEFAULT 'straight_sets' CHECK (format IN ('straight_sets', 'circuit'));
+ALTER TABLE preset_split_days ADD COLUMN rounds INTEGER NOT NULL DEFAULT 1;
+
 CREATE TABLE IF NOT EXISTS preset_split_day_muscles (
   preset_split_day_id  INTEGER NOT NULL REFERENCES preset_split_days(id) ON DELETE CASCADE,
   muscle_id            INTEGER NOT NULL REFERENCES muscles(id) ON DELETE CASCADE,
@@ -222,6 +230,8 @@ CREATE TABLE IF NOT EXISTS preset_split_exercises (
   target_reps          INTEGER,
   target_rpe           REAL
 );
+
+ALTER TABLE preset_split_exercises ADD COLUMN rest_seconds INTEGER;
 
 -- Gamification.
 
