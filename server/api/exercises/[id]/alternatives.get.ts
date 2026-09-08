@@ -3,6 +3,11 @@ import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 
+// Deliberately duplicates ./fallbacks.get.ts's handler body rather than sharing one: this route
+// serves the Swap Sheet's manual "swap for any reason" flow, fallbacks.get.ts serves the exercise
+// picker's automatic equipment-mismatch flow. They call the same repository method today, but each
+// has its own place to diverge later (e.g. excluding exercises already in the day, pagination, a
+// different response shape) without risking the other's already-approved behavior.
 defineRouteMeta({
   openAPI: {
     summary: 'Find swap alternatives for an exercise',
