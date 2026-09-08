@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TrashIcon } from "@lucide/vue";
+import { ArrowLeftRightIcon, TrashIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
@@ -87,6 +87,29 @@ const removeExercise = (index: number) => {
   exercises.value = exercises.value.filter((_, i) => i !== index);
   exerciseRowIds.value = exerciseRowIds.value.filter((_, i) => i !== index);
 };
+
+// Swap sheet: one shared instance toggled via swapRowIndex/swapExerciseId (same
+// single-instance-per-list pattern as ExerciseDetailDrawer), rather than mounting a sheet
+// per row.
+const swapSheetOpen = ref(false);
+const swapRowIndex = ref<number | null>(null);
+const swapExerciseId = ref("");
+
+const openSwapSheet = (index: number) => {
+  swapRowIndex.value = index;
+  swapExerciseId.value = exercises.value[index]!.exerciseId;
+  swapSheetOpen.value = true;
+};
+
+const onSwapSelect = (exercise: Exercise) => {
+  const index = swapRowIndex.value;
+  if (index === null) return;
+  // Replace exerciseId in place — targetSets/targetReps/position on the row are untouched.
+  exercises.value = exercises.value.map((item, i) => (i === index ? { ...item, exerciseId: exercise.id } : item));
+  exerciseNames.value[exercise.id] = exercise.name;
+  exerciseCatalogCache.value.set(exercise.id, exercise);
+  swapRowIndex.value = null;
+};
 </script>
 
 <template>
@@ -107,6 +130,14 @@ const removeExercise = (index: number) => {
         class="w-16"
         @update:model-value="(v) => exercise.targetReps = v === '' ? null : Number(v)"
       />
+      <button
+        aria-label="Swap exercise"
+        :disabled="!!pendingSubstitution"
+        class="disabled:pointer-events-none disabled:opacity-50"
+        @click="openSwapSheet(index)"
+      >
+        <ArrowLeftRightIcon class="size-4 text-muted-foreground" />
+      </button>
       <button aria-label="Remove exercise" @click="removeExercise(index)"><TrashIcon class="size-4 text-muted-foreground" /></button>
     </div>
 
@@ -140,5 +171,12 @@ const removeExercise = (index: number) => {
         <Button size="sm" variant="ghost" @click="dismissSubstitution">Cancel</Button>
       </div>
     </div>
+
+    <BuilderExerciseSwapSheet
+      v-model:open="swapSheetOpen"
+      :exercise-id="swapExerciseId"
+      :equipment-tiers="fallbackEquipmentValues"
+      @select="onSwapSelect"
+    />
   </div>
 </template>
