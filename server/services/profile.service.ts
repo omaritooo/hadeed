@@ -49,6 +49,13 @@ export class ProfileService extends BaseService {
     const passwordHash = await hashPassword(input.password)
     await this.users.ensureExists(this.ctx.userId, input.email, passwordHash, input.displayName)
 
+    // user_profiles.equipment's CHECK constraint (unlike preset_splits.equipment)
+    // deliberately excludes 'both' - a stored profile must resolve to one concrete
+    // tier, so remap it to the closest concrete tier rather than passing it through
+    // raw (matches the remapping Task 11's equipment-tiers migration already does
+    // for pre-existing rows).
+    const equipment = input.equipment === 'both' ? 'home_barbell_dumbbell' : input.equipment
+
     const profile = await this.profiles.upsert(this.ctx.userId, {
       dateOfBirth: input.dateOfBirth,
       gender: input.gender,
@@ -57,7 +64,7 @@ export class ProfileService extends BaseService {
       experienceLevel: input.experienceLevel,
       primaryGoal: input.primaryGoal,
       trainingDaysPerWeek: input.trainingDaysPerWeek,
-      equipment: input.equipment,
+      equipment,
       unitSystem: input.unitSystem,
       timezone: input.timezone,
     })

@@ -78,6 +78,19 @@ describe('ProfileService', () => {
     expect(userRow.rows[0]?.display_name).toBe('Jordan')
   })
 
+  it('remaps equipment "both" to the concrete "home_barbell_dumbbell" tier, since user_profiles.equipment\'s CHECK constraint rejects "both"', async () => {
+    await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com',
+      dateOfBirth: '1995-06-15',
+      gender: 'male',
+      height: 178,
+      weight: 75,
+      equipment: 'both',
+    })
+
+    const profile = await service.getProfile()
+    expect(profile?.equipment).toBe('home_barbell_dumbbell')
+  })
+
   it('does not touch display_name when displayName is omitted', async () => {
     await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
 

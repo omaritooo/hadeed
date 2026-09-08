@@ -29,7 +29,7 @@ const scorePreset = (preset: PresetSplit, input: RecommendationInput): { score: 
     reasons.push(`matches your ${input.goal.replace('_', ' ')} goal`)
   }
 
-  if (input.equipment && equipmentSatisfies(input.equipment, preset.equipment)) {
+  if (input.equipment && equipmentSatisfies({ userTier: input.equipment, required: preset.equipment })) {
     score += 2
     reasons.push(`works with your ${input.equipment} access`)
   }
