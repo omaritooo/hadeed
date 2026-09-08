@@ -1,5 +1,11 @@
 import type { Client } from '@libsql/client'
 
+// Any future migration that rebuilds a table with a foreign-key-referencing child
+// (ON DELETE CASCADE) should follow this file's pattern -- a parameterized function
+// using db.migrate([...]), not a bare PRAGMA foreign_keys toggle across separate
+// db.execute() calls. See the comment inside migrateUserProfilesEquipmentTiers for
+// why the latter doesn't reliably work over this project's HTTP libsql transport.
+
 // SQLite can't relax a CHECK constraint via ALTER TABLE, so a database created
 // before user_profiles.equipment became a 4-tier column needs its `user_profiles`
 // table rebuilt. No-ops once the CHECK already allows the new values. 'both' has

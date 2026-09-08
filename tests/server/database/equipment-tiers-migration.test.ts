@@ -198,6 +198,8 @@ describe('equipment tier migrations', () => {
     const result = await db.execute('SELECT equipment FROM preset_splits WHERE id = 1')
     expect(result.rows[0]!.equipment).toBe('full_gym')
   })
+
+  it.todo('this suite cannot catch a regression back to sequential db.execute() calls -- it needs a real HTTP-backed sqld/Turso endpoint to reproduce the connection-splitting failure mode; re-verify manually against one if these functions change how they talk to the database (see the file-bottom note)')
 })
 
 // NOTE on coverage: @libsql/client's local `file:` client (used above, and by
