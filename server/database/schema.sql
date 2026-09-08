@@ -174,6 +174,8 @@ CREATE TABLE IF NOT EXISTS split_days (
   location     TEXT NOT NULL CHECK (location IN ('gym','home'))
 );
 
+-- rounds is only meaningful when format = 'circuit' (a circuit repeats as a whole unit) -- straight_sets
+-- days ignore it and keep the default.
 ALTER TABLE split_days ADD COLUMN format TEXT NOT NULL DEFAULT 'straight_sets' CHECK (format IN ('straight_sets', 'circuit'));
 ALTER TABLE split_days ADD COLUMN rounds INTEGER NOT NULL DEFAULT 1;
 
@@ -212,6 +214,7 @@ CREATE TABLE IF NOT EXISTS preset_split_days (
   location         TEXT NOT NULL CHECK (location IN ('gym','home'))
 );
 
+-- rounds is only meaningful when format = 'circuit' -- see the same note on split_days above.
 ALTER TABLE preset_split_days ADD COLUMN format TEXT NOT NULL DEFAULT 'straight_sets' CHECK (format IN ('straight_sets', 'circuit'));
 ALTER TABLE preset_split_days ADD COLUMN rounds INTEGER NOT NULL DEFAULT 1;
 
