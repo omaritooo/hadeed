@@ -55,6 +55,8 @@ export class SplitService extends BaseService {
         name: day.name,
         dayOfWeek: day.dayIndex,
         location: day.location,
+        format: day.format,
+        rounds: day.rounds,
         exercises: day.exercises.map(ex => ({
           exerciseId: ex.exerciseId,
           position: ex.position,
@@ -62,6 +64,7 @@ export class SplitService extends BaseService {
           targetSets: ex.targetSets,
           targetReps: ex.targetReps,
           targetRpe: ex.targetRpe,
+          restSeconds: ex.restSeconds,
         })),
       })),
     })

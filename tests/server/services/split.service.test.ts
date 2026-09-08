@@ -102,6 +102,28 @@ describe('SplitService.createFromPreset', () => {
     const stillCloned = await splitService.getOwnedBlock(block.id)
     expect(stillCloned?.days[0]?.exercises[0]?.targetReps).toBe(8)
   })
+
+  it('carries circuit format, rounds, and rest_seconds over from the preset', async () => {
+    const preset = await presets.createWithDays({
+      name: 'Fat-Loss Circuit', description: null, frequencyMinDays: 3, frequencyMaxDays: 3,
+      goal: 'fat_loss', experienceLevel: 'beginner', equipment: 'bodyweight', isPublished: true,
+      days: [{
+        name: 'Circuit A', dayIndex: 0, location: 'home', targetMuscleIds: [],
+        format: 'circuit', rounds: 4,
+        exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8, restSeconds: 20 }],
+      }],
+    })
+    const presetWithDays = await presets.findWithDays(preset.id)
+
+    const block = await splitService.createFromPreset(presetWithDays!, {
+      name: 'My Circuit', startDate: '2026-08-18', endDate: null,
+    })
+
+    const cloned = await splitService.getOwnedBlock(block.id)
+    expect(cloned?.days[0]?.format).toBe('circuit')
+    expect(cloned?.days[0]?.rounds).toBe(4)
+    expect(cloned?.days[0]?.exercises[0]?.restSeconds).toBe(20)
+  })
 })
 
 describe('SplitService — retiring the previously active block', () => {
