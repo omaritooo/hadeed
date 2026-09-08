@@ -21,7 +21,7 @@ defineRouteMeta({
               frequencyMaxDays: { type: 'number' },
               goal: { type: 'string', nullable: true, enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'] },
               experienceLevel: { type: 'string', nullable: true, enum: ['beginner', 'intermediate', 'advanced'] },
-              equipment: { type: 'string', enum: ['gym', 'home', 'both'] },
+              equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
               isPublished: { type: 'boolean' },
               days: { type: 'array', items: { type: 'object', description: 'CreatePresetDayInput' } },
             },

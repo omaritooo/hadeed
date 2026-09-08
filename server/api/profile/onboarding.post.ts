@@ -43,7 +43,7 @@ defineRouteMeta({
               experienceLevel: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
               primaryGoal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'] },
               trainingDaysPerWeek: { type: 'number' },
-              equipment: { type: 'string', enum: ['gym', 'home', 'both'] },
+              equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
               unitSystem: { type: 'string', enum: ['metric', 'imperial'] },
               timezone: { type: 'string' },
             },

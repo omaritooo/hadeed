@@ -6,12 +6,12 @@ const store = useOnboardingStore();
 
 const { form, errors, validateAll } = useZodForm(stepSchemas[5], {
   frequency: store.form.frequency ?? 2,
-  equipment: store.form.equipment ?? "gym",
+  equipment: store.form.equipment ?? "full_gym",
 });
 
 const equipmentOptions = [
-  { value: "gym", icon: DumbbellIcon, title: "Gym", description: "Full gym access" },
-  { value: "home", icon: HomeIcon, title: "Home", description: "Dumbbells or limited equipment" },
+  { value: "full_gym", icon: DumbbellIcon, title: "Gym", description: "Full gym access" },
+  { value: "home_barbell_dumbbell", icon: HomeIcon, title: "Home", description: "Dumbbells or limited equipment" },
   { value: "both", icon: CombineIcon, title: "Both", description: "Gym and home equipment" },
 ];
 
@@ -35,7 +35,7 @@ defineExpose({
     <UiFieldFormField name="equipment" label="" :errors="errors.equipment">
       <UiOptionCardGroup
         v-model="form.equipment"
-        default-value="gym"
+        default-value="full_gym"
         :options="equipmentOptions"
       />
     </UiFieldFormField>

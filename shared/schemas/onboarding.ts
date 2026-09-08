@@ -15,7 +15,10 @@ const baseOnboardingSchema = z.object({
   activityLevel: z.enum(['sedentary', 'lightly_active', 'very_active']),
   weight: z.number().min(30),
   height: z.number().min(110),
-  equipment: z.enum(['gym', 'home', 'both']),
+  // Only the 3 tiers the current onboarding UI offers; the remaining tiers
+  // ('home_dumbbell_only', 'bodyweight') exist in Equipment but aren't wired
+  // into onboarding UI yet.
+  equipment: z.enum(['full_gym', 'home_barbell_dumbbell', 'both']),
   frequency: z.number().min(1).max(6),
   targetWeight: z.number().min(30).optional(),
 })

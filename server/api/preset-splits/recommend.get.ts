@@ -9,7 +9,7 @@ import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 
 const EXPERIENCE_LEVELS: ExperienceLevel[] = ['beginner', 'intermediate', 'advanced']
 const GOALS: Goal[] = ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness']
-const EQUIPMENT_OPTIONS: Equipment[] = ['gym', 'home', 'both']
+const EQUIPMENT_OPTIONS: Equipment[] = ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both']
 
 defineRouteMeta({
   openAPI: {
@@ -38,7 +38,7 @@ defineRouteMeta({
         name: 'equipment',
         in: 'query',
         required: false,
-        schema: { type: 'string', enum: ['gym', 'home', 'both'] },
+        schema: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
       },
     ],
     responses: {
@@ -61,7 +61,7 @@ defineRouteMeta({
                       frequencyMaxDays: { type: 'number' },
                       goal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'], nullable: true },
                       experienceLevel: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'], nullable: true },
-                      equipment: { type: 'string', enum: ['gym', 'home', 'both'] },
+                      equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
                       isPublished: { type: 'boolean' },
                     },
                   },
