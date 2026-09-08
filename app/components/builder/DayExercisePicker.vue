@@ -115,6 +115,7 @@ const removeExercise = (index: number) => {
       v-model:search-term="searchTerm"
       :items="options"
       :reset-search-term-on-select="false"
+      :disabled="!!pendingSubstitution"
       placeholder="Add an exercise"
       search-placeholder="Search exercises…"
       :empty-text="error ? 'Couldn\'t search exercises.' : isLoading ? 'Searching…' : 'No results found.'"
