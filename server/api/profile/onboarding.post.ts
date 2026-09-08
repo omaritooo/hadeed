@@ -41,7 +41,7 @@ defineRouteMeta({
               targetWeight: { type: 'number', description: 'same unit as weight' },
               activityLevel: { type: 'string', enum: ['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extremely_active'] },
               experienceLevel: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
-              primaryGoal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'] },
+              primaryGoal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness', 'mobility'] },
               trainingDaysPerWeek: { type: 'number' },
               equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
               unitSystem: { type: 'string', enum: ['metric', 'imperial'] },

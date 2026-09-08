@@ -11,7 +11,7 @@ const baseOnboardingSchema = z.object({
     .max(16, 'Password must be at most 16 characters.'),
   confirmPassword: z.string().min(1, 'Confirm your password.'),
   experienceLevel: z.enum(['beginner', 'intermediate', 'advanced']),
-  primaryGoal: z.enum(['muscle_gain', 'fat_loss', 'maintenance', 'general_fitness']),
+  primaryGoal: z.enum(['muscle_gain', 'fat_loss', 'maintenance', 'general_fitness', 'mobility']),
   activityLevel: z.enum(['sedentary', 'lightly_active', 'very_active']),
   weight: z.number().min(30),
   height: z.number().min(110),

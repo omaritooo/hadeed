@@ -8,7 +8,7 @@ import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 
 const EXPERIENCE_LEVELS: ExperienceLevel[] = ['beginner', 'intermediate', 'advanced']
-const GOALS: Goal[] = ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness']
+const GOALS: Goal[] = ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness', 'mobility']
 const EQUIPMENT_OPTIONS: Equipment[] = ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both']
 
 defineRouteMeta({
@@ -32,7 +32,7 @@ defineRouteMeta({
         name: 'goal',
         in: 'query',
         required: false,
-        schema: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'] },
+        schema: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness', 'mobility'] },
       },
       {
         name: 'equipment',
@@ -59,7 +59,7 @@ defineRouteMeta({
                       description: { type: 'string', nullable: true },
                       frequencyMinDays: { type: 'number' },
                       frequencyMaxDays: { type: 'number' },
-                      goal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'], nullable: true },
+                      goal: { type: 'string', enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness', 'mobility'], nullable: true },
                       experienceLevel: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'], nullable: true },
                       equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
                       isPublished: { type: 'boolean' },

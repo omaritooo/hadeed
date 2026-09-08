@@ -19,7 +19,7 @@ defineRouteMeta({
               description: { type: 'string', nullable: true },
               frequencyMinDays: { type: 'number' },
               frequencyMaxDays: { type: 'number' },
-              goal: { type: 'string', nullable: true, enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness'] },
+              goal: { type: 'string', nullable: true, enum: ['fat_loss', 'muscle_gain', 'maintenance', 'general_fitness', 'mobility'] },
               experienceLevel: { type: 'string', nullable: true, enum: ['beginner', 'intermediate', 'advanced'] },
               equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
               isPublished: { type: 'boolean' },

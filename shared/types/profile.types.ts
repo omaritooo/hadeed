@@ -3,7 +3,7 @@ import type { Equipment } from '~~/shared/types/preset.types'
 import type { MacroTarget } from '~~/shared/types/split.types'
 
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced'
-export type Goal = 'fat_loss' | 'muscle_gain' | 'maintenance' | 'general_fitness'
+export type Goal = 'fat_loss' | 'muscle_gain' | 'maintenance' | 'general_fitness' | 'mobility'
 export type MetricSource = 'manual' | 'inbody' | 'wearable'
 export type UnitSystem = 'metric' | 'imperial'
 
