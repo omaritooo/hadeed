@@ -29,7 +29,7 @@ const recoveryConflicts = computed(() => {
   if (mode.value !== "custom") return [];
   const days = customDays.value.map(day => ({
     isRestDay: day.isRestDay ?? false,
-    exercises: day.exercises.flatMap((exercise) => {
+    exercises: day.exercises.flatMap((exercise): { tier: number | null, primaryMuscle: string | null }[] => {
       const cached = exerciseCatalogCache.value.get(exercise.exerciseId);
       if (!cached || cached.primaryMuscles.length === 0) {
         return [{ tier: cached?.tier ?? null, primaryMuscle: null }];

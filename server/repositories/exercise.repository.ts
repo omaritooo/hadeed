@@ -140,7 +140,7 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
     if (!sourceRow || !sourceRow.movement_pattern || sourceRow.muscle_id == null) return []
 
     const movementPattern = sourceRow.movement_pattern as string
-    const primaryMuscleId = sourceRow.muscle_id
+    const primaryMuscleId = sourceRow.muscle_id as number
     const tier = sourceRow.tier as number | null
 
     const placeholders = equipmentTiers.map(() => '?').join(', ')
