@@ -53,7 +53,11 @@ export class ProfileService extends BaseService {
     // deliberately excludes 'both' - a stored profile must resolve to one concrete
     // tier, so remap it to the closest concrete tier rather than passing it through
     // raw (matches the remapping Task 11's equipment-tiers migration already does
-    // for pre-existing rows).
+    // for pre-existing rows). The onboarding UI's own form no longer offers 'both'
+    // as a choice (it presents the 4 concrete tiers directly), but this endpoint
+    // has no server-side schema gate on its request body - any caller can still
+    // send equipment: 'both' - so this remap stays live as the last line of
+    // defense against the CHECK-constraint violation that caused it to be added.
     const equipment = input.equipment === 'both' ? 'home_barbell_dumbbell' : input.equipment
 
     const profile = await this.profiles.upsert(this.ctx.userId, {

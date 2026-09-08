@@ -20,7 +20,7 @@ const recommendationInput = computed(() => ({
   daysPerWeek: Math.min(7, Math.max(1, daysPerWeek.value || 1)),
   experienceLevel: null,
   goal: null,
-  equipment: null,
+  equipment: profile.value?.profile?.equipment ?? null,
 }));
 
 const { data: recommendations, isLoading, error } = useRecommendedSplits(recommendationInput);

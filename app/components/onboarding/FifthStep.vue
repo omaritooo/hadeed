@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CombineIcon, DumbbellIcon, HomeIcon } from "@lucide/vue";
+import { DumbbellIcon, HomeIcon, PersonStandingIcon, WeightIcon } from "@lucide/vue";
 import { useOnboardingStore } from "~/store/onboarding";
 import { stepSchemas } from "~~/shared/schemas/onboarding";
 const store = useOnboardingStore();
@@ -10,9 +10,10 @@ const { form, errors, validateAll } = useZodForm(stepSchemas[5], {
 });
 
 const equipmentOptions = [
-  { value: "full_gym", icon: DumbbellIcon, title: "Gym", description: "Full gym access" },
-  { value: "home_barbell_dumbbell", icon: HomeIcon, title: "Home", description: "Dumbbells or limited equipment" },
-  { value: "both", icon: CombineIcon, title: "Both", description: "Gym and home equipment" },
+  { value: "full_gym", icon: DumbbellIcon, title: "Full Gym", description: "Barbells, machines, and full equipment access" },
+  { value: "home_barbell_dumbbell", icon: HomeIcon, title: "Home Gym", description: "Barbell and dumbbells at home" },
+  { value: "home_dumbbell_only", icon: WeightIcon, title: "Dumbbells Only", description: "Dumbbells at home, no barbell" },
+  { value: "bodyweight", icon: PersonStandingIcon, title: "Bodyweight", description: "No equipment at all" },
 ];
 
 defineExpose({
