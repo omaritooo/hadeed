@@ -369,7 +369,7 @@ const main = async () => {
 
     await seedPresetSplit({
       name: 'Push Pull Legs',
-      description: 'A 5-6 day intermediate split for muscle gain, dividing training into pushing, pulling, and leg days so each muscle group gets focused, high-frequency volume.',
+      description: 'A 3-day intermediate split for muscle gain, dividing training into pushing, pulling, and leg days so each muscle group gets focused volume once per week.',
       frequencyMinDays: 3,
       frequencyMaxDays: 3,
       goal: 'muscle_gain',
