@@ -11,6 +11,7 @@ export const queryKeys = {
   exerciseAlternatives: (id: string, equipmentTiers: string[]) => ['exercise-alternatives', id, equipmentTiers] as const,
   presetSplits: () => ['preset-splits'] as const,
   presetSplitsRecommend: (input: RecommendationInput) => ['preset-splits', 'recommend', input] as const,
+  presetSplitDetails: (id: number) => ['preset-splits', id] as const,
   nutrition: () => ['nutrition'] as const,
   ingredients: () => ['ingredients'] as const,
   presetMeals: () => ['preset-meals'] as const,
