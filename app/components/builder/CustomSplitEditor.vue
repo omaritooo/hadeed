@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PlusIcon, TrashIcon } from "@lucide/vue";
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, TrashIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { CreateSplitDayInput } from "~~/server/repositories/block.repository";
@@ -22,6 +22,17 @@ const removeDay = (index: number) => {
   dayIds.value = dayIds.value.filter((_, i) => i !== index);
 };
 
+const moveDay = (index: number, direction: -1 | 1) => {
+  const target = index + direction;
+  if (target < 0 || target >= days.value.length) return;
+  const newDays = [...days.value];
+  const newIds = [...dayIds.value];
+  [newDays[index], newDays[target]] = [newDays[target]!, newDays[index]!];
+  [newIds[index], newIds[target]] = [newIds[target]!, newIds[index]!];
+  days.value = newDays;
+  dayIds.value = newIds;
+};
+
 const canContinue = computed(() => days.value.some(day => !day.isRestDay && day.exercises.length > 0));
 </script>
 
@@ -30,6 +41,12 @@ const canContinue = computed(() => days.value.some(day => !day.isRestDay && day.
     <UiCard v-for="(day, index) in days" :key="dayIds[index]" class="space-y-3">
       <div class="flex items-center gap-2">
         <Input v-model="day.name" placeholder="Day name" class="flex-1" />
+        <button aria-label="Move day up" :disabled="index === 0" class="disabled:opacity-30" @click="moveDay(index, -1)">
+          <ChevronUpIcon class="size-4 text-muted-foreground" />
+        </button>
+        <button aria-label="Move day down" :disabled="index === days.length - 1" class="disabled:opacity-30" @click="moveDay(index, 1)">
+          <ChevronDownIcon class="size-4 text-muted-foreground" />
+        </button>
         <button aria-label="Remove day" @click="removeDay(index)"><TrashIcon class="size-4 text-muted-foreground" /></button>
       </div>
       <label class="flex items-center gap-2 text-sm text-muted-foreground">
