@@ -1,9 +1,19 @@
 <script setup lang="ts">
+import type { Equipment, SplitRecommendation } from "~~/shared/types/preset.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { equipmentSatisfies } from "~~/shared/lib/equipment";
 
 const selectedPresetId = defineModel<number | null>("selectedPresetId", { required: true });
 const emit = defineEmits<{ continue: [] }>();
+
+const EQUIPMENT_LABELS: Record<Equipment, string> = {
+  full_gym: "Requires full gym",
+  home_barbell_dumbbell: "Requires barbell + dumbbells",
+  home_dumbbell_only: "Requires dumbbells",
+  bodyweight: "Bodyweight only",
+  both: "",
+};
 
 const { data: profile } = useProfile();
 const daysPerWeek = ref(3);
@@ -24,6 +34,12 @@ const recommendationInput = computed(() => ({
 }));
 
 const { data: recommendations, isLoading, error } = useRecommendedSplits(recommendationInput);
+
+const isEquipmentMismatch = (rec: SplitRecommendation): boolean => {
+  const userTier = profile.value?.profile?.equipment;
+  if (!userTier) return false;
+  return !equipmentSatisfies({ userTier, required: rec.preset.equipment });
+};
 
 watch(recommendations, (list) => {
   if (list && !list.some(rec => rec.preset.id === selectedPresetId.value)) {
@@ -54,6 +70,12 @@ watch(recommendations, (list) => {
     >
       <p class="font-heading text-lg text-foreground">{{ rec.preset.name }}</p>
       <p v-if="rec.preset.description" class="text-sm text-muted-foreground">{{ rec.preset.description }}</p>
+      <UiBadge
+        v-if="isEquipmentMismatch(rec)"
+        class="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      >
+        {{ EQUIPMENT_LABELS[rec.preset.equipment] }}
+      </UiBadge>
       <p v-if="rec.reasons.length" class="text-xs text-muted-foreground">{{ rec.reasons.join(" · ") }}</p>
     </UiCard>
 
