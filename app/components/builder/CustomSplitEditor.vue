@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import type { CreateSplitDayInput } from "~~/server/repositories/block.repository";
 
 const days = defineModel<CreateSplitDayInput[]>("days", { required: true });
+withDefaults(defineProps<{ showContinue?: boolean }>(), { showContinue: true });
 const emit = defineEmits<{ continue: [] }>();
 
 const dayIds = ref<string[]>(days.value.map(() => crypto.randomUUID()));
@@ -58,6 +59,6 @@ const canContinue = computed(() => days.value.some(day => !day.isRestDay && day.
     </UiCard>
 
     <Button variant="secondary" @click="addDay"><PlusIcon class="size-4" /> Add Day</Button>
-    <Button size="lg" :disabled="!canContinue" @click="emit('continue')">Continue</Button>
+    <Button v-if="showContinue" size="lg" :disabled="!canContinue" @click="emit('continue')">Continue</Button>
   </div>
 </template>

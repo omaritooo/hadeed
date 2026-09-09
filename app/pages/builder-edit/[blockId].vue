@@ -120,7 +120,7 @@ const submit = async () => {
     <p v-if="isLoading" class="text-sm text-muted-foreground">Loading your split…</p>
 
     <template v-else-if="block">
-      <BuilderCustomSplitEditor v-model:days="editableDays" @continue="() => {}" />
+      <BuilderCustomSplitEditor v-model:days="editableDays" :show-continue="false" />
 
       <div class="flex flex-col gap-y-3">
         <Input v-model="confirmName" placeholder="Split name" />
