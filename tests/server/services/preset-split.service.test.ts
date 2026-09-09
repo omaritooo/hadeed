@@ -95,4 +95,20 @@ describe('PresetSplitService.recommend', () => {
     expect(minimalistHome.score).toBe(3)
     expect(minimalistHome.reasons.join(' ')).not.toMatch(/works with your/)
   })
+
+  it('excludes a preset whose frequency range is more than one day off', async () => {
+    const results = await service.recommend({
+      daysPerWeek: 6, experienceLevel: null, goal: null, equipment: null,
+    })
+    // "Full Body" is (2,3) and "Minimalist Home" is (3,3) - both more than 1 day off from 6.
+    expect(results.some(r => r.preset.name === 'Full Body')).toBe(false)
+    expect(results.some(r => r.preset.name === 'Minimalist Home')).toBe(false)
+  })
+
+  it('still includes a preset exactly one day outside the requested frequency', async () => {
+    const results = await service.recommend({
+      daysPerWeek: 5, experienceLevel: null, goal: null, equipment: null,
+    })
+    expect(results.some(r => r.preset.name === 'Upper/Lower')).toBe(true)
+  })
 })

@@ -49,6 +49,7 @@ export class PresetSplitService extends BaseService {
         const { score, reasons } = scorePreset(preset, input)
         return { preset, score, reasons }
       })
+      .filter(({ preset }) => frequencyScore(input.daysPerWeek, preset.frequencyMinDays, preset.frequencyMaxDays) > 0)
       .sort((a, b) => b.score - a.score)
   }
 
