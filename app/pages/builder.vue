@@ -3,15 +3,17 @@ import { ArrowLeftIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { CreateSplitDayInput } from "~~/server/repositories/block.repository";
+import type { PresetExerciseOverride } from "~~/shared/types/preset.types";
 import { checkRecoveryConflicts } from "~~/shared/lib/recovery-checker";
 
 type Mode = "preset" | "custom" | null;
 
 const mode = ref<Mode>(null);
-const step = ref<"mode" | "build" | "confirm">("mode");
+const step = ref<"mode" | "build" | "review" | "confirm">("mode");
 
 const selectedPresetId = ref<number | null>(null);
 const customDays = ref<CreateSplitDayInput[]>([]);
+const presetOverrides = ref<PresetExerciseOverride[]>([]);
 
 const confirmName = ref("");
 const confirmStartDate = ref(new Date().toISOString().slice(0, 10));
@@ -52,6 +54,7 @@ const backToMode = () => {
   step.value = "mode";
   selectedPresetId.value = null;
   customDays.value = [];
+  presetOverrides.value = [];
   exerciseCatalogCache.value.clear();
 };
 
@@ -61,6 +64,8 @@ const proceedToConfirm = () => {
 
 const goBack = () => {
   if (step.value === "confirm") {
+    step.value = mode.value === "preset" ? "review" : "build";
+  } else if (step.value === "review") {
     step.value = "build";
   } else {
     backToMode();
@@ -78,6 +83,7 @@ const submit = async () => {
         name: confirmName.value,
         startDate: confirmStartDate.value,
         endDate: null,
+        exerciseOverrides: presetOverrides.value,
       });
     } else if (mode.value === "custom") {
       await createFromScratch.mutateAsync({
@@ -118,7 +124,13 @@ const submit = async () => {
     <BuilderPresetPicker
       v-else-if="step === 'build' && mode === 'preset'"
       v-model:selected-preset-id="selectedPresetId"
-      @continue="proceedToConfirm"
+      @continue="step = 'review'"
+    />
+
+    <BuilderPresetReview
+      v-else-if="step === 'review' && mode === 'preset' && selectedPresetId !== null"
+      :preset-id="selectedPresetId"
+      @continue="(overrides) => { presetOverrides = overrides; proceedToConfirm(); }"
     />
 
     <BuilderCustomSplitEditor
