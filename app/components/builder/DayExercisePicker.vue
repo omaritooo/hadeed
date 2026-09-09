@@ -51,21 +51,33 @@ const addExercise = (exerciseId: string, label: string, exercise?: Exercise) => 
   if (exercise) exerciseCatalogCache.value.set(exerciseId, exercise);
 };
 
+// Preview drawer: one shared instance toggled via previewExercise (same single-instance
+// pattern as the swap sheet below) — picking a search result opens a preview instead of
+// adding immediately, so the equipment-tier check now happens in confirmPreview.
+const previewOpen = ref(false);
+const previewExercise = ref<Exercise | null>(null);
+
 watch(picked, (exerciseId) => {
   if (!exerciseId || typeof exerciseId !== "string") return;
   const exercise = results.value?.find(e => e.id === exerciseId);
-  const label = exercise?.name ?? options.value.find(o => o.value === exerciseId)?.label ?? exerciseId;
   picked.value = undefined;
   searchTerm.value = "";
+  if (!exercise) return;
+  previewExercise.value = exercise;
+  previewOpen.value = true;
+});
 
+const confirmPreview = () => {
+  const exercise = previewExercise.value;
+  if (!exercise) return;
+  previewOpen.value = false;
   const tier = userEquipmentTier.value;
-  if (exercise && tier && !exerciseEquipmentSatisfiesTier({ equipment: exercise.equipment, tier })) {
+  if (tier && !exerciseEquipmentSatisfiesTier({ equipment: exercise.equipment, tier })) {
     pendingSubstitution.value = exercise;
     return;
   }
-
-  addExercise(exerciseId, label, exercise);
-});
+  addExercise(exercise.id, exercise.name, exercise);
+};
 
 const acceptSubstitution = () => {
   if (!topFallback.value) return;
@@ -183,5 +195,16 @@ const onSwapSelect = (exercise: Exercise) => {
       :equipment-tiers="fallbackEquipmentValues"
       @select="onSwapSelect"
     />
+
+    <UiDrawer v-model:open="previewOpen">
+      <UiDrawerContent>
+        <ExerciseDetailContent v-if="previewExercise" :exercise-id="previewExercise.id" />
+        <UiDrawerFooter>
+          <Button size="lg" class="w-full rounded-full uppercase" @click="confirmPreview">
+            Add to day
+          </Button>
+        </UiDrawerFooter>
+      </UiDrawerContent>
+    </UiDrawer>
   </div>
 </template>
