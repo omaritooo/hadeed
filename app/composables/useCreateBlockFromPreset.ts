@@ -1,4 +1,5 @@
 import type { FetchError } from 'ofetch'
+import type { PresetExerciseOverride } from '~~/shared/types/preset.types'
 import type { Block } from '~~/shared/types/split.types'
 import { useMutation, useQueryCache } from '@pinia/colada'
 
@@ -7,6 +8,7 @@ export interface CreateBlockFromPresetInput {
   name: string
   startDate: string
   endDate: string | null
+  exerciseOverrides?: PresetExerciseOverride[]
 }
 
 export const useCreateBlockFromPreset = () => {

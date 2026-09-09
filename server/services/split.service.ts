@@ -1,6 +1,7 @@
 import { BaseService } from '~~/server/services/base.service'
 import type { BlockRepository, CreateSplitDayInput } from '~~/server/repositories/block.repository'
 import type { PresetSplitWithDays } from '~~/server/repositories/preset-split.repository'
+import type { PresetExerciseOverride } from '~~/shared/types/preset.types'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { MacroTarget } from '~~/shared/types/split.types'
 import { dayBefore } from '~~/server/utils/date'
@@ -42,6 +43,7 @@ export class SplitService extends BaseService {
   async createFromPreset(
     preset: PresetSplitWithDays,
     overrides: { name: string, startDate: string, endDate: string | null },
+    exerciseOverrides: PresetExerciseOverride[] = [],
   ) {
     await this.retireActiveBlock(overrides.startDate)
     return this.blocks.createWithDays(this.ctx.userId, {
@@ -57,15 +59,20 @@ export class SplitService extends BaseService {
         location: day.location,
         format: day.format,
         rounds: day.rounds,
-        exercises: day.exercises.map(ex => ({
-          exerciseId: ex.exerciseId,
-          position: ex.position,
-          setType: 'weight_reps' as const,
-          targetSets: ex.targetSets,
-          targetReps: ex.targetReps,
-          targetRpe: ex.targetRpe,
-          restSeconds: ex.restSeconds,
-        })),
+        exercises: day.exercises.map((ex) => {
+          const override = exerciseOverrides.find(
+            o => o.dayIndex === day.dayIndex && o.position === ex.position,
+          )
+          return {
+            exerciseId: override?.exerciseId ?? ex.exerciseId,
+            position: ex.position,
+            setType: 'weight_reps' as const,
+            targetSets: ex.targetSets,
+            targetReps: ex.targetReps,
+            targetRpe: ex.targetRpe,
+            restSeconds: ex.restSeconds,
+          }
+        }),
       })),
     })
   }

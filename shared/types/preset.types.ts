@@ -37,6 +37,12 @@ export interface PresetSplitExercise {
   restSeconds: number | null
 }
 
+export interface PresetExerciseOverride {
+  dayIndex: number
+  position: number
+  exerciseId: string
+}
+
 export interface SplitRecommendation {
   preset: PresetSplit
   score: number

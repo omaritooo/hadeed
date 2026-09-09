@@ -4,6 +4,7 @@ import { getRequestContext } from '~~/server/utils/get-request-context'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { PresetSplitRepository } from '~~/server/repositories/preset-split.repository'
 import { SplitService } from '~~/server/services/split.service'
+import type { PresetExerciseOverride } from '~~/shared/types/preset.types'
 
 defineRouteMeta({
   openAPI: {
@@ -20,6 +21,18 @@ defineRouteMeta({
               name: { type: 'string' },
               startDate: { type: 'string', format: 'date' },
               endDate: { type: 'string', format: 'date', nullable: true },
+              exerciseOverrides: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['dayIndex', 'position', 'exerciseId'],
+                  properties: {
+                    dayIndex: { type: 'number' },
+                    position: { type: 'number' },
+                    exerciseId: { type: 'string' },
+                  },
+                },
+              },
             },
           },
         },
@@ -34,7 +47,13 @@ defineRouteMeta({
 
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
-  const body = await readBody(event) as { presetSplitId: number, name: string, startDate: string, endDate: string | null }
+  const body = await readBody(event) as {
+    presetSplitId: number
+    name: string
+    startDate: string
+    endDate: string | null
+    exerciseOverrides?: PresetExerciseOverride[]
+  }
   const db = useDb()
 
   const preset = await new PresetSplitRepository(db).findWithDays(body.presetSplitId)
@@ -43,5 +62,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const service = new SplitService(ctx, new BlockRepository(db))
-  return service.createFromPreset(preset, { name: body.name, startDate: body.startDate, endDate: body.endDate })
+  return service.createFromPreset(
+    preset,
+    { name: body.name, startDate: body.startDate, endDate: body.endDate },
+    body.exerciseOverrides ?? [],
+  )
 })

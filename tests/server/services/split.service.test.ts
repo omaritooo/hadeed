@@ -124,6 +124,39 @@ describe('SplitService.createFromPreset', () => {
     expect(cloned?.days[0]?.rounds).toBe(4)
     expect(cloned?.days[0]?.exercises[0]?.restSeconds).toBe(20)
   })
+
+  it('applies exercise overrides while leaving everything else from the preset unchanged', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('squat', 'Squat', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('Some_Other_Exercise', 'Some Other Exercise', 'strength', 'barbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+    const preset = await presets.createWithDays({
+      name: 'PPL', description: null, frequencyMinDays: 6, frequencyMaxDays: 6,
+      goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'full_gym', isPublished: true,
+      days: [{
+        name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [],
+        exercises: [
+          { exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
+          { exerciseId: 'squat', position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+        ],
+      }],
+    })
+    const presetWithDays = await presets.findWithDays(preset.id)
+
+    const block = await splitService.createFromPreset(presetWithDays!, {
+      name: 'My Circuit', startDate: '2026-01-01', endDate: null,
+    }, [{ dayIndex: 0, position: 1, exerciseId: 'Some_Other_Exercise' }])
+
+    const withDays = await splitService.getOwnedBlock(block.id)
+    const day = withDays!.days.find(d => d.dayOfWeek === 0)!
+    expect(day.exercises.find(e => e.position === 1)!.exerciseId).toBe('Some_Other_Exercise')
+    expect(day.exercises.find(e => e.position === 0)!.exerciseId).toBe(presetWithDays!.days[0]!.exercises[0]!.exerciseId)
+    expect(day.format).toBe(presetWithDays!.days[0]!.format)
+  })
 })
 
 describe('SplitService — retiring the previously active block', () => {
