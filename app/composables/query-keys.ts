@@ -13,6 +13,7 @@ export const queryKeys = {
   presetSplits: () => ['preset-splits'] as const,
   presetSplitsRecommend: (input: RecommendationInput) => ['preset-splits', 'recommend', input] as const,
   presetSplitDetails: (id: number) => ['preset-splits', id] as const,
+  block: (id: number) => ['block', id] as const,
   nutrition: () => ['nutrition'] as const,
   ingredients: () => ['ingredients'] as const,
   presetMeals: () => ['preset-meals'] as const,

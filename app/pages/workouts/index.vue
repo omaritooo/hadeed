@@ -97,7 +97,7 @@ const resumeWorkout = async () => {
     <UiCard v-else-if="summary?.todaysWorkout" class="space-y-3">
       <div class="flex items-center justify-between">
         <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Today</span>
-        <NuxtLink to="/builder" class="text-muted-foreground" aria-label="Edit split">
+        <NuxtLink :to="`/builder/edit/${summary.todaysWorkout.blockId}`" class="text-muted-foreground" aria-label="Edit split">
           <SettingsIcon class="size-4" />
         </NuxtLink>
       </div>

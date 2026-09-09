@@ -21,6 +21,13 @@ const exerciseNames = ref<Record<string, string>>({});
 const exerciseRowIds = ref<string[]>(exercises.value.map(() => crypto.randomUUID()));
 const exerciseCatalogCache = useExerciseCatalogCache();
 
+// Rows pre-filled from an existing block (e.g. the edit-split page) were never added via this
+// component's own addExercise/onSwapSelect, so exerciseNames has no entry for them. Fall back to
+// the shared catalog cache — populated by whoever pre-fills the rows — before falling back to the
+// bare id, without changing anything about how freshly-added exercises get their names.
+const exerciseName = (exerciseId: string): string =>
+  exerciseNames.value[exerciseId] ?? exerciseCatalogCache.value.get(exerciseId)?.name ?? exerciseId;
+
 const { data: profile } = useProfile();
 const userEquipmentTier = computed(() => profile.value?.profile?.equipment ?? null);
 
@@ -131,7 +138,7 @@ const onSwapSelect = (exercise: Exercise) => {
 <template>
   <div class="flex flex-col gap-y-2">
     <div v-for="(exercise, index) in exercises" :key="exerciseRowIds[index]" class="flex items-center gap-2">
-      <span class="flex-1 text-sm text-foreground">{{ exerciseNames[exercise.exerciseId] ?? exercise.exerciseId }}</span>
+      <span class="flex-1 text-sm text-foreground">{{ exerciseName(exercise.exerciseId) }}</span>
       <Input
         :model-value="exercise.targetSets ?? ''"
         type="number"
