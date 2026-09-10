@@ -120,26 +120,46 @@ const saveEdit = async (set: SetLog) => {
   }
 };
 
-const logNextSet = async (exerciseLogId: string) => {
+const submitSet = async (exerciseLogId: string, values: { weightKg: string, reps: string, rpe: string }) => {
   const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
-  if (!exercise) return;
-  const draft = draftFor(exerciseLogId);
+  if (!exercise) return false;
   logErrors[exerciseLogId] = null;
   try {
     await logSet.mutateAsync({
       sessionId: sessionId.value,
       exerciseLogId,
       setNumber: exercise.sets.length + 1,
-      weightKg: draft.weightKg === "" ? null : Number(draft.weightKg),
-      reps: draft.reps === "" ? null : Number(draft.reps),
-      rpe: draft.rpe === "" ? null : Number(draft.rpe),
+      weightKg: values.weightKg === "" ? null : Number(values.weightKg),
+      reps: values.reps === "" ? null : Number(values.reps),
+      rpe: values.rpe === "" ? null : Number(values.rpe),
     });
+    return true;
+  } catch {
+    logErrors[exerciseLogId] = "Couldn't log that set. Please try again.";
+    return false;
+  }
+};
+
+const logNextSet = async (exerciseLogId: string) => {
+  const draft = draftFor(exerciseLogId);
+  const success = await submitSet(exerciseLogId, draft);
+  if (success) {
     draft.weightKg = "";
     draft.reps = "";
     draft.rpe = "";
-  } catch {
-    logErrors[exerciseLogId] = "Couldn't log that set. Please try again.";
   }
+};
+
+const logSameAsLast = async (exerciseLogId: string) => {
+  const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
+  if (!exercise) return;
+  const lastSet = exercise.sets[exercise.sets.length - 1];
+  if (!lastSet) return;
+  const draft = draftFor(exerciseLogId);
+  draft.weightKg = lastSet.weightKg === null ? "" : String(lastSet.weightKg);
+  draft.reps = lastSet.reps === null ? "" : String(lastSet.reps);
+  draft.rpe = lastSet.rpe === null ? "" : String(lastSet.rpe);
+  await logNextSet(exerciseLogId);
 };
 
 const finish = async () => {
@@ -226,16 +246,26 @@ const finish = async () => {
         </div>
       </div>
 
-      <div class="flex items-center gap-2 border-t border-surface-strong pt-3">
-        <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
-        <div class="flex flex-1 items-center justify-end gap-1">
-          <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-16 shrink-0 text-right text-sm" />
-          <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-12 shrink-0 text-right text-sm" />
-          <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
+      <div class="border-t border-surface-strong pt-3">
+        <button
+          v-if="exercise.sets.length > 0"
+          class="mb-2 block w-full text-right text-xs text-muted-foreground underline"
+          :disabled="logSet.isLoading.value"
+          @click="logSameAsLast(exercise.id)"
+        >
+          Same as last set
+        </button>
+        <div class="flex items-center gap-2">
+          <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
+          <div class="flex flex-1 items-center justify-end gap-1">
+            <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-16 shrink-0 text-right text-sm" />
+            <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-12 shrink-0 text-right text-sm" />
+            <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
+          </div>
+          <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
+            <CheckIcon class="size-4" />
+          </Button>
         </div>
-        <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
-          <CheckIcon class="size-4" />
-        </Button>
       </div>
       <p v-if="logErrors[exercise.id]" class="text-sm text-destructive">{{ logErrors[exercise.id] }}</p>
     </UiCard>
