@@ -216,5 +216,5 @@ const resumeWorkout = async () => {
 
     <ExerciseDetailDrawer v-model:open="infoDrawerOpen" :exercise-id="infoExerciseId" />
   </div>
-  <div v-else class="px-4 py-4 text-muted-foreground">Loading...</div>
+  <UiLoadingIndicator v-else />
 </template>

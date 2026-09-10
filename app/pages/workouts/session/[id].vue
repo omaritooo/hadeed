@@ -537,7 +537,7 @@ const doneWithSummary = () => navigateTo("/workouts");
 
     <ExerciseDetailDrawer v-model:open="infoDrawerOpen" :exercise-id="infoExerciseId" />
   </div>
-  <div v-else-if="isLoading" class="px-4 py-4 text-muted-foreground">Loading...</div>
+  <UiLoadingIndicator v-else-if="isLoading" label="Loading session" />
   <div v-else class="flex flex-col gap-y-2 px-4 py-4">
     <p class="text-sm text-destructive">Couldn't load this session.</p>
     <NuxtLink to="/workouts" class="text-sm text-muted-foreground underline">Back to Workouts</NuxtLink>

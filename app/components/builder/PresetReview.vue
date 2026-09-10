@@ -116,7 +116,7 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
 
 <template>
   <div class="flex flex-col gap-y-4">
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Loading preset…</p>
+    <UiLoadingIndicator v-if="isLoading" inline label="Loading preset…" />
     <p v-else-if="error" class="text-sm text-destructive">Couldn't load preset. Please try again.</p>
 
     <template v-else>

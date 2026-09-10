@@ -117,7 +117,7 @@ const submit = async () => {
 
     <h1 class="font-heading text-2xl uppercase text-foreground">Edit Your Split</h1>
 
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Loading your split…</p>
+    <UiLoadingIndicator v-if="isLoading" inline label="Loading your split…" />
 
     <template v-else-if="block">
       <BuilderCustomSplitEditor v-model:days="editableDays" :show-continue="false" />

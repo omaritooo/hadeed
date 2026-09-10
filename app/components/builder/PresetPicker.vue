@@ -55,7 +55,7 @@ watch(recommendations, (list) => {
       <Input v-model.number="daysPerWeek" type="number" min="1" max="7" class="w-24" />
     </label>
 
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Loading recommendations…</p>
+    <UiLoadingIndicator v-if="isLoading" inline label="Loading recommendations…" />
     <p v-else-if="error" class="text-sm text-destructive">Couldn't load recommendations. Please try again.</p>
     <p v-else-if="!recommendations?.length" class="text-sm text-muted-foreground">
       No presets match yet — try a different days-per-week value, or build your own instead.
