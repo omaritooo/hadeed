@@ -28,6 +28,44 @@ const draftFor = (exerciseLogId: string) => {
   return drafts[exerciseLogId];
 };
 
+// Per-exercise "last time" reference. useExerciseHistory doesn't support
+// batching multiple exercise IDs in one request, and a session typically has
+// a handful of exercises, so one query per exercise (memoized here) is an
+// acceptable cost — the info drawer already does this same per-exercise
+// fetch on open.
+const exerciseHistoryQueries = new Map<string, ReturnType<typeof useExerciseHistory>>();
+watch(
+  () => session.value?.exercises.map(exercise => exercise.exerciseId) ?? [],
+  (exerciseIds) => {
+    for (const exerciseId of exerciseIds) {
+      if (!exerciseHistoryQueries.has(exerciseId)) {
+        exerciseHistoryQueries.set(exerciseId, useExerciseHistory(exerciseId));
+      }
+    }
+  },
+  { immediate: true },
+);
+
+const formatTarget = (targetSets: number | null, targetReps: number | null, targetRpe: number | null) => {
+  if (targetSets === null && targetReps === null && targetRpe === null) return null;
+  const setsReps = `${targetSets ?? "–"}×${targetReps ?? "–"}`;
+  return targetRpe === null ? `Target: ${setsReps}` : `Target: ${setsReps} @ RPE ${targetRpe}`;
+};
+
+const formatLastPerformance = (exerciseId: string) => {
+  const lastEntry = exerciseHistoryQueries.get(exerciseId)?.data.value?.history[0];
+  if (!lastEntry) return null;
+  return `Last: ${lastEntry.topSetWeightKg}kg × ${lastEntry.topSetReps}`;
+};
+
+const exerciseDisplayInfo = computed(() => {
+  return (session.value?.exercises ?? []).map(exercise => ({
+    ...exercise,
+    targetLabel: formatTarget(exercise.targetSets, exercise.targetReps, exercise.targetRpe),
+    lastPerformanceLabel: formatLastPerformance(exercise.exerciseId),
+  }));
+});
+
 const infoDrawerOpen = ref(false);
 const infoExerciseId = ref("");
 const openInfo = (exerciseId: string) => {
@@ -141,10 +179,19 @@ const finish = async () => {
 
     <p v-if="finishError" class="text-sm text-destructive">{{ finishError }}</p>
 
-    <UiCard v-for="exercise in session.exercises" :key="exercise.id" class="space-y-3">
-      <div class="flex items-center justify-between border-b border-surface-strong pb-3">
-        <p class="font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
-        <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
+    <UiCard v-for="exercise in exerciseDisplayInfo" :key="exercise.id" class="space-y-3">
+      <div class="space-y-1 border-b border-surface-strong pb-3">
+        <div class="flex items-center justify-between">
+          <p class="font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
+          <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
+        </div>
+        <div
+          v-if="exercise.targetLabel || exercise.lastPerformanceLabel"
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
+        >
+          <span v-if="exercise.targetLabel">{{ exercise.targetLabel }}</span>
+          <span v-if="exercise.lastPerformanceLabel">{{ exercise.lastPerformanceLabel }}</span>
+        </div>
       </div>
 
       <div class="space-y-2">
