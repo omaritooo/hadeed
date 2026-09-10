@@ -12,6 +12,7 @@ import {
 } from "@lucide/vue";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import type { MealLog, MealType } from "~~/shared/types/nutrition.types";
+import { evaluateMealFit } from "~~/shared/lib/meal-fit";
 import { Button } from "@/components/ui/button";
 import {
   Drawer as UiDrawer,
@@ -163,6 +164,11 @@ const presetMacros = (preset: { items: { ingredientId: number, quantity: number 
 };
 
 const logDrawerOpen = ref(false);
+// "check" weighs the draft against the day's remaining macros without writing anything --
+// the compose half of the drawer is identical in both modes, only the fit panel and the
+// footer differ. Only offered when logging a new meal: checking a meal that's already been
+// eaten and logged is meaningless, so openEditMeal forces this back to "log".
+const drawerMode = ref<"log" | "check">("log");
 // Non-null while the drawer is editing an already-logged meal rather than logging a new
 // one -- set by openEditMeal, reset whenever the drawer closes. The drawer UI is otherwise
 // identical between the two modes, just pre-filled and re-labelled.
@@ -199,6 +205,42 @@ const draftTotals = computed(() => {
   }, { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 });
 });
 
+// Null when no target is set -- the panel then falls back to the plain totals strip rather
+// than hiding the macros, which are the only nutrition figure available in that state.
+// Reads whichever day the Today tab is on, so on a past day this answers "would this have
+// fit", which falls out of the existing selectedDate wiring for free.
+const mealFit = computed(() => evaluateMealFit({
+  totals: nutrition.value?.totals ?? { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 },
+  meal: draftTotals.value,
+  target: nutrition.value?.target ?? null,
+}));
+
+const FIT_MACRO_META = [
+  { key: "calories", label: "Cal", unit: "" },
+  { key: "proteinG", label: "Protein", unit: "g" },
+  { key: "carbsG", label: "Carbs", unit: "g" },
+  { key: "fatG", label: "Fat", unit: "g" },
+] as const;
+
+// One-line verdict above the per-macro bars. Calories lead when they're the thing that
+// overshoots, otherwise the first offending macro is named -- listing all four when three
+// are fine buries the actual problem.
+const fitVerdict = computed(() => {
+  const fit = mealFit.value;
+  if (!fit) return null;
+  const over = FIT_MACRO_META.filter((meta) => !fit[meta.key].fits);
+  if (over.length === 0) {
+    const left = fit.calories.target - fit.calories.projected;
+    return { fits: true, text: `Fits -- ${left} cal left after this` };
+  }
+  const worst = over[0]!;
+  const extra = over.length > 1 ? ` (+${over.length - 1} more)` : "";
+  return {
+    fits: false,
+    text: `Over by ${fit[worst.key].overBy}${worst.unit} ${worst.label.toLowerCase()}${extra}`,
+  };
+});
+
 // A meal's items can lose their ingredientId (ON DELETE SET NULL) if the underlying
 // ingredient was later deleted -- those items keep their historical snapshot in the log
 // but can't be re-resolved into an editable draft line, so they're dropped from the draft.
@@ -206,6 +248,7 @@ const draftTotals = computed(() => {
 // unavoidable cost of the ingredient no longer existing.
 const openEditMeal = (meal: MealLog) => {
   editingMealLogId.value = meal.id;
+  drawerMode.value = "log";
   draftItems.value = meal.items
     .filter((item) => item.ingredientId !== null)
     .map((item) => ({ ingredientId: item.ingredientId as number, quantity: item.quantity }));
@@ -258,6 +301,8 @@ watch(logDrawerOpen, (open) => {
   showNewPresetForm.value = false;
   newPresetName.value = "";
   editingMealLogId.value = null;
+  // Without this the drawer reopens in Check mode after any check.
+  drawerMode.value = "log";
 });
 </script>
 
@@ -396,11 +441,28 @@ watch(logDrawerOpen, (open) => {
         <UiDrawerContent class="mx-auto w-full max-w-xl">
           <UiDrawerHeader>
             <UiDrawerTitle class="font-heading text-[28px] uppercase tracking-[-0.5px] text-foreground">
-              {{ editingMealLogId !== null ? "Edit Meal" : "Log a Meal" }}
+              {{ editingMealLogId !== null ? "Edit Meal" : drawerMode === "check" ? "Check a Meal" : "Log a Meal" }}
             </UiDrawerTitle>
           </UiDrawerHeader>
           <div class="space-y-6 overflow-y-auto px-4 pb-4">
-            <div v-if="editingMealLogId === null" class="space-y-1.5">
+            <div v-if="editingMealLogId === null" class="relative grid grid-cols-2 rounded-lg bg-popover p-1">
+              <div
+                class="absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-surface-strong transition-transform duration-200 ease-out"
+                :class="drawerMode === 'check' && 'translate-x-full'"
+              />
+              <button
+                v-for="mode in (['log', 'check'] as const)"
+                :key="mode"
+                type="button"
+                class="relative z-10 py-1.5 font-mono text-xs uppercase tracking-[1px] transition-colors"
+                :class="drawerMode === mode ? 'text-foreground' : 'text-muted-foreground'"
+                @click="drawerMode = mode"
+              >
+                {{ mode === "log" ? "Log" : "Check" }}
+              </button>
+            </div>
+            <!-- Meal type only matters for a row that gets written; a check writes nothing. -->
+            <div v-if="editingMealLogId === null && drawerMode === 'log'" class="space-y-1.5">
               <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Meal type</span>
               <UiNativeSelect v-model="draftMealTypeSelect" class="w-full">
                 <UiNativeSelectOption value="auto">Auto (based on time)</UiNativeSelectOption>
@@ -479,6 +541,46 @@ watch(logDrawerOpen, (open) => {
                   <p class="font-heading text-sm text-foreground [font-variant-numeric:tabular-nums]">{{ Math.round(draftTotals[key]) }}{{ key === 'calories' ? '' : 'g' }}</p>
                 </div>
               </div>
+
+              <div v-if="drawerMode === 'check' && draftItems.length" class="space-y-3">
+                <template v-if="mealFit && fitVerdict">
+                  <p
+                    class="font-heading text-base"
+                    :class="fitVerdict.fits ? 'text-lime' : 'text-destructive'"
+                  >
+                    {{ fitVerdict.text }}
+                  </p>
+                  <div v-for="meta in FIT_MACRO_META" :key="meta.key" class="space-y-1">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">{{ meta.label }}</span>
+                      <span class="font-mono text-[10px] text-muted-foreground [font-variant-numeric:tabular-nums]">
+                        {{ mealFit[meta.key].consumed }}
+                        <span :class="fitVerdict.fits ? 'text-lime' : 'text-foreground'">+{{ mealFit[meta.key].meal }}</span>
+                        / {{ mealFit[meta.key].target }}{{ meta.unit }}
+                      </span>
+                    </div>
+                    <!-- Consumed and this-meal render as one bar split into two segments, so
+                         the meal's contribution reads against the day rather than alone.
+                         Widths are floored at 0 for a target of 0 and the pair is capped at
+                         100% so an overshoot doesn't spill outside the track -- the overshoot
+                         is communicated by the destructive colour and the verdict line. -->
+                    <div class="flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        class="bg-muted-foreground/60"
+                        :style="{ width: `${Math.min(100, macroPct(mealFit[meta.key].consumed, mealFit[meta.key].target))}%` }"
+                      />
+                      <div
+                        :class="mealFit[meta.key].fits ? 'bg-lime' : 'bg-destructive'"
+                        :style="{ width: `${Math.max(0, Math.min(100 - macroPct(mealFit[meta.key].consumed, mealFit[meta.key].target), macroPct(mealFit[meta.key].meal, mealFit[meta.key].target)))}%` }"
+                      />
+                    </div>
+                  </div>
+                </template>
+                <p v-else class="text-xs text-muted-foreground">
+                  No daily target set, so there's nothing to check against -- the meal's macros are above.
+                  <NuxtLink to="/profile" class="text-cyan-pale underline">Set a target</NuxtLink>
+                </p>
+              </div>
             </div>
 
             <div v-if="showNewPresetForm && editingMealLogId === null" class="flex gap-2">
@@ -487,8 +589,16 @@ watch(logDrawerOpen, (open) => {
             </div>
           </div>
           <UiDrawerFooter class="gap-2">
-            <Button size="lg" class="w-full rounded-full uppercase" :disabled="!draftItems.length || savingMeal" @click="onSaveMeal">
-              {{ editingMealLogId !== null ? "Save changes" : "Log meal" }}
+            <!-- Check mode demotes logging rather than removing it: the answer being "yes,
+                 it fits" shouldn't strand the user with no way to act on it. -->
+            <Button
+              size="lg"
+              class="w-full rounded-full uppercase"
+              :variant="drawerMode === 'check' ? 'secondary' : 'default'"
+              :disabled="!draftItems.length || savingMeal"
+              @click="onSaveMeal"
+            >
+              {{ editingMealLogId !== null ? "Save changes" : drawerMode === "check" ? "Log it anyway" : "Log meal" }}
             </Button>
             <Button
               v-if="!showNewPresetForm && editingMealLogId === null"

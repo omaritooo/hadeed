@@ -231,7 +231,7 @@ const continueWorkout = async () => {
 </script>
 
 <template>
-  <div class="px-4 py-4 flex flex-col gap-y-4" v-if="!isLoading && !isPending">
+  <div v-if="!isLoading && !isPending" class="px-4 py-4 flex flex-col gap-y-4">
     <span class="font-mono text-muted-foreground">
       {{ useDateFormat(now, "MMM DD, YYYY") }}
     </span>
