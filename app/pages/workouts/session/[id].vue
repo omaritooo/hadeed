@@ -22,9 +22,9 @@ const elapsed = computed(() => {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 });
 
-const drafts = reactive<Record<string, { weightKg: string, reps: string, rpe: string }>>({});
+const drafts = reactive<Record<string, { weightKg: string, reps: string, rpe: string, isWarmup: boolean }>>({});
 const draftFor = (exerciseLogId: string) => {
-  drafts[exerciseLogId] ??= { weightKg: "", reps: "", rpe: "" };
+  drafts[exerciseLogId] ??= { weightKg: "", reps: "", rpe: "", isWarmup: false };
   return drafts[exerciseLogId];
 };
 
@@ -90,7 +90,10 @@ const dismissRestTimer = () => {
 
 const editingSetId = ref<string | null>(null);
 const editError = ref<string | null>(null);
-const editDrafts = reactive<Record<string, { weightKg: string, reps: string, rpe: string }>>({});
+const editDrafts = reactive<Record<string, { weightKg: string, reps: string, rpe: string, isWarmup: boolean }>>({});
+// Only ever read from the template while editingSetId === set.id, i.e. after startEdit has
+// populated this set's draft — the fallback here just satisfies noUncheckedIndexedAccess.
+const editDraftFor = (setId: string) => editDrafts[setId] ?? { weightKg: "", reps: "", rpe: "", isWarmup: false };
 
 const startEdit = (set: SetLog) => {
   editingSetId.value = set.id;
@@ -99,6 +102,7 @@ const startEdit = (set: SetLog) => {
     weightKg: set.weightKg === null ? "" : String(set.weightKg),
     reps: set.reps === null ? "" : String(set.reps),
     rpe: set.rpe === null ? "" : String(set.rpe),
+    isWarmup: set.isWarmup,
   };
 };
 
@@ -119,6 +123,7 @@ const saveEdit = async (set: SetLog) => {
       weightKg: draft.weightKg === "" ? null : Number(draft.weightKg),
       reps: draft.reps === "" ? null : Number(draft.reps),
       rpe: draft.rpe === "" ? null : Number(draft.rpe),
+      isWarmup: draft.isWarmup,
     });
     editingSetId.value = null;
   } catch (err) {
@@ -132,7 +137,7 @@ const saveEdit = async (set: SetLog) => {
   }
 };
 
-const submitSet = async (exerciseLogId: string, values: { weightKg: string, reps: string, rpe: string }) => {
+const submitSet = async (exerciseLogId: string, values: { weightKg: string, reps: string, rpe: string, isWarmup: boolean }) => {
   const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
   if (!exercise) return false;
   logErrors[exerciseLogId] = null;
@@ -144,6 +149,7 @@ const submitSet = async (exerciseLogId: string, values: { weightKg: string, reps
       weightKg: values.weightKg === "" ? null : Number(values.weightKg),
       reps: values.reps === "" ? null : Number(values.reps),
       rpe: values.rpe === "" ? null : Number(values.rpe),
+      isWarmup: values.isWarmup,
     });
     return true;
   } catch {
@@ -159,6 +165,7 @@ const logNextSet = async (exerciseLogId: string) => {
     draft.weightKg = "";
     draft.reps = "";
     draft.rpe = "";
+    draft.isWarmup = false;
     startRestTimer(exerciseLogId);
   }
 };
@@ -172,6 +179,7 @@ const logSameAsLast = async (exerciseLogId: string) => {
   draft.weightKg = lastSet.weightKg === null ? "" : String(lastSet.weightKg);
   draft.reps = lastSet.reps === null ? "" : String(lastSet.reps);
   draft.rpe = lastSet.rpe === null ? "" : String(lastSet.rpe);
+  draft.isWarmup = lastSet.isWarmup;
   await logNextSet(exerciseLogId);
 };
 
@@ -236,13 +244,20 @@ const finish = async () => {
 
       <div class="space-y-2">
         <div v-for="set in exercise.sets" :key="set.id" class="space-y-1">
-          <div v-if="editingSetId === set.id" class="space-y-1">
+          <div v-if="editingSetId === set.id" class="space-y-1.5">
+            <label class="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+              Warm-up
+              <UiCheckbox
+                :model-value="editDraftFor(set.id).isWarmup"
+                @update:model-value="(value) => (editDraftFor(set.id).isWarmup = !!value)"
+              />
+            </label>
             <div class="flex items-center gap-2">
               <span class="w-6 shrink-0 text-sm text-muted-foreground">{{ set.setNumber }}</span>
               <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
-                <UiNumberStepper v-model="editDrafts[set.id].weightKg" :step="2.5" placeholder="kg" />
-                <UiNumberStepper v-model="editDrafts[set.id].reps" :step="1" placeholder="reps" />
-                <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
+                <UiNumberStepper v-model="editDraftFor(set.id).weightKg" :step="2.5" placeholder="kg" />
+                <UiNumberStepper v-model="editDraftFor(set.id).reps" :step="1" placeholder="reps" />
+                <Input v-model="editDraftFor(set.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
               </div>
               <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
                 <CheckIcon class="size-4" />
@@ -252,10 +267,17 @@ const finish = async () => {
           </div>
           <button
             v-else
-            class="flex w-full items-center gap-2 text-left text-sm text-muted-foreground"
+            class="flex w-full items-center gap-2 text-left text-sm"
+            :class="set.isWarmup ? 'text-muted-foreground/50' : 'text-muted-foreground'"
             @click="startEdit(set)"
           >
             <span class="w-6 shrink-0">{{ set.setNumber }}</span>
+            <UiBadge
+              v-if="set.isWarmup"
+              class="shrink-0 rounded-full bg-popover px-1.5 py-0 font-mono text-[9px] font-bold uppercase tracking-[1px] text-muted-foreground"
+            >
+              W
+            </UiBadge>
             <span class="flex flex-1 items-center justify-end gap-1">
               <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.weightKg ?? "–" }}kg</span>
               <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
@@ -275,6 +297,13 @@ const finish = async () => {
         >
           Same as last set
         </button>
+        <label class="mb-2 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+          Warm-up
+          <UiCheckbox
+            :model-value="draftFor(exercise.id).isWarmup"
+            @update:model-value="(value) => (draftFor(exercise.id).isWarmup = !!value)"
+          />
+        </label>
         <div class="flex items-center gap-2">
           <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
           <div class="flex flex-1 flex-wrap items-center justify-end gap-1">

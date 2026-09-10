@@ -22,6 +22,7 @@ defineRouteMeta({
               weightKg: { type: 'number', nullable: true },
               reps: { type: 'number', nullable: true },
               rpe: { type: 'number', nullable: true },
+              isWarmup: { type: 'boolean' },
             },
           },
         },
@@ -39,17 +40,18 @@ defineRouteMeta({
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
   const setId = getRouterParam(event, 'setId')!
-  const body = await readBody(event) as { expectedVersion: number, weightKg?: number | null, reps?: number | null, rpe?: number | null }
+  const body = await readBody(event) as { expectedVersion: number, weightKg?: number | null, reps?: number | null, rpe?: number | null, isWarmup?: boolean }
   const repo = new SessionRepository(useDb())
 
   const ownerId = await repo.findSetLogOwnerId(setId)
   if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Set log not found' })
   if (ownerId !== ctx.userId) throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
 
-  const corrections: { weightKg?: number | null, reps?: number | null, rpe?: number | null } = {}
+  const corrections: { weightKg?: number | null, reps?: number | null, rpe?: number | null, isWarmup?: boolean } = {}
   if ('weightKg' in body) corrections.weightKg = body.weightKg
   if ('reps' in body) corrections.reps = body.reps
   if ('rpe' in body) corrections.rpe = body.rpe
+  if ('isWarmup' in body) corrections.isWarmup = body.isWarmup
 
   const result = await repo.editSetLog(setId, body.expectedVersion, corrections)
   if (result.conflict) {

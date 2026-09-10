@@ -37,6 +37,7 @@ export interface LogSetInput {
   weightKg: number | null
   reps: number | null
   rpe: number | null
+  isWarmup?: boolean
 }
 
 export interface AddFreeformExerciseInput {
@@ -59,6 +60,7 @@ export interface EditSetLogInput {
   weightKg?: number | null
   reps?: number | null
   rpe?: number | null
+  isWarmup?: boolean
 }
 export interface SetLogEditResult {
   conflict: false
@@ -104,6 +106,7 @@ export class SessionRepository {
       weightKg: row.weight_kg as number | null,
       reps: row.reps as number | null,
       rpe: row.rpe as number | null,
+      isWarmup: Boolean(row.is_warmup),
       loggedAt: row.logged_at as string,
       version: row.version as number,
     }
@@ -247,15 +250,15 @@ export class SessionRepository {
     return this.insertIdempotent({
       selectSql: 'SELECT * FROM set_logs WHERE id = ?',
       selectArgs: [input.id],
-      insertSql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe)
-                  SELECT ?, ?, ?, ?, ?, ?
+      insertSql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe, is_warmup)
+                  SELECT ?, ?, ?, ?, ?, ?, ?
                   WHERE EXISTS (
                     SELECT 1 FROM exercise_logs
                     JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
                     WHERE exercise_logs.id = ? AND workout_sessions.status = 'in_progress'
                   )
                   RETURNING *`,
-      insertArgs: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.exerciseLogId],
+      insertArgs: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.isWarmup ? 1 : 0, input.exerciseLogId],
       scopeField: 'exercise_log_id',
       scopeValue: input.exerciseLogId,
       scopeErrorMessage: 'Set log id already exists under a different exercise log',
@@ -310,14 +313,17 @@ export class SessionRepository {
   }
 
   async editSetLog(setLogId: string, expectedVersion: number, corrections: EditSetLogInput): Promise<SetLogEditResult | ConflictResult> {
-    const ALLOWED_KEYS = new Set(['weightKg', 'reps', 'rpe'])
+    const ALLOWED_KEYS = new Set(['weightKg', 'reps', 'rpe', 'isWarmup'])
     const keys = Object.keys(corrections)
     if (keys.length === 0) throw new Error('No corrections provided')
     if (!keys.every(k => ALLOWED_KEYS.has(k))) throw new Error('Invalid correction field')
 
-    const columnFor = (key: string) => (key === 'weightKg' ? 'weight_kg' : key)
+    const columnFor = (key: string) => (key === 'weightKg' ? 'weight_kg' : key === 'isWarmup' ? 'is_warmup' : key)
     const setClause = keys.map(k => `${columnFor(k)} = ?`).join(', ')
-    const values: (string | number | null)[] = keys.map(k => corrections[k as keyof EditSetLogInput] ?? null)
+    const values: (string | number | null)[] = keys.map((k) => {
+      if (k === 'isWarmup') return corrections.isWarmup ? 1 : 0
+      return (corrections[k as keyof EditSetLogInput] as string | number | null | undefined) ?? null
+    })
     const result = await this.db.execute({
       sql: `UPDATE set_logs SET ${setClause}, version = version + 1
             WHERE id = ? AND version = ?
@@ -379,13 +385,14 @@ export class SessionRepository {
     return row ? (row.exercise_id as string) : null
   }
 
+  // Excludes warm-up sets: a light warm-up rep should never establish (or beat) the PR baseline.
   async findBestWeightForExercise(userId: string, exerciseId: string): Promise<number | null> {
     const result = await this.db.execute({
       sql: `SELECT MAX(sl.weight_kg) AS max_weight
             FROM set_logs sl
             JOIN exercise_logs el ON el.id = sl.exercise_log_id
             JOIN workout_sessions ws ON ws.id = el.session_id
-            WHERE ws.user_id = ? AND el.exercise_id = ? AND sl.weight_kg IS NOT NULL`,
+            WHERE ws.user_id = ? AND el.exercise_id = ? AND sl.weight_kg IS NOT NULL AND sl.is_warmup = 0`,
       args: [userId, exerciseId],
     })
     const row = result.rows[0] as unknown as Record<string, unknown> | undefined
@@ -403,6 +410,8 @@ export class SessionRepository {
     })
   }
 
+  // Excludes warm-up sets from both the top-set ranking and the sets_count, so a warm-up rep
+  // never becomes the displayed "last time" top set and doesn't inflate the set count.
   async findExerciseHistory(userId: string, exerciseId: string): Promise<ExerciseHistoryEntry[]> {
     const result = await this.db.execute({
       sql: `WITH ranked_sets AS (
@@ -423,6 +432,7 @@ export class SessionRepository {
                 AND el.exercise_id = ?
                 AND sl.weight_kg IS NOT NULL
                 AND sl.reps IS NOT NULL
+                AND sl.is_warmup = 0
             )
             SELECT session_id, session_date, weight_kg, reps, sets_count
             FROM ranked_sets
@@ -439,6 +449,8 @@ export class SessionRepository {
     }))
   }
 
+  // Excludes warm-up sets: "last performed" should reflect the last real working set, not a
+  // light warm-up rep that happens to be the most recent thing logged for the exercise.
   async findLastPerformedForExercises(userId: string, exerciseIds: string[]): Promise<Record<string, { weightKg: number, reps: number, date: string }>> {
     if (exerciseIds.length === 0) return {}
     const placeholders = exerciseIds.map(() => '?').join(', ')
@@ -464,6 +476,7 @@ export class SessionRepository {
                 AND el.exercise_id IN (${placeholders})
                 AND sl.weight_kg IS NOT NULL
                 AND sl.reps IS NOT NULL
+                AND sl.is_warmup = 0
             )
             SELECT exercise_id, session_date, weight_kg, reps
             FROM ranked_sets
@@ -501,6 +514,11 @@ export class SessionRepository {
     return new Set(result.rows.map(row => (row as unknown as Record<string, unknown>).day as string))
   }
 
+  // Decision: NOT excluding warm-ups here (unlike weeklySetsByMuscle below). This is the
+  // lifetime total feeding the total_volume_kg achievement, which rewards cumulative work done
+  // over months, not a snapshot of a single week's training stress — a warm-up rep is real
+  // weight actually moved, and its contribution here is negligible next to working sets, so the
+  // simpler "count everything logged" semantics are preferable to adding another filter.
   async totalVolumeKg(userId: string): Promise<number> {
     const result = await this.db.execute({
       sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
@@ -513,13 +531,16 @@ export class SessionRepository {
     return (result.rows[0]?.total as number) ?? 0
   }
 
+  // Decision: excludes warm-ups (sl.is_warmup = 0), consistent with weeklySetsByMuscle below —
+  // this feeds home's weekly-volume display, the same "this week's real training stress" concept,
+  // as opposed to totalVolumeKg's lifetime achievement total which intentionally counts everything.
   async volumeKgInRange(userId: string, startIso: string, endIso: string): Promise<number> {
     const result = await this.db.execute({
       sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
             FROM set_logs sl
             JOIN exercise_logs el ON el.id = sl.exercise_log_id
             JOIN workout_sessions ws ON ws.id = el.session_id
-            WHERE ws.user_id = ? AND sl.weight_kg IS NOT NULL AND sl.reps IS NOT NULL
+            WHERE ws.user_id = ? AND sl.weight_kg IS NOT NULL AND sl.reps IS NOT NULL AND sl.is_warmup = 0
               AND ws.started_at >= ? AND ws.started_at < ?`,
       args: [userId, startIso, endIso],
     })
@@ -528,6 +549,11 @@ export class SessionRepository {
 
   // Assumes every logged exercise has at least one primary-muscle row in exercise_muscles;
   // sets against an untagged exercise are silently excluded from every muscle's count.
+  //
+  // Decision: warm-up sets are excluded here too (sl.is_warmup = 0). This weekly count exists
+  // to flag under/over-trained muscles from real training stress — a handful of light warm-up
+  // reps isn't the stress the low/optimal/high bands are meant to measure, and counting them
+  // would let someone appear to be hitting volume targets on warm-ups alone.
   async weeklySetsByMuscle(userId: string, startIso: string, endIso: string): Promise<{ muscleId: number, muscleName: string, setCount: number }[]> {
     const result = await this.db.execute({
       sql: `SELECT muscles.id AS muscle_id, muscles.name AS muscle_name, COUNT(DISTINCT sl.id) AS set_count
@@ -536,7 +562,7 @@ export class SessionRepository {
             JOIN workout_sessions ws ON ws.id = el.session_id
             JOIN exercise_muscles em ON em.exercise_id = el.exercise_id AND em.role = 'primary'
             JOIN muscles ON muscles.id = em.muscle_id
-            WHERE ws.user_id = ? AND sl.logged_at >= ? AND sl.logged_at < ?
+            WHERE ws.user_id = ? AND sl.logged_at >= ? AND sl.logged_at < ? AND sl.is_warmup = 0
             GROUP BY muscles.id
             ORDER BY set_count DESC`,
       args: [userId, startIso, endIso],

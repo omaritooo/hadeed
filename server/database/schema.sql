@@ -325,6 +325,11 @@ CREATE TABLE IF NOT EXISTS set_logs (
   version          INTEGER NOT NULL DEFAULT 1
 );
 
+-- Marks a set as a warm-up rather than a working set, so a light warm-up rep doesn't pollute
+-- PR detection or exercise history/"last performed" (see SessionRepository) or weekly
+-- volume-by-muscle tracking (see weeklySetsByMuscle) — those queries filter is_warmup = 0.
+ALTER TABLE set_logs ADD COLUMN is_warmup INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS sync_conflicts (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

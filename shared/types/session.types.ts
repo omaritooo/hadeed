@@ -33,6 +33,7 @@ export interface SetLog {
   weightKg: number | null
   reps: number | null
   rpe: number | null
+  isWarmup: boolean
   loggedAt: string
   version: number
 }

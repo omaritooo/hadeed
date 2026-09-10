@@ -1,6 +1,7 @@
 import { createError, readBody } from 'h3'
 import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
+import { isNewPersonalRecord } from '~~/server/utils/pr'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
 import { StreakRepository } from '~~/server/repositories/streak.repository'
@@ -25,6 +26,7 @@ defineRouteMeta({
               weightKg: { type: 'number', nullable: true },
               reps: { type: 'number', nullable: true },
               rpe: { type: 'number', nullable: true },
+              isWarmup: { type: 'boolean' },
             },
           },
         },
@@ -47,6 +49,7 @@ export default defineEventHandler(async (event) => {
     weightKg?: number | null
     reps?: number | null
     rpe?: number | null
+    isWarmup?: boolean
   }
   const repo = new SessionRepository(useDb())
 
@@ -55,6 +58,7 @@ export default defineEventHandler(async (event) => {
   if (ownerId !== ctx.userId) throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
 
   const exerciseId = await repo.findExerciseIdForLog(body.exerciseLogId)
+  // Already excludes warm-up sets from the baseline (see findBestWeightForExercise).
   const previousBest = exerciseId ? await repo.findBestWeightForExercise(ctx.userId, exerciseId) : null
 
   const setLog = await repo.logSet({
@@ -64,10 +68,10 @@ export default defineEventHandler(async (event) => {
     weightKg: body.weightKg ?? null,
     reps: body.reps ?? null,
     rpe: body.rpe ?? null,
+    isWarmup: body.isWarmup ?? false,
   })
 
-  const isNewPr = setLog.weightKg != null && (previousBest === null || setLog.weightKg > previousBest)
-  if (isNewPr) {
+  if (isNewPersonalRecord(setLog, previousBest)) {
     const db = useDb()
     const gamification = new GamificationService(new XpRepository(db), new StreakRepository(db), new AchievementRepository(db), repo)
     await gamification.onPrHit(ctx.userId, setLog.id).catch((error) => {

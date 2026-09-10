@@ -382,6 +382,16 @@ describe('SessionRepository.editSetLog', () => {
       expect(result.setLog.version).toBe(2)
     }
   })
+
+  it('can retroactively flip a set to (and back from) a warm-up', async () => {
+    const marked = await repo.editSetLog('set-1', 1, { isWarmup: true })
+    expect(marked.conflict).toBe(false)
+    if (!marked.conflict) expect(marked.setLog.isWarmup).toBe(true)
+
+    const unmarked = await repo.editSetLog('set-1', 2, { isWarmup: false })
+    expect(unmarked.conflict).toBe(false)
+    if (!unmarked.conflict) expect(unmarked.setLog.isWarmup).toBe(false)
+  })
 })
 
 describe('SessionRepository.findSetLogOwnerId', () => {
@@ -699,6 +709,81 @@ describe('SessionRepository.findLastPerformedForExercises', () => {
   it('returns an empty object for an empty exerciseIds array', async () => {
     const result = await sessions.findLastPerformedForExercises('user-1', [])
     expect(result).toEqual({})
+  })
+})
+
+describe('SessionRepository warm-up exclusion from PR baseline and history', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')" })
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+  })
+
+  it('a heavy warm-up set does not become the PR baseline, so a subsequent lighter working set still registers as a PR', async () => {
+    // A warm-up at 100kg would be a PR if it counted - it should not raise the baseline at all.
+    const warmup = await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 6, isWarmup: true })
+    expect(warmup.isWarmup).toBe(true)
+
+    const baselineAfterWarmup = await repo.findBestWeightForExercise('user-1', 'bench-press')
+    expect(baselineAfterWarmup).toBeNull()
+
+    // Mirrors the route's isNewPr check: no real best on record, so even the warm-up's own
+    // weight would need isNewPersonalRecord to say false - covered directly in pr.test.ts.
+    // Here we confirm the baseline the route reads is unaffected by the warm-up.
+    const workingWeight = 60
+    const isNewPr = workingWeight != null && (baselineAfterWarmup === null || workingWeight > baselineAfterWarmup)
+    expect(isNewPr).toBe(true)
+
+    const working = await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: workingWeight, reps: 8, rpe: 8, isWarmup: false })
+    expect(working.isWarmup).toBe(false)
+
+    // The working set now establishes the real baseline; the warm-up is still excluded.
+    const baselineAfterWorking = await repo.findBestWeightForExercise('user-1', 'bench-press')
+    expect(baselineAfterWorking).toBe(60)
+  })
+
+  it('excludes a warm-up set from findExerciseHistory and findLastPerformedForExercises', async () => {
+    await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 6, isWarmup: true })
+    await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 8, isWarmup: false })
+    await repo.completeSession('session-1', 1)
+
+    const history = await repo.findExerciseHistory('user-1', 'bench-press')
+    expect(history).toHaveLength(1)
+    expect(history[0]?.topSetWeightKg).toBe(60)
+    expect(history[0]?.setsCount).toBe(1)
+
+    const lastPerformed = await repo.findLastPerformedForExercises('user-1', ['bench-press'])
+    expect(lastPerformed['bench-press']).toEqual({ weightKg: 60, reps: 8, date: history[0]?.date })
+  })
+
+  it('excludes a warm-up set from weeklySetsByMuscle', async () => {
+    const { MuscleRepository } = await import('~~/server/repositories/muscle.repository')
+    const muscles = new MuscleRepository(db)
+    const chest = await muscles.getOrCreate('chest')
+    await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: ['bench-press', chest.id, 'primary'] })
+
+    await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 20, reps: 15, rpe: 4, isWarmup: true })
+    await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 8, isWarmup: false })
+
+    const results = await repo.weeklySetsByMuscle('user-1', '2020-01-01 00:00:00', '2030-01-01 00:00:00')
+    expect(results).toEqual([{ muscleId: chest.id, muscleName: 'chest', setCount: 1 }])
+  })
+
+  it('excludes a warm-up set from volumeKgInRange but includes it in totalVolumeKg', async () => {
+    await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 20, reps: 10, rpe: 4, isWarmup: true })
+    await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 8, isWarmup: false })
+
+    const weeklyVolume = await repo.volumeKgInRange('user-1', '2020-01-01 00:00:00', '2030-01-01 00:00:00')
+    expect(weeklyVolume).toBe(60 * 8)
+
+    const totalVolume = await repo.totalVolumeKg('user-1')
+    expect(totalVolume).toBe(20 * 10 + 60 * 8)
   })
 })
 

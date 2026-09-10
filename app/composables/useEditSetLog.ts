@@ -9,6 +9,7 @@ export interface EditSetLogPayload {
   weightKg?: number | null
   reps?: number | null
   rpe?: number | null
+  isWarmup?: boolean
 }
 
 export const useEditSetLog = () => {
