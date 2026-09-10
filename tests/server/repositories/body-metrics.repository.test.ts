@@ -28,6 +28,22 @@ describe('BodyMetricsRepository', () => {
     expect(latest?.measurements.map(m => m.key).sort()).toEqual(['chest', 'waist'])
   })
 
+  it('records an entry when measurements is omitted from the input', async () => {
+    // Regression: the caller-facing route declares `measurements` required, but a malformed
+    // or legacy request could omit it - record() previously did `for (const m of
+    // input.measurements)` with no fallback, throwing "not iterable" *after* the body_metrics
+    // row had already been inserted (write succeeds, caller still gets a 500).
+    const entry = await repo.record('user-1', {
+      recordedAt: '2026-08-18',
+      weightKg: 80,
+      source: 'manual',
+    } as Parameters<typeof repo.record>[1])
+    expect(entry.measurements).toEqual([])
+
+    const [latest] = await repo.findForUser('user-1')
+    expect(latest?.weightKg).toBe(80)
+  })
+
   it('orders findForUser by recorded_at descending', async () => {
     await repo.record('user-1', { recordedAt: '2026-08-01', weightKg: 82, source: 'manual', measurements: [] })
     await repo.record('user-1', { recordedAt: '2026-08-15', weightKg: 80, source: 'manual', measurements: [] })

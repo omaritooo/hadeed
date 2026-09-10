@@ -58,7 +58,7 @@ export class BodyMetricsRepository {
     if (!insertedRow) throw new Error('Failed to record body metric')
     const row = this.mapRow(insertedRow as unknown as Record<string, unknown>)
 
-    for (const m of input.measurements) {
+    for (const m of input.measurements ?? []) {
       await this.db.execute({
         sql: 'INSERT INTO body_metric_measurements (body_metric_id, key, value_cm) VALUES (?, ?, ?)',
         args: [row.id, m.key, m.valueCm],
