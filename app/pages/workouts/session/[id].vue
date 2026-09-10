@@ -59,11 +59,16 @@ const formatLastPerformance = (exerciseId: string) => {
   return `Last: ${lastEntry.topSetWeightKg}kg × ${lastEntry.topSetReps}`;
 };
 
+const formatSetsProgress = (loggedSets: number, targetSets: number | null) => {
+  return targetSets === null ? `${loggedSets} sets` : `${loggedSets}/${targetSets} sets`;
+};
+
 const exerciseDisplayInfo = computed(() => {
   return (session.value?.exercises ?? []).map(exercise => ({
     ...exercise,
     targetLabel: formatTarget(exercise.targetSets, exercise.targetReps, exercise.targetRpe),
     lastPerformanceLabel: formatLastPerformance(exercise.exerciseId),
+    setsProgressLabel: formatSetsProgress(exercise.sets.length, exercise.targetSets),
   }));
 });
 
@@ -197,6 +202,8 @@ const logSameAsLast = async (exerciseLogId: string) => {
 
 const finish = async () => {
   if (!session.value) return;
+  const hasSkippedExercises = session.value.exercises.some(exercise => exercise.sets.length === 0);
+  if (hasSkippedExercises && !confirm("Some exercises have no logged sets. Finish anyway?")) return;
   finishError.value = null;
   try {
     await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
@@ -243,7 +250,10 @@ const finish = async () => {
       <div class="space-y-1 border-b border-surface-strong pb-3">
         <div class="flex items-center justify-between">
           <p class="font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
-          <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">{{ exercise.setsProgressLabel }}</span>
+            <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
+          </div>
         </div>
         <div
           v-if="exercise.targetLabel || exercise.lastPerformanceLabel"
