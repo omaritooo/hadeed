@@ -21,4 +21,5 @@ export const queryKeys = {
   weeklyVolume: () => ['weekly-volume'] as const,
   achievements: () => ['achievements'] as const,
   session: (id: string) => ['session', id] as const,
+  bodyMetrics: () => ['body-metrics'] as const,
 }

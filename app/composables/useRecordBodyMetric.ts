@@ -12,10 +12,12 @@ export const useRecordBodyMetric = () => {
       method: 'POST',
       body: input,
     }),
-    // A new weigh-in changes profile.stats (bmi/tdee/latestWeightKg) and home's weightTrend sparkline.
+    // A new weigh-in changes profile.stats (bmi/tdee/latestWeightKg), home's weightTrend
+    // sparkline, and the recent-entries list rendered by useBodyMetrics.
     onSuccess: () => Promise.all([
       queryCache.invalidateQueries({ key: queryKeys.profile() }),
       queryCache.invalidateQueries({ key: queryKeys.home() }),
+      queryCache.invalidateQueries({ key: queryKeys.bodyMetrics() }),
     ]),
   })
 }

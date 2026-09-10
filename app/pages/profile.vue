@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, PlusIcon, ScaleIcon, TrashIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
 import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,58 @@ const onSaveTarget = async () => {
     }
   } catch {
     // Swallow: on failure the fields simply stay as the user left them.
+  }
+};
+
+// Body metrics: the read+write stack (body_metrics/body_metric_measurements tables,
+// BodyMetricsRepository/Service, GET+POST routes, useRecordBodyMetric) already existed
+// end to end before this section -- this is the first UI in the app that calls any of it.
+//
+// Relationship to the weight already shown elsewhere: Home's weightTrend sparkline
+// (server/services/home.service.ts) and this page's own BMI/TDEE stats
+// (server/services/profile.service.ts's getComputedStats) both already read from
+// this exact same body_metrics table via BodyMetricsRepository.findForUser -- and
+// onboarding's "weight" step already writes its initial value into body_metrics too
+// (ProfileService.completeOnboarding). So there is only one weight-tracking system in
+// this codebase, not two: this form is simply the first place a user can add a second
+// (or Nth) entry to it after onboarding seeds the first one. Logging here immediately
+// affects Home's sparkline and this page's own stats via the query-cache invalidation
+// in useRecordBodyMetric.
+const { data: bodyMetricsData } = useBodyMetrics();
+const { mutateAsync: recordBodyMetricAsync, isLoading: recordingBodyMetric } = useRecordBodyMetric();
+
+const newWeightKg = ref<number | undefined>(undefined);
+const newBodyFatPct = ref<number | undefined>(undefined);
+const draftMeasurements = ref<{ key: string; valueCm: number }[]>([]);
+const newMeasurementKey = ref("");
+const newMeasurementValueCm = ref<number | undefined>(undefined);
+
+const recentBodyMetrics = computed(() => (bodyMetricsData.value ?? []).slice(0, 5));
+
+const addDraftMeasurement = () => {
+  const key = newMeasurementKey.value.trim();
+  if (!key || !newMeasurementValueCm.value || newMeasurementValueCm.value <= 0) return;
+  draftMeasurements.value.push({ key, valueCm: newMeasurementValueCm.value });
+  newMeasurementKey.value = "";
+  newMeasurementValueCm.value = undefined;
+};
+const removeDraftMeasurement = (index: number) => draftMeasurements.value.splice(index, 1);
+
+const onRecordBodyMetric = async () => {
+  if (!newWeightKg.value || newWeightKg.value <= 0) return;
+  try {
+    await recordBodyMetricAsync({
+      recordedAt: new Date().toISOString().slice(0, 10),
+      weightKg: newWeightKg.value,
+      bodyFatPct: newBodyFatPct.value ?? null,
+      source: "manual",
+      measurements: draftMeasurements.value,
+    });
+    newWeightKg.value = undefined;
+    newBodyFatPct.value = undefined;
+    draftMeasurements.value = [];
+  } catch {
+    // Swallow: on failure the form stays populated with the user's input intact.
   }
 };
 
@@ -194,6 +246,67 @@ const onLogout = async () => {
     </section>
 
     <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <ScaleIcon class="size-4.5 text-cyan-pale" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Body Metrics</h2>
+      </div>
+      <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
+        <div class="grid grid-cols-2 gap-3">
+          <UiMetricInput v-model="newWeightKg" label="Weight" unit="KG" />
+          <UiMetricInput v-model="newBodyFatPct" label="Body Fat" unit="%" />
+        </div>
+
+        <div class="space-y-2">
+          <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Measurements</p>
+          <TransitionGroup tag="div" name="row" class="space-y-2">
+            <div
+              v-for="(measurement, index) in draftMeasurements"
+              :key="index"
+              class="flex items-center justify-between gap-2 rounded-lg border border-surface-strong bg-popover px-3 py-2"
+            >
+              <span class="min-w-0 truncate text-sm capitalize text-foreground">{{ measurement.key }} -- {{ measurement.valueCm }}cm</span>
+              <button class="shrink-0 rounded-md p-1 transition-transform active:scale-90" aria-label="Remove measurement" @click="removeDraftMeasurement(index)">
+                <TrashIcon class="size-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          </TransitionGroup>
+          <div class="flex gap-2">
+            <UiInput v-model="newMeasurementKey" placeholder="e.g. waist" class="flex-1" />
+            <UiMetricInput v-model="newMeasurementValueCm" unit="cm" class="w-28" />
+            <Button
+              size="lg"
+              class="shrink-0 rounded-lg"
+              aria-label="Add measurement"
+              :disabled="!newMeasurementKey.trim() || !newMeasurementValueCm || newMeasurementValueCm <= 0"
+              @click="addDraftMeasurement"
+            >
+              <PlusIcon class="size-5" />
+            </Button>
+          </div>
+        </div>
+
+        <Button
+          size="lg"
+          class="w-full rounded-full uppercase"
+          :disabled="!newWeightKg || newWeightKg <= 0 || recordingBodyMetric"
+          @click="onRecordBodyMetric"
+        >
+          Log Entry
+        </Button>
+
+        <div v-if="recentBodyMetrics.length" class="space-y-2 border-t border-surface-strong pt-4">
+          <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Recent entries</p>
+          <div v-for="metric in recentBodyMetrics" :key="metric.id" class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-muted-foreground">{{ metric.recordedAt }}</span>
+            <span class="text-foreground [font-variant-numeric:tabular-nums]">
+              {{ metric.weightKg }}kg<span v-if="metric.bodyFatPct !== null"> · {{ metric.bodyFatPct }}% BF</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="font-heading text-xl uppercase text-foreground">Achievements</h2>
         <span class="font-mono text-xs font-bold uppercase tracking-[1.2px] text-peach [font-variant-numeric:tabular-nums]">
@@ -262,3 +375,20 @@ const onLogout = async () => {
     </section>
   </main>
 </template>
+
+<style scoped>
+.row-enter-active,
+.row-leave-active,
+.row-move {
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+.row-enter-from,
+.row-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.row-leave-active {
+  position: absolute;
+  width: 100%;
+}
+</style>
