@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, InfoIcon } from "@lucide/vue";
+import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SetLog } from "~~/shared/types/session.types";
@@ -11,6 +11,7 @@ const { data: session, refetch, isLoading } = useSession(sessionId);
 const logSet = useLogSet();
 const completeSession = useCompleteSession();
 const editSetLog = useEditSetLog();
+const deleteSetLog = useDeleteSetLog();
 
 const now = useNow({ interval: 1000 });
 const elapsed = computed(() => {
@@ -134,6 +135,17 @@ const saveEdit = async (set: SetLog) => {
     } else {
       editError.value = "Couldn't save that correction. Please try again.";
     }
+  }
+};
+
+const deleteErrors = reactive<Record<string, string | null>>({});
+const deleteSet = async (set: SetLog) => {
+  if (!confirm("Delete this set? This can't be undone.")) return;
+  deleteErrors[set.id] = null;
+  try {
+    await deleteSetLog.mutateAsync({ sessionId: sessionId.value, setLogId: set.id });
+  } catch {
+    deleteErrors[set.id] = "Couldn't delete that set. Please try again.";
   }
 };
 
@@ -265,26 +277,36 @@ const finish = async () => {
             </div>
             <button class="block w-full text-right text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
           </div>
-          <button
-            v-else
-            class="flex w-full items-center gap-2 text-left text-sm"
-            :class="set.isWarmup ? 'text-muted-foreground/50' : 'text-muted-foreground'"
-            @click="startEdit(set)"
-          >
-            <span class="w-6 shrink-0">{{ set.setNumber }}</span>
-            <UiBadge
-              v-if="set.isWarmup"
-              class="shrink-0 rounded-full bg-popover px-1.5 py-0 font-mono text-[9px] font-bold uppercase tracking-[1px] text-muted-foreground"
+          <div v-else class="flex w-full items-center gap-1">
+            <button
+              class="flex flex-1 items-center gap-2 text-left text-sm"
+              :class="set.isWarmup ? 'text-muted-foreground/50' : 'text-muted-foreground'"
+              @click="startEdit(set)"
             >
-              W
-            </UiBadge>
-            <span class="flex flex-1 items-center justify-end gap-1">
-              <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.weightKg ?? "–" }}kg</span>
-              <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
-              <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
-            </span>
-          </button>
+              <span class="w-6 shrink-0">{{ set.setNumber }}</span>
+              <UiBadge
+                v-if="set.isWarmup"
+                class="shrink-0 rounded-full bg-popover px-1.5 py-0 font-mono text-[9px] font-bold uppercase tracking-[1px] text-muted-foreground"
+              >
+                W
+              </UiBadge>
+              <span class="flex flex-1 items-center justify-end gap-1">
+                <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.weightKg ?? "–" }}kg</span>
+                <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
+                <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
+              </span>
+            </button>
+            <button
+              class="shrink-0 p-1 text-muted-foreground/70"
+              :disabled="deleteSetLog.isLoading.value"
+              aria-label="Delete set"
+              @click="deleteSet(set)"
+            >
+              <Trash2Icon class="size-3.5" />
+            </button>
+          </div>
           <p v-if="editingSetId === set.id && editError" class="text-sm text-destructive">{{ editError }}</p>
+          <p v-if="deleteErrors[set.id]" class="text-sm text-destructive">{{ deleteErrors[set.id] }}</p>
         </div>
       </div>
 

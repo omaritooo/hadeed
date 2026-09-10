@@ -354,6 +354,15 @@ export class SessionRepository {
     return { conflict: true }
   }
 
+  // No expectedVersion/conflict handling here: unlike editSetLog, a delete has no partial
+  // state to lose — the row either still exists (delete it) or is already gone (no-op).
+  async deleteSetLog(setLogId: string): Promise<void> {
+    await this.db.execute({
+      sql: 'DELETE FROM set_logs WHERE id = ?',
+      args: [setLogId],
+    })
+  }
+
   async findSetLogOwnerId(setLogId: string): Promise<string | null> {
     const result = await this.db.execute({
       sql: `SELECT workout_sessions.user_id AS user_id
