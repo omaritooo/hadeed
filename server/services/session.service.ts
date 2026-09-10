@@ -2,9 +2,12 @@ import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
 import type { SessionRepository } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
+import type { XpRepository } from '~~/server/repositories/xp.repository'
+import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { GamificationService } from '~~/server/services/gamification.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import { startOfWeek, toSqliteDatetime } from '~~/server/utils/date'
+import type { SessionCompletionSummary, WorkoutSession } from '~~/shared/types/session.types'
+import { startOfWeek, toSqliteDatetime, fromSqliteDatetime } from '~~/server/utils/date'
 
 export class SessionService extends BaseService {
   constructor(
@@ -12,6 +15,10 @@ export class SessionService extends BaseService {
     private sessions: SessionRepository,
     private blocks: BlockRepository,
     private gamification: GamificationService,
+    // Read-only lookups for the post-workout summary (PRs recorded during this session, current
+    // streak) — separate from `gamification`, which owns writing/mutating this same state.
+    private xp: XpRepository,
+    private streaks: StreakRepository,
   ) {
     super(ctx)
   }
@@ -23,7 +30,10 @@ export class SessionService extends BaseService {
     return session
   }
 
-  async completeSession(sessionId: string, expectedVersion: number) {
+  async completeSession(
+    sessionId: string,
+    expectedVersion: number,
+  ): Promise<{ conflict: true } | { conflict: false, session: WorkoutSession, summary: SessionCompletionSummary }> {
     await this.requireOwnedSession(sessionId)
 
     const result = await this.sessions.completeSession(sessionId, expectedVersion)
@@ -55,6 +65,27 @@ export class SessionService extends BaseService {
       console.error('GamificationService.onSessionCompleted failed after session completion', { sessionId, error })
     }
 
-    return result
+    // Gathered after the gamification call above so currentStreak reflects any update it just
+    // made (e.g. recordActiveDay). If that call threw, this just reports the pre-update streak —
+    // consistent with this method's existing swallow-and-log behavior for gamification failures.
+    const [totalVolumeKg, prsHit, streak] = await Promise.all([
+      this.sessions.sessionVolumeKg(sessionId),
+      this.xp.findPrsForSession(this.ctx.userId, sessionId),
+      this.streaks.findForUser(this.ctx.userId),
+    ])
+
+    // completedAt is guaranteed set: this branch is only reached when the completeSession update
+    // above actually applied (result.conflict === false), which sets it in the same statement.
+    const durationMinutes = result.session.completedAt
+      ? Math.max(0, Math.round(
+          (fromSqliteDatetime(result.session.completedAt).getTime() - fromSqliteDatetime(result.session.startedAt).getTime()) / 60000,
+        ))
+      : 0
+
+    return {
+      conflict: false,
+      session: result.session,
+      summary: { totalVolumeKg, durationMinutes, prsHit, currentStreak: streak.currentStreak },
+    }
   }
 }

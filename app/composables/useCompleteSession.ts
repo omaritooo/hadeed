@@ -1,13 +1,18 @@
 import type { FetchError } from 'ofetch'
-import type { WorkoutSession } from '~~/shared/types/session.types'
+import type { SessionCompletionSummary, WorkoutSession } from '~~/shared/types/session.types'
 import { useMutation, useQueryCache } from '@pinia/colada'
+
+export interface SessionCompletionResponse {
+  session: WorkoutSession
+  summary: SessionCompletionSummary
+}
 
 export const useCompleteSession = () => {
   const { $api } = useNuxtApp()
   const queryCache = useQueryCache()
 
-  return useMutation<WorkoutSession, { sessionId: string, expectedVersion: number }, FetchError<{ statusMessage: string }>>({
-    mutation: ({ sessionId, expectedVersion }) => $api<WorkoutSession>(`/api/sessions/${sessionId}/complete`, {
+  return useMutation<SessionCompletionResponse, { sessionId: string, expectedVersion: number }, FetchError<{ statusMessage: string }>>({
+    mutation: ({ sessionId, expectedVersion }) => $api<SessionCompletionResponse>(`/api/sessions/${sessionId}/complete`, {
       method: 'POST',
       body: { expectedVersion },
     }),

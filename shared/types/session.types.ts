@@ -53,6 +53,25 @@ export interface ExerciseHistoryEntry {
   setsCount: number
 }
 
+export interface SessionPrHit {
+  exerciseName: string
+  weightKg: number
+  reps: number
+}
+
+// Returned by SessionService.completeSession alongside the completed session itself, to drive
+// the post-workout summary screen. `prsHit` is looked up from recorded xp_ledger('pr') entries
+// for sets logged in this session (see XpRepository.findPrsForSession) rather than re-derived
+// from set_logs at completion time — by completion time this session's own working sets are
+// already in set_logs, so a fresh best-weight lookup could no longer tell a PR set apart from
+// the new baseline it just became.
+export interface SessionCompletionSummary {
+  totalVolumeKg: number
+  durationMinutes: number
+  prsHit: SessionPrHit[]
+  currentStreak: number
+}
+
 export type SyncEntityTable = 'set_logs' | 'workout_sessions'
 export type SyncConflictResolution = 'kept_mine' | 'kept_server' | 'manual'
 

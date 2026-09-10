@@ -3,6 +3,8 @@ import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
+import { XpRepository } from '~~/server/repositories/xp.repository'
+import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { SessionService } from '~~/server/services/session.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 
@@ -29,14 +31,18 @@ async function seedUserWithActiveBlock(db: Client, trainingDays: number) {
 describe('SessionService', () => {
   let db: Client
   let sessions: SessionRepository
+  let xp: XpRepository
+  let streaks: StreakRepository
   let service: SessionService
   let onSessionCompleted: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     db = await createTestDb()
     sessions = new SessionRepository(db)
+    xp = new XpRepository(db)
+    streaks = new StreakRepository(db)
     onSessionCompleted = vi.fn()
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), { onSessionCompleted } as never)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), { onSessionCompleted } as never, xp, streaks)
   })
 
   it('rejects completing a session owned by someone else', async () => {
@@ -167,5 +173,27 @@ describe('SessionService', () => {
     expect(consoleErrorSpy).toHaveBeenCalled()
 
     consoleErrorSpy.mockRestore()
+  })
+
+  it('summarizes the session: total volume excludes warm-ups, and prsHit surfaces PRs recorded for this session\'s sets', async () => {
+    await seedUserWithActiveBlock(db, 1)
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')" })
+    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    // A warm-up (40kg x 10) that must not count toward volume, plus a real working set (100kg x
+    // 5) that a prior set-logging call would have flagged as a PR — simulated here the same way
+    // sets.post.ts records one: an xp_ledger('pr') entry keyed by the set's id.
+    await sessions.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 40, reps: 10, rpe: null, isWarmup: true })
+    await sessions.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 100, reps: 5, rpe: 8, isWarmup: false })
+    await xp.award('user-1', 50, 'pr', 'set-working')
+
+    const result = await service.completeSession('session-1', 1)
+
+    expect(result.conflict).toBe(false)
+    if (result.conflict) return
+    expect(result.summary.totalVolumeKg).toBe(100 * 5)
+    expect(result.summary.prsHit).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5 }])
+    expect(result.summary.durationMinutes).toBeGreaterThanOrEqual(0)
+    expect(result.summary.currentStreak).toBe((await streaks.findForUser('user-1')).currentStreak)
   })
 })

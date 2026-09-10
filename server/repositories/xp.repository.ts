@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client'
 import type { XpSourceType } from '~~/shared/types/gamification.types'
 import type { RecentPr } from '~~/shared/types/home.types'
+import type { SessionPrHit } from '~~/shared/types/session.types'
 
 export class XpRepository {
   constructor(private db: Client) {}
@@ -49,6 +50,32 @@ export class XpRepository {
       weightKg: row.weight_kg as number,
       reps: row.reps as number,
       achievedAt: row.achieved_at as string,
+    }))
+  }
+
+  /**
+   * PRs hit *during a specific session*, for the post-workout summary. Looks up recorded
+   * xp_ledger('pr') entries whose source set belongs to this session, rather than re-deriving PR
+   * status from set_logs at completion time — by the time a session completes, its own working
+   * sets are already in set_logs, so a fresh best-weight lookup could no longer distinguish a PR
+   * set from the new baseline it just became. PR detection instead happens once, at log time
+   * (see server/api/sessions/[id]/sets.post.ts), and is durably recorded here.
+   */
+  async findPrsForSession(userId: string, sessionId: string): Promise<SessionPrHit[]> {
+    const result = await this.db.execute({
+      sql: `SELECT e.name AS exercise_name, sl.weight_kg, sl.reps
+            FROM xp_ledger xl
+            JOIN set_logs sl ON sl.id = xl.source_id
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN exercises e ON e.id = el.exercise_id
+            WHERE xl.user_id = ? AND xl.source_type = 'pr' AND el.session_id = ?
+            ORDER BY sl.logged_at ASC`,
+      args: [userId, sessionId],
+    })
+    return result.rows.map(row => ({
+      exerciseName: row.exercise_name as string,
+      weightKg: row.weight_kg as number,
+      reps: row.reps as number,
     }))
   }
 }

@@ -30,7 +30,7 @@ defineRouteMeta({
       },
     },
     responses: {
-      200: { description: 'The completed session' },
+      200: { description: 'The completed session and its post-workout summary (volume, duration, PRs, streak)' },
       409: { description: 'Session was modified elsewhere; check sync conflicts' },
     },
   },
@@ -43,12 +43,14 @@ export default defineEventHandler(async (event) => {
   const db = useDb()
 
   const sessionRepo = new SessionRepository(db)
-  const gamification = new GamificationService(new XpRepository(db), new StreakRepository(db), new AchievementRepository(db), sessionRepo)
-  const service = new SessionService(ctx, sessionRepo, new BlockRepository(db), gamification)
+  const xpRepo = new XpRepository(db)
+  const streakRepo = new StreakRepository(db)
+  const gamification = new GamificationService(xpRepo, streakRepo, new AchievementRepository(db), sessionRepo)
+  const service = new SessionService(ctx, sessionRepo, new BlockRepository(db), gamification, xpRepo, streakRepo)
 
   const result = await service.completeSession(id, body.expectedVersion)
   if (result.conflict) {
     throw createError({ statusCode: 409, statusMessage: 'Session was modified elsewhere; check sync conflicts' })
   }
-  return result.session
+  return { session: result.session, summary: result.summary }
 })

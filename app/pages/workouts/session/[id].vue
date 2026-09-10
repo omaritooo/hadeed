@@ -2,7 +2,7 @@
 import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { SetLog } from "~~/shared/types/session.types";
+import type { SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
 
 const route = useRoute();
 const sessionId = computed(() => route.params.id as string);
@@ -254,14 +254,19 @@ const logSameAsLast = async (exerciseLogId: string) => {
   await logNextSet(exerciseLogId);
 };
 
+// Set once completeSession succeeds; its presence swaps the whole page over to the post-workout
+// summary takeover below, replacing the logging view rather than navigating away immediately —
+// the user reviews volume/duration/PRs/streak and taps "Done" to leave.
+const completionSummary = ref<SessionCompletionSummary | null>(null);
+
 const finish = async () => {
   if (!session.value) return;
   const hasSkippedExercises = session.value.exercises.some(exercise => exercise.sets.length === 0);
   if (hasSkippedExercises && !confirm("Some exercises have no logged sets. Finish anyway?")) return;
   finishError.value = null;
   try {
-    await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
-    await navigateTo("/workouts");
+    const result = await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
+    completionSummary.value = result.summary;
   } catch (err) {
     const statusCode = (err as { statusCode?: number } | null)?.statusCode;
     if (statusCode === 409) {
@@ -272,10 +277,54 @@ const finish = async () => {
     await refetch();
   }
 };
+
+const doneWithSummary = () => navigateTo("/workouts");
 </script>
 
 <template>
-  <div v-if="session" class="flex flex-col gap-y-4 px-4 py-4">
+  <div v-if="completionSummary" class="flex flex-col gap-y-6 px-4 py-8">
+    <div class="space-y-1 text-center">
+      <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Workout complete</p>
+      <h1 class="font-heading text-3xl font-semibold text-foreground">Nice work.</h1>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <UiCard class="space-y-1 text-center">
+        <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Volume</p>
+        <p class="font-heading text-2xl text-foreground">{{ completionSummary.totalVolumeKg.toLocaleString() }}kg</p>
+      </UiCard>
+      <UiCard class="space-y-1 text-center">
+        <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Duration</p>
+        <p class="font-heading text-2xl text-foreground">{{ completionSummary.durationMinutes }} min</p>
+      </UiCard>
+      <UiCard class="space-y-1 text-center">
+        <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Streak</p>
+        <p class="font-heading text-2xl text-foreground">
+          {{ completionSummary.currentStreak }} {{ completionSummary.currentStreak === 1 ? "day" : "days" }}
+        </p>
+      </UiCard>
+      <UiCard class="space-y-1 text-center">
+        <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">PRs</p>
+        <p class="font-heading text-2xl text-foreground">{{ completionSummary.prsHit.length }}</p>
+      </UiCard>
+    </div>
+
+    <UiCard v-if="completionSummary.prsHit.length > 0" class="space-y-2">
+      <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Personal records</p>
+      <div
+        v-for="pr in completionSummary.prsHit"
+        :key="`${pr.exerciseName}-${pr.weightKg}-${pr.reps}`"
+        class="flex items-center justify-between text-sm"
+      >
+        <span class="text-foreground">{{ pr.exerciseName }}</span>
+        <span class="text-muted-foreground">{{ pr.weightKg }}kg × {{ pr.reps }}</span>
+      </div>
+    </UiCard>
+
+    <Button class="w-full" @click="doneWithSummary">Done</Button>
+  </div>
+
+  <div v-else-if="session" class="flex flex-col gap-y-4 px-4 py-4">
     <div class="flex items-center justify-between">
       <div>
         <ClientOnly>

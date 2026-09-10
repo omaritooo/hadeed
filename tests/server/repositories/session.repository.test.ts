@@ -817,6 +817,14 @@ describe('SessionRepository warm-up exclusion from PR baseline and history', () 
     const totalVolume = await repo.totalVolumeKg('user-1')
     expect(totalVolume).toBe(20 * 10 + 60 * 8)
   })
+
+  it('excludes a warm-up set from sessionVolumeKg', async () => {
+    await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 20, reps: 10, rpe: 4, isWarmup: true })
+    await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 8, rpe: 8, isWarmup: false })
+
+    const sessionVolume = await repo.sessionVolumeKg('session-1')
+    expect(sessionVolume).toBe(60 * 8)
+  })
 })
 
 describe('SessionRepository.weeklySetsByMuscle', () => {

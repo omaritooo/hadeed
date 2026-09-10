@@ -547,6 +547,20 @@ export class SessionRepository {
     return (result.rows[0]?.total as number) ?? 0
   }
 
+  // Session-scoped counterpart to volumeKgInRange: same warm-up exclusion (a warm-up rep isn't
+  // real training stress and shouldn't inflate the number shown), but scoped to one session
+  // rather than a date range. Feeds the post-workout summary's total-volume figure.
+  async sessionVolumeKg(sessionId: string): Promise<number> {
+    const result = await this.db.execute({
+      sql: `SELECT COALESCE(SUM(sl.weight_kg * sl.reps), 0) AS total
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            WHERE el.session_id = ? AND sl.weight_kg IS NOT NULL AND sl.reps IS NOT NULL AND sl.is_warmup = 0`,
+      args: [sessionId],
+    })
+    return (result.rows[0]?.total as number) ?? 0
+  }
+
   // Decision: excludes warm-ups (sl.is_warmup = 0), consistent with weeklySetsByMuscle below —
   // this feeds home's weekly-volume display, the same "this week's real training stress" concept,
   // as opposed to totalVolumeKg's lifetime achievement total which intentionally counts everything.
