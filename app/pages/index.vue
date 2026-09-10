@@ -3,6 +3,7 @@ import {
   DropletIcon,
   FlameIcon,
   HistoryIcon,
+  PlayIcon,
   PlusIcon,
   StarIcon,
   TrendingDownIcon,
@@ -15,6 +16,8 @@ import { kgToLbs } from "~~/shared/lib/formulas";
 definePageMeta({});
 const { data: profile, isLoading, isPending } = useProfile();
 const { data: stats } = useHomeStats();
+const startSession = useStartSession();
+const startError = ref<string | null>(null);
 const now = useNow();
 const timeOfDay = computed(() => {
   if (now.value.getHours() >= 5 && now.value.getHours() <= 11) return `Good Morning, `;
@@ -127,6 +130,36 @@ const lastSession = computed(() => {
 });
 
 const lastSessionTimeAgo = useTimeAgo(() => lastSession.value?.completedAt ?? new Date());
+
+const startTodaysWorkout = async () => {
+  startError.value = null;
+  const workout = stats.value?.todaysWorkout;
+  if (!workout) return;
+  try {
+    const session = await startSession.mutateAsync({
+      splitDayId: workout.splitDayId,
+      exercises: workout.exercises.map(exercise => ({
+        id: crypto.randomUUID(),
+        exerciseId: exercise.exerciseId,
+        splitExerciseId: exercise.splitExerciseId,
+        position: exercise.position,
+        setType: exercise.setType,
+        targetSets: exercise.targetSets,
+        targetReps: exercise.targetReps,
+        targetRpe: exercise.targetRpe,
+      })),
+    });
+    await navigateTo(`/workouts/session/${session.id}`);
+  } catch {
+    startError.value = "Couldn't start the workout. Please try again.";
+  }
+};
+
+const continueWorkout = async () => {
+  const sessionId = stats.value?.activeSession?.sessionId;
+  if (!sessionId) return;
+  await navigateTo(`/workouts/session/${sessionId}`);
+};
 </script>
 
 <template>
@@ -138,6 +171,37 @@ const lastSessionTimeAgo = useTimeAgo(() => lastSession.value?.completedAt ?? ne
       {{ timeOfDay ?? "NULL" }}
       <span>{{ profile?.profile?.displayName?.split(" ")[0] }} </span>
     </span>
+
+    <UiCard v-if="stats?.activeSession" class="space-y-3">
+      <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
+        >In Progress</span
+      >
+      <p class="font-heading text-2xl font-semibold text-foreground">
+        {{ stats.todaysWorkout?.dayName ?? "Freeform Workout" }}
+      </p>
+      <Button size="lg" class="w-full" @click="continueWorkout">
+        <PlayIcon class="size-4" />
+        Continue Workout
+      </Button>
+    </UiCard>
+    <UiCard v-else-if="stats?.todaysWorkout" class="space-y-3">
+      <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
+        >Today</span
+      >
+      <p class="font-heading text-2xl font-semibold text-foreground">
+        {{ stats.todaysWorkout.dayName }}
+      </p>
+      <Button
+        size="lg"
+        class="w-full"
+        :disabled="startSession.isLoading.value"
+        @click="startTodaysWorkout"
+      >
+        <PlayIcon class="size-4" />
+        Start Today's Workout
+      </Button>
+      <p v-if="startError" class="text-sm text-destructive">{{ startError }}</p>
+    </UiCard>
 
     <div class="flex gap-x-2 font-heading min-h-max h-max">
       <UiCard class="w-1/2 flex flex-col gap-y-1">
