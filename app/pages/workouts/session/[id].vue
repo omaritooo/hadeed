@@ -219,9 +219,9 @@ const finish = async () => {
           <div v-if="editingSetId === set.id" class="space-y-1">
             <div class="flex items-center gap-2">
               <span class="w-6 shrink-0 text-sm text-muted-foreground">{{ set.setNumber }}</span>
-              <div class="flex flex-1 items-center justify-end gap-1">
-                <Input v-model="editDrafts[set.id].weightKg" type="number" placeholder="kg" class="w-16 shrink-0 text-right text-sm" />
-                <Input v-model="editDrafts[set.id].reps" type="number" placeholder="reps" class="w-12 shrink-0 text-right text-sm" />
+              <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
+                <UiNumberStepper v-model="editDrafts[set.id].weightKg" :step="2.5" placeholder="kg" />
+                <UiNumberStepper v-model="editDrafts[set.id].reps" :step="1" placeholder="reps" />
                 <Input v-model="editDrafts[set.id].rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
               </div>
               <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
@@ -257,9 +257,9 @@ const finish = async () => {
         </button>
         <div class="flex items-center gap-2">
           <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
-          <div class="flex flex-1 items-center justify-end gap-1">
-            <Input v-model="draftFor(exercise.id).weightKg" type="number" placeholder="kg" class="w-16 shrink-0 text-right text-sm" />
-            <Input v-model="draftFor(exercise.id).reps" type="number" placeholder="reps" class="w-12 shrink-0 text-right text-sm" />
+          <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
+            <UiNumberStepper v-model="draftFor(exercise.id).weightKg" :step="2.5" placeholder="kg" />
+            <UiNumberStepper v-model="draftFor(exercise.id).reps" :step="1" placeholder="reps" />
             <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
           </div>
           <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
