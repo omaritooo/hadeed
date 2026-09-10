@@ -102,6 +102,22 @@ export class ProfileService extends BaseService {
     await this.users.updateDisplayName(this.ctx.userId, displayName)
   }
 
+  async updatePreferences(input: {
+    equipment: Equipment | 'both'
+    primaryGoal: Goal
+    experienceLevel: ExperienceLevel
+    unitSystem: UnitSystem
+  }) {
+    // Same remap as completeOnboarding above, and for the same reason:
+    // user_profiles.equipment's CHECK constraint never allows 'both', and this
+    // route has no server-side schema gate on its request body either - any
+    // caller can still send equipment: 'both' regardless of what the
+    // Profile page's UI (which reuses the same 4-tier option set as onboarding's
+    // FifthStep, and never offers 'both') actually presents.
+    const equipment = input.equipment === 'both' ? 'home_barbell_dumbbell' : input.equipment
+    return this.profiles.updatePreferences(this.ctx.userId, { ...input, equipment })
+  }
+
   async getProfile() {
     const profile = await this.profiles.findByUserId(this.ctx.userId)
     if (!profile) return null

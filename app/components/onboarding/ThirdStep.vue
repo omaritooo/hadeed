@@ -1,19 +1,11 @@
 <script setup lang="ts">
-import { AccessibilityIcon, DumbbellIcon, FlameIcon, HeartIcon, WrenchIcon } from "@lucide/vue";
+import { goalOptions } from "@/lib/onboarding-options";
 import { useOnboardingStore } from "~/store/onboarding";
 import { stepSchemas } from "~~/shared/schemas/onboarding";
 const store = useOnboardingStore();
 const { form, validateAll } = useZodForm(stepSchemas[3], {
   primaryGoal: store.form.primaryGoal ?? "muscle_gain",
 });
-
-const goalOptions = [
-  { value: "fat_loss", icon: FlameIcon, title: "Fat Loss", description: "New to exercising" },
-  { value: "muscle_gain", icon: DumbbellIcon, title: "Muscle Gain", description: "Hypertrophy & Size" },
-  { value: "maintenance", icon: WrenchIcon, title: "Maintenance", description: "3+ years" },
-  { value: "general_fitness", icon: HeartIcon, title: "General Health", description: "3+ years" },
-  { value: "mobility", icon: AccessibilityIcon, title: "Mobility", description: "Flexibility & Movement" },
-];
 defineExpose({
   validate() {
     if (!validateAll()) return false;

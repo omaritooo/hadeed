@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { BellIcon, CalculatorIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, PlusIcon, ScaleIcon, TrashIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
+import type { Equipment } from "~~/shared/types/preset.types";
 import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
+import type { ExperienceLevel, Goal, UnitSystem } from "~~/shared/types/profile.types";
 import { suggestNutritionTarget } from "~~/shared/lib/nutrition-targets";
 import { Button } from "@/components/ui/button";
+import { equipmentOptions, experienceOptions, goalOptions } from "@/lib/onboarding-options";
 
 const remindersEnabled = ref(false);
 const reminderInterval = ref(120);
@@ -225,6 +228,41 @@ const onSaveDisplayName = async () => {
   }
 };
 
+// Training Preferences: equipment, primary goal, and experience level reuse the exact
+// option sets from onboarding's FifthStep/ThirdStep/SecondStep (via app/lib/onboarding-options.ts)
+// rather than redefining the tier lists here. Unit system has no dedicated onboarding step to
+// reuse from, so it's a plain metric/imperial select, matching the Hydration Reminders section's
+// existing UiNativeSelect pattern above. Defaults below match the onboarding steps' own defaults
+// and are only shown until profileData loads and seeds the real values.
+const selectedEquipment = ref<Equipment>("full_gym");
+const selectedGoal = ref<Goal>("muscle_gain");
+const selectedExperience = ref<ExperienceLevel>("beginner");
+const selectedUnitSystem = ref<UnitSystem>("metric");
+let seededPreferencesFromProfile = false;
+watch(profileData, (data) => {
+  if (seededPreferencesFromProfile || !data?.profile) return;
+  if (data.profile.equipment) selectedEquipment.value = data.profile.equipment;
+  if (data.profile.primaryGoal) selectedGoal.value = data.profile.primaryGoal;
+  if (data.profile.experienceLevel) selectedExperience.value = data.profile.experienceLevel;
+  selectedUnitSystem.value = data.profile.unitSystem;
+  seededPreferencesFromProfile = true;
+}, { immediate: true });
+
+const { mutateAsync: savePreferences, isLoading: savingPreferences } = useUpdateProfilePreferences();
+
+const onSavePreferences = async () => {
+  try {
+    await savePreferences({
+      equipment: selectedEquipment.value,
+      primaryGoal: selectedGoal.value,
+      experienceLevel: selectedExperience.value,
+      unitSystem: selectedUnitSystem.value,
+    });
+  } catch {
+    // Swallow: on failure the fields stay as the user left them.
+  }
+};
+
 const { mutateAsync: logout, isLoading: loggingOut } = useLogout();
 
 const onLogout = async () => {
@@ -403,6 +441,42 @@ const onLogout = async () => {
             </p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <DumbbellIcon class="size-4.5 text-primary" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Training Preferences</h2>
+      </div>
+      <div class="space-y-5 rounded-xl border border-surface-strong bg-card p-4">
+        <div class="space-y-2">
+          <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Equipment</p>
+          <UiOptionCardGroup v-model="selectedEquipment" :options="equipmentOptions" class="space-y-2" />
+        </div>
+        <div class="space-y-2 border-t border-surface-strong pt-4">
+          <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Primary Goal</p>
+          <UiOptionCardGroup v-model="selectedGoal" :options="goalOptions" class="space-y-2" />
+        </div>
+        <div class="space-y-2 border-t border-surface-strong pt-4">
+          <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Experience Level</p>
+          <UiOptionCardGroup v-model="selectedExperience" :options="experienceOptions" class="space-y-2" />
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-surface-strong pt-4">
+          <p class="text-sm font-semibold text-foreground">Unit System</p>
+          <UiNativeSelect v-model="selectedUnitSystem" class="w-32">
+            <UiNativeSelectOption value="metric">Metric</UiNativeSelectOption>
+            <UiNativeSelectOption value="imperial">Imperial</UiNativeSelectOption>
+          </UiNativeSelect>
+        </div>
+        <Button
+          size="lg"
+          class="w-full rounded-full uppercase"
+          :disabled="savingPreferences"
+          @click="onSavePreferences"
+        >
+          Save Preferences
+        </Button>
       </div>
     </section>
 

@@ -116,6 +116,29 @@ export class ProfileRepository {
     }
   }
 
+  // A direct, partial update on an existing row -- unlike upsert() (which requires
+  // dateOfBirth/gender/height and is built for onboarding's create-or-replace flow),
+  // this only ever touches the 4 training-preference columns and never creates a row.
+  // Callers must have already confirmed a profile exists for this user (it always
+  // does past onboarding).
+  async updatePreferences(userId: string, input: {
+    equipment: Equipment | null
+    primaryGoal: Goal | null
+    experienceLevel: ExperienceLevel | null
+    unitSystem: UnitSystem
+  }): Promise<UserProfile> {
+    const result = await this.db.execute({
+      sql: `UPDATE user_profiles
+            SET equipment = ?, primary_goal = ?, experience_level = ?, unit_system = ?, updated_at = datetime('now')
+            WHERE user_id = ?
+            RETURNING *`,
+      args: [input.equipment, input.primaryGoal, input.experienceLevel, input.unitSystem, userId],
+    })
+    const row = result.rows[0]
+    if (!row) throw new Error('Profile not found')
+    return this.mapRow(row as unknown as Record<string, unknown>)
+  }
+
   async setHydrationTarget(userId: string, targetMl: number | null): Promise<void> {
     await this.db.execute({
       sql: 'UPDATE user_profiles SET hydration_target_ml = ?, updated_at = datetime(\'now\') WHERE user_id = ?',

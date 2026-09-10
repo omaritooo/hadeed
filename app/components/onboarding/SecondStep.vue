@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import {
   ActivityIcon,
-  DumbbellIcon,
-  FlameIcon,
   FootprintsIcon,
   LampDeskIcon,
-  PersonStandingIcon,
   Settings2Icon,
   SofaIcon,
   WeightTildeIcon,
 } from "@lucide/vue";
+import { experienceOptions } from "@/lib/onboarding-options";
 import { useOnboardingStore } from "~/store/onboarding";
 import { stepSchemas } from "~~/shared/schemas/onboarding";
 
@@ -19,12 +17,6 @@ const { form, errors, validateAll } = useZodForm(stepSchemas[2], {
   experienceLevel: store.form.experienceLevel ?? "beginner",
   activityLevel: store.form.activityLevel ?? "sedentary",
 });
-
-const experienceOptions = [
-  { value: "beginner", icon: PersonStandingIcon, title: "Beginner", description: "New to exercising" },
-  { value: "intermediate", icon: DumbbellIcon, title: "Intermediate", description: "1-3 years" },
-  { value: "advanced", icon: FlameIcon, title: "Experienced", description: "3+ years" },
-];
 
 const activityOptions = [
   { value: "sedentary", icon: SofaIcon, title: "Mostly Sitting", description: "Desk job, little intentional exercise" },
