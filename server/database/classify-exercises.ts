@@ -60,6 +60,19 @@ const AMBIGUOUS_TIER_OVERRIDES: Record<string, 1 | 2> = {
   'Split Squat with Dumbbells': 1,
   'Double Kettlebell Jerk': 1,
   'Double Kettlebell Push Press': 1,
+  // From exercise_additions.json, classified by the same rules: bilateral
+  // dumbbell squats/presses/rows follow their existing counterparts above
+  // ('Dumbbell Squat', 'Dumbbell Bench Press', 'Bent Over Two-Dumbbell Row'),
+  // and the unilateral LOWER-body carve-out covers the split squat, lunge and
+  // single-leg hinge. Unilateral upper-body additions (Kroc Row, Gorilla Row)
+  // and the conditioning complexes (Man Maker, Devil's Press, Farmer's Carry)
+  // are deliberately absent, so they default to Tier 2.
+  'Sumo Squat': 1,
+  'Hex Press': 1,
+  'Chest-Supported Dumbbell Row': 1,
+  'Front Foot Elevated Split Squat': 1,
+  'Curtsy Lunge': 1,
+  'Single-Leg Romanian Deadlift': 1,
   // Everything else in the residual set defaults to 2 (see below) — this
   // list is the Tier-1 allowlist, not an exhaustive map of all ambiguous
   // names, to keep it maintainable as the shorter of the two lists.
@@ -83,6 +96,7 @@ async function main() {
     const primaryMuscles = primaryMusclesResult.rows.map(r => r.name as string)
     const exercise = {
       name: row.name as string,
+      category: row.category as string | null,
       force: row.force as string | null,
       mechanic: row.mechanic as string | null,
       equipment: row.equipment as string | null,

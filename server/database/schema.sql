@@ -35,11 +35,24 @@ CREATE TABLE IF NOT EXISTS exercise_images (
   position     INTEGER NOT NULL
 );
 
+-- Alternate names people actually search for, mapped onto the catalog row that
+-- already describes the movement. The source dataset names many common lifts in
+-- ways nobody types ("Butterfly" for a pec deck, "Battling Ropes" for battle
+-- ropes, "Standing Military Press" for an overhead press), and it has no plain
+-- "Bench Press"/"Squat"/"Deadlift" row at all — only qualified variants. Aliases
+-- fix search without duplicating the row (and so without needing a second set of
+-- ROM images for the same movement).
+CREATE TABLE IF NOT EXISTS exercise_aliases (
+  alias        TEXT PRIMARY KEY COLLATE NOCASE,
+  exercise_id  TEXT NOT NULL REFERENCES exercises(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_exercise_muscles_muscle   ON exercise_muscles(muscle_id);
 CREATE INDEX IF NOT EXISTS idx_exercise_muscles_exercise ON exercise_muscles(exercise_id);
 CREATE INDEX IF NOT EXISTS idx_exercises_equipment       ON exercises(equipment);
 CREATE INDEX IF NOT EXISTS idx_exercises_category        ON exercises(category);
 CREATE INDEX IF NOT EXISTS idx_exercise_images_exercise  ON exercise_images(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_aliases_exercise ON exercise_aliases(exercise_id);
 
 -- Auth / RBAC. Turso has no row-level security, so user_id scoping and
 -- permission checks are enforced in the service layer, not the database.
@@ -376,9 +389,12 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 -- ingredient lines rather than a single scalar, so it gets a two-table
 -- log/log_items split like workout_sessions/exercise_logs.
 
+-- user_id is nullable: a NULL row is a global preset food (seeded from
+-- preset_foods.json, like the exercises catalog), visible to every user
+-- alongside their own ingredients but only editable/deletable by its owner.
 CREATE TABLE IF NOT EXISTS ingredients (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   unit_type   TEXT NOT NULL CHECK (unit_type IN ('weight_100g', 'count')),
   unit_label  TEXT,               -- e.g. 'cup', 'can', 'scoop' (null when unit_type = 'weight_100g')

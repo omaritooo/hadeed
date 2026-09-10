@@ -7,6 +7,28 @@ describe('classifyMovementPattern', () => {
     expect(classifyMovementPattern({ name: 'Incline Barbell Bench Press', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('vertical_push')
   })
 
+  it('leaves cardio unclassified so it is never offered as a substitute for a lift', () => {
+    // Without the category guard "Incline Treadmill Walk" matches the 'incline'
+    // keyword and comes back as vertical_push, making it a fallback candidate
+    // for an overhead press.
+    expect(classifyMovementPattern({ name: 'Incline Treadmill Walk', category: 'cardio', force: 'push', mechanic: 'compound', primaryMuscles: ['glutes'] })).toBeNull()
+    expect(classifyMovementPattern({ name: 'Rowing, Stationary', category: 'cardio', force: 'pull', mechanic: 'compound', primaryMuscles: ['quadriceps'] })).toBeNull()
+  })
+
+  it('classifies Nordic curl variants by the knee, not as elbow flexion', () => {
+    expect(classifyMovementPattern({ name: 'Nordic Hamstring Curl', force: 'pull', mechanic: 'compound', primaryMuscles: ['hamstrings'] })).toBe('hip_dominant')
+    expect(classifyMovementPattern({ name: 'Reverse Nordic Curl', force: 'pull', mechanic: 'isolation', primaryMuscles: ['quadriceps'] })).toBe('knee_dominant')
+  })
+
+  it('classifies a rack pull as hip-dominant', () => {
+    expect(classifyMovementPattern({ name: 'Rack Pull', force: 'pull', mechanic: 'compound', primaryMuscles: ['lower back'] })).toBe('hip_dominant')
+  })
+
+  it('separates the reverse pec deck from the ordinary pec deck', () => {
+    expect(classifyMovementPattern({ name: 'Reverse Pec Deck', force: 'pull', mechanic: 'isolation', primaryMuscles: ['shoulders'] })).toBe('lateral_isolation')
+    expect(classifyMovementPattern({ name: 'Pec Deck', force: 'push', mechanic: 'isolation', primaryMuscles: ['chest'] })).toBe('horizontal_push')
+  })
+
   it('classifies flat bench/chest press as horizontal push', () => {
     expect(classifyMovementPattern({ name: 'Barbell Bench Press', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('horizontal_push')
   })

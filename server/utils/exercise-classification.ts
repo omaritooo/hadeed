@@ -7,6 +7,7 @@ export type MovementPattern =
 
 interface ClassifiableExercise {
   name: string
+  category?: string | null
   force: string | null
   mechanic: string | null
   primaryMuscles: string[]
@@ -37,18 +38,28 @@ const nameHas = (name: string, ...keywords: string[]): boolean => {
 }
 
 export const classifyMovementPattern = (exercise: ClassifiableExercise): MovementPattern | null => {
-  const { name, force, primaryMuscles } = exercise
+  const { name, category, force, primaryMuscles } = exercise
   const muscle = primaryMuscles[0]
+
+  // Movement patterns exist to drive exercise substitution (see
+  // ExerciseRepository.findFallbacks), and cardio machines are never a valid
+  // swap for a resistance lift. Without this, the name rules below assign them
+  // one anyway — "Incline Treadmill Walk" matches 'incline' and comes back as
+  // vertical_push, which would offer it as a fallback for an overhead press.
+  if (category === 'cardio') return null
 
   if (muscle === 'abdominals') return 'core'
 
-  if (nameHas(name, 'curl') && !nameHas(name, 'leg curl')) return 'elbow_flexion'
+  // 'nordic' is excluded alongside 'leg curl' because both the Nordic hamstring
+  // curl and the reverse Nordic are knee-flexion/extension work whose names
+  // happen to contain "curl" — without this they resolve to elbow_flexion.
+  if (nameHas(name, 'curl') && !nameHas(name, 'leg curl', 'nordic')) return 'elbow_flexion'
 
   // Knee-dominant lower-body patterns are checked before the generic "dip"
   // catch below, because names like "Jerk Dip Squat" contain "dip" but are
   // squat variants, not triceps/chest dip work.
   if (nameHas(name, 'squat', 'leg press', 'lunge', 'split squat', 'step up', 'step-up', 'leg extension')) return 'knee_dominant'
-  if (nameHas(name, 'deadlift', 'rdl', 'hip thrust', 'good morning', 'hip hinge')) return 'hip_dominant'
+  if (nameHas(name, 'deadlift', 'rdl', 'hip thrust', 'good morning', 'hip hinge', 'rack pull')) return 'hip_dominant'
 
   if (nameHas(name, 'pushdown', 'triceps extension', 'skull crusher')) return 'elbow_extension'
 
@@ -62,12 +73,14 @@ export const classifyMovementPattern = (exercise: ClassifiableExercise): Movemen
   // "fly"/"flye" horizontal-push match below, since names such as "Reverse
   // Flyes" or "Cable Rear Delt Fly" would otherwise always be shadowed by
   // the broader "fly" keyword and never reach this branch.
-  if (nameHas(name, 'lateral raise', 'rear delt', 'reverse fly', 'face pull')) return 'lateral_isolation'
+  // 'reverse pec deck' is listed in full rather than as 'pec deck', which would
+  // also swallow the ordinary pec deck (a horizontal push).
+  if (nameHas(name, 'lateral raise', 'rear delt', 'reverse fly', 'face pull', 'reverse pec deck', 'y-raise', 'y raise')) return 'lateral_isolation'
 
   if (nameHas(name, 'pulldown', 'pull-up', 'pullup', 'pull up', 'chin-up', 'chinup')) return 'vertical_pull'
   if (nameHas(name, 'row', 'bench pull')) return 'horizontal_pull'
 
-  if (nameHas(name, 'incline', 'overhead press', 'shoulder press', 'military press')) return 'vertical_push'
+  if (nameHas(name, 'incline', 'overhead press', 'shoulder press', 'military press', 'viking press')) return 'vertical_push'
   if (nameHas(name, 'bench press', 'chest press', 'push-up', 'push up', 'pushup', 'flye', 'fly')) return 'horizontal_push'
 
   // Coarser fallback from force + muscle when name-matching didn't hit.

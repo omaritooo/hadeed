@@ -192,6 +192,60 @@ describe('ExerciseRepository', () => {
     expect(results.map(e => e.id)).toEqual(['bench-press'])
   })
 
+  it('finds an exercise by an alias the catalog does not use as a name', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('butterfly', 'Butterfly', 'strength', 'machine', 'push', 'beginner', 'isolation', '[]')`,
+    })
+    await db.execute({
+      sql: `INSERT INTO exercise_aliases (alias, exercise_id) VALUES ('Pec Deck', 'butterfly')`,
+    })
+
+    expect((await repo.search('pec deck')).map(e => e.id)).toEqual(['butterfly'])
+    expect((await repo.search('Butterfly')).map(e => e.id)).toEqual(['butterfly'])
+  })
+
+  it('returns an alias match once, not twice, when the term also hits the name', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('row', 'Seated Cable Rows', 'strength', 'cable', 'pull', 'beginner', 'compound', '[]')`,
+    })
+    await db.execute({
+      sql: `INSERT INTO exercise_aliases (alias, exercise_id) VALUES ('Seated Cable Row', 'row')`,
+    })
+
+    expect((await repo.search('seated cable row')).map(e => e.id)).toEqual(['row'])
+  })
+
+  it('ranks an exact alias hit above an incidental substring match', async () => {
+    // 'RDL' is a substring of 'hurdle', which sorts first alphabetically.
+    for (const [id, name] of [['hurdle-hops', 'Hurdle Hops'], ['rdl', 'Romanian Deadlift']]) {
+      await db.execute({
+        sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+              VALUES (?, ?, 'strength', 'barbell', 'pull', 'beginner', 'compound', '[]')`,
+        args: [id!, name!],
+      })
+    }
+    await db.execute({
+      sql: `INSERT INTO exercise_aliases (alias, exercise_id) VALUES ('RDL', 'rdl')`,
+    })
+
+    expect((await repo.search('RDL')).map(e => e.id)).toEqual(['rdl', 'hurdle-hops'])
+  })
+
+  it('surfaces muscles for an exercise found by alias, and tolerates it having no images', async () => {
+    const muscles = new MuscleRepository(db)
+    const quads = await muscles.getOrCreate('quadriceps')
+    await seedExercise(db, 'Pendulum_Squat', quads.id)
+    await db.execute({
+      sql: `INSERT INTO exercise_aliases (alias, exercise_id) VALUES ('Pendulum Machine', 'Pendulum_Squat')`,
+    })
+
+    const [found] = await repo.search('pendulum machine')
+    expect(found?.primaryMuscles).toEqual(['quadriceps'])
+    expect(found?.images).toEqual([])
+  })
+
   it('finds fallback exercises sharing movement pattern and primary muscle', async () => {
     const muscles = new MuscleRepository(db)
     const chest = await muscles.getOrCreate('chest')

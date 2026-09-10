@@ -66,4 +66,38 @@ describe('IngredientRepository', () => {
     await repo.delete(created.id, 'user-1')
     expect(await repo.findById(created.id, 'user-1')).toBeNull()
   })
+
+  const createPreset = async (name: string): Promise<number> => {
+    const result = await db.execute({
+      sql: `INSERT INTO ingredients (user_id, name, unit_type, unit_label, calories, protein_g, carbs_g, fat_g)
+            VALUES (NULL, ?, 'weight_100g', NULL, 100, 10, 10, 5) RETURNING id`,
+      args: [name],
+    })
+    return result.rows[0]!.id as number
+  }
+
+  it('lists global preset foods (user_id IS NULL) alongside the caller\'s own ingredients', async () => {
+    await createPreset('Apple')
+    await repo.create('user-1', { ...chicken, name: 'Chicken breast' })
+
+    const list = await repo.findAllForUser('user-1')
+    expect(list.map(i => i.name)).toEqual(['Apple', 'Chicken breast'])
+  })
+
+  it('finds a preset food by id for any user', async () => {
+    const presetId = await createPreset('Apple')
+    expect(await repo.findById(presetId, 'user-1')).toMatchObject({ name: 'Apple', userId: null })
+    expect(await repo.findById(presetId, 'user-2')).toMatchObject({ name: 'Apple', userId: null })
+  })
+
+  it('does not let a user update a preset food', async () => {
+    const presetId = await createPreset('Apple')
+    expect(await repo.update(presetId, 'user-1', { calories: 999 })).toBeNull()
+  })
+
+  it('does not let a user delete a preset food', async () => {
+    const presetId = await createPreset('Apple')
+    await repo.delete(presetId, 'user-1')
+    expect(await repo.findById(presetId, 'user-1')).not.toBeNull()
+  })
 })

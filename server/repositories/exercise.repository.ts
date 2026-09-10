@@ -158,12 +158,33 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
     return this.attachDetails(exercises)
   }
 
+  // Matches aliases as well as names, because the catalog names a lot of common
+  // movements in ways nobody types — a pec deck is stored as "Butterfly", an
+  // overhead press as "Standing Military Press" — and has no plain "Bench
+  // Press"/"Squat"/"Deadlift" row at all, only qualified variants. The subquery
+  // keeps one row per exercise even when the term hits both a name and an alias.
   async search(query: string, limit = 30): Promise<Exercise[]> {
     const trimmed = query.trim()
     if (trimmed === '') return []
+    const pattern = `%${trimmed}%`
+    // Ranked rather than ordered purely by name, because a short alias would
+    // otherwise be buried by incidental substring hits — "RDL" matches
+    // "hu(rdl)e hops", which sorts above "Romanian Deadlift" alphabetically.
+    // Exact name, then exact alias, then prefix, then any remaining substring.
     const result = await this.db.execute({
-      sql: 'SELECT * FROM exercises WHERE name LIKE ? ORDER BY name LIMIT ?',
-      args: [`%${trimmed}%`, limit],
+      sql: `SELECT * FROM exercises
+            WHERE name LIKE ?
+               OR id IN (SELECT exercise_id FROM exercise_aliases WHERE alias LIKE ?)
+            ORDER BY
+              CASE
+                WHEN name = ? COLLATE NOCASE THEN 0
+                WHEN id IN (SELECT exercise_id FROM exercise_aliases WHERE alias = ?) THEN 1
+                WHEN name LIKE ? THEN 2
+                ELSE 3
+              END,
+              name
+            LIMIT ?`,
+      args: [pattern, pattern, trimmed, trimmed, `${trimmed}%`, limit],
     })
     const exercises = result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
     return this.attachDetails(exercises)

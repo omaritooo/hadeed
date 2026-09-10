@@ -6,7 +6,7 @@ export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
 export interface Ingredient {
   id: number
-  userId: string
+  userId: string | null
   name: string
   unitType: IngredientUnitType
   unitLabel: string | null

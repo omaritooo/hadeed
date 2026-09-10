@@ -1,17 +1,17 @@
-import type { FetchError } from 'ofetch'
-import type { UserProfile } from '~~/shared/types/profile.types'
-import { useQuery } from '@pinia/colada'
+import type { FetchError } from "ofetch";
+import type { UserProfile, UserTarget } from "~~/shared/types/profile.types";
+import { useQuery } from "@pinia/colada";
 
 export interface ProfileResponse {
-  profile: UserProfile | null
-  stats: { bmi: number, tdee: number | null } | null
+  profile: (UserProfile & { targets: UserTarget[] }) | null;
+  stats: { bmi: number; tdee: number | null; latestWeightKg: number | null } | null;
 }
 
 export const useProfile = () => {
-  const { $api } = useNuxtApp()
+  const { $api } = useNuxtApp();
 
   return useQuery<ProfileResponse, FetchError<{ statusMessage: string }>>({
     key: () => queryKeys.profile(),
-    query: () => $api<ProfileResponse>('/api/profile'),
-  })
-}
+    query: () => $api<ProfileResponse>("/api/profile"),
+  });
+};

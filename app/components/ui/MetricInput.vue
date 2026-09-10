@@ -3,6 +3,7 @@ const model = defineModel<number | string>();
 
 defineProps<{
   unit: string;
+  label?: string;
   id?: string;
   ariaInvalid?: boolean;
 }>();
@@ -13,21 +14,24 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div
-    class="bg-surface-strong border border-input flex h-14 items-center overflow-hidden rounded-lg"
-    :class="ariaInvalid && 'border-destructive'"
-  >
-    <input
-      :id="id"
-      v-model="model"
-      type="number"
-      inputmode="decimal"
-      :aria-invalid="ariaInvalid"
-      class="text-foreground font-heading placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent text-center text-2xl tracking-tight outline-none"
-      @blur="emit('blur')"
-    />
-    <div class="border-l border-input flex h-full items-center px-6">
-      <span class="text-peach font-mono text-sm">{{ unit }}</span>
+  <div class="space-y-1.5">
+    <p v-if="label" class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">{{ label }}</p>
+    <div
+      class="bg-surface-strong border border-input flex h-14 items-center overflow-hidden rounded-lg"
+      :class="ariaInvalid && 'border-destructive'"
+    >
+      <input
+        :id="id"
+        v-model="model"
+        type="number"
+        inputmode="decimal"
+        :aria-invalid="ariaInvalid"
+        class="text-foreground font-heading placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent text-center text-2xl tracking-tight outline-none"
+        @blur="emit('blur')"
+      />
+      <div class="border-l border-input flex h-full items-center px-6">
+        <span class="text-peach font-mono text-sm">{{ unit }}</span>
+      </div>
     </div>
   </div>
 </template>

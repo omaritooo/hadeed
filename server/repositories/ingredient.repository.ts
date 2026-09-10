@@ -29,7 +29,7 @@ export class IngredientRepository {
   private mapRow(row: Record<string, unknown>): Ingredient {
     return {
       id: row.id as number,
-      userId: row.user_id as string,
+      userId: row.user_id as string | null,
       name: row.name as string,
       unitType: row.unit_type as IngredientUnitType,
       unitLabel: row.unit_label as string | null,
@@ -51,13 +51,22 @@ export class IngredientRepository {
     return this.mapRow(row as unknown as Record<string, unknown>)
   }
 
+  // Includes global preset foods (user_id IS NULL) alongside the caller's own
+  // ingredients, so presets are searchable/selectable the same way as anything
+  // the user created themselves.
   async findAllForUser(userId: string): Promise<Ingredient[]> {
-    const result = await this.db.execute({ sql: 'SELECT * FROM ingredients WHERE user_id = ? ORDER BY name', args: [userId] })
+    const result = await this.db.execute({
+      sql: 'SELECT * FROM ingredients WHERE user_id = ? OR user_id IS NULL ORDER BY name',
+      args: [userId],
+    })
     return result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
   }
 
   async findById(id: number, userId: string): Promise<Ingredient | null> {
-    const result = await this.db.execute({ sql: 'SELECT * FROM ingredients WHERE id = ? AND user_id = ?', args: [id, userId] })
+    const result = await this.db.execute({
+      sql: 'SELECT * FROM ingredients WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
+      args: [id, userId],
+    })
     const row = result.rows[0]
     return row ? this.mapRow(row as unknown as Record<string, unknown>) : null
   }

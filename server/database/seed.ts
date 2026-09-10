@@ -7,6 +7,7 @@ import { PresetSplitRepository, type CreatePresetSplitInput } from '~~/server/re
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { migrateUserProfilesEquipmentTiers, migratePresetSplitsEquipmentTiers } from './migrations/equipment-tiers'
 import { migrateUserProfilesGoalTiers } from './migrations/goal-tiers'
+import { upsertExercises, replaceExerciseAliases, type RawExercise, type RawExerciseAlias } from './seed-exercises'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -20,21 +21,45 @@ if (!url || !authToken) {
 
 const db = createClient({ url, authToken })
 
-interface RawExercise {
-  id: string
+interface RawPresetFood {
   name: string
-  category: string | null
-  equipment: string | null
-  force: string | null
-  level: string | null
-  mechanic: string | null
-  primaryMuscles: string[]
-  secondaryMuscles: string[]
-  instructions: string[]
-  images: string[]
+  unitType: 'weight_100g' | 'count'
+  unitLabel: string | null
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+}
+
+// SQLite can't relax a NOT NULL constraint via ALTER TABLE, so a database created
+// before ingredients.user_id became nullable (for global preset foods) needs its
+// `ingredients` table rebuilt. No-ops once the column is already nullable.
+const migrateIngredientsUserIdNullable = async () => {
+  const info = await db.execute('PRAGMA table_info(ingredients)')
+  const userIdColumn = info.rows.find(row => row.name === 'user_id')
+  if (!userIdColumn || !userIdColumn.notnull) return
+
+  console.log('Migrating ingredients.user_id to be nullable...')
+  await db.execute(`
+    CREATE TABLE ingredients_new (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      unit_type   TEXT NOT NULL CHECK (unit_type IN ('weight_100g', 'count')),
+      unit_label  TEXT,
+      calories    REAL NOT NULL,
+      protein_g   REAL NOT NULL,
+      carbs_g     REAL NOT NULL,
+      fat_g       REAL NOT NULL
+    )
+  `)
+  await db.execute('INSERT INTO ingredients_new SELECT * FROM ingredients')
+  await db.execute('DROP TABLE ingredients')
+  await db.execute('ALTER TABLE ingredients_new RENAME TO ingredients')
 }
 
 const main = async () => {
+  await migrateIngredientsUserIdNullable()
   await migrateUserProfilesEquipmentTiers(db)
   await migratePresetSplitsEquipmentTiers(db)
   await migrateUserProfilesGoalTiers(db)
@@ -52,56 +77,49 @@ const main = async () => {
   const dataPath = resolve(__dirname, '../../gym_exercises.json')
   const { exercises } = JSON.parse(readFileSync(dataPath, 'utf-8')) as { exercises: RawExercise[] }
 
-  const muscleIds = new Map<string, number>()
-  const getMuscleId = async (name: string): Promise<number> => {
-    const cached = muscleIds.get(name)
-    if (cached) return cached
-    await db.execute({ sql: 'INSERT OR IGNORE INTO muscles (name) VALUES (?)', args: [name] })
-    const result = await db.execute({ sql: 'SELECT id FROM muscles WHERE name = ?', args: [name] })
-    const id = result.rows[0]!.id as number
-    muscleIds.set(name, id)
-    return id
+  const additionsPath = resolve(__dirname, '../../exercise_additions.json')
+  const { exercises: additions, aliases } = JSON.parse(readFileSync(additionsPath, 'utf-8')) as {
+    exercises: RawExercise[]
+    aliases: RawExerciseAlias[]
   }
 
-  console.log(`Seeding ${exercises.length} exercises...`)
+  console.log(`Seeding ${exercises.length} catalog exercises...`)
+  await upsertExercises(db, exercises)
 
-  for (const ex of exercises) {
-    await db.execute({
-      sql: `INSERT OR REPLACE INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        ex.id,
-        ex.name,
-        ex.category,
-        ex.equipment,
-        ex.force,
-        ex.level,
-        ex.mechanic,
-        JSON.stringify(ex.instructions ?? []),
-      ],
+  // Movements with no free-exercise-db counterpart. They seed with no images —
+  // that dataset is the only public-domain source of the paired start/end ROM
+  // photos the catalog uses, so the UI falls back to the muscle map for these.
+  console.log(`Seeding ${additions.length} gap-fill exercises...`)
+  await upsertExercises(db, additions)
+
+  console.log(`Seeding ${aliases.length} exercise aliases...`)
+  await replaceExerciseAliases(db, aliases)
+
+  const foodsPath = resolve(__dirname, '../../preset_foods.json')
+  const { foods } = JSON.parse(readFileSync(foodsPath, 'utf-8')) as { foods: RawPresetFood[] }
+
+  console.log(`Seeding ${foods.length} preset foods...`)
+
+  for (const food of foods) {
+    // Presets have no natural stable id (unlike exercises' slug), so upsert by
+    // name among the global rows (user_id IS NULL) to stay idempotent across reseeds.
+    const existing = await db.execute({
+      sql: 'SELECT id FROM ingredients WHERE user_id IS NULL AND name = ?',
+      args: [food.name],
     })
-
-    await db.execute({ sql: 'DELETE FROM exercise_muscles WHERE exercise_id = ?', args: [ex.id] })
-    for (const name of ex.primaryMuscles ?? []) {
-      const muscleId = await getMuscleId(name)
+    const args = [food.name, food.unitType, food.unitLabel, food.calories, food.proteinG, food.carbsG, food.fatG]
+    const existingId = existing.rows[0]?.id as number | undefined
+    if (existingId) {
       await db.execute({
-        sql: 'INSERT OR IGNORE INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)',
-        args: [ex.id, muscleId, 'primary'],
+        sql: `UPDATE ingredients SET name = ?, unit_type = ?, unit_label = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?
+              WHERE id = ?`,
+        args: [...args, existingId],
       })
-    }
-    for (const name of ex.secondaryMuscles ?? []) {
-      const muscleId = await getMuscleId(name)
+    } else {
       await db.execute({
-        sql: 'INSERT OR IGNORE INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)',
-        args: [ex.id, muscleId, 'secondary'],
-      })
-    }
-
-    await db.execute({ sql: 'DELETE FROM exercise_images WHERE exercise_id = ?', args: [ex.id] })
-    for (const [position, url] of (ex.images ?? []).entries()) {
-      await db.execute({
-        sql: 'INSERT INTO exercise_images (exercise_id, url, position) VALUES (?, ?, ?)',
-        args: [ex.id, url, position],
+        sql: `INSERT INTO ingredients (user_id, name, unit_type, unit_label, calories, protein_g, carbs_g, fat_g)
+              VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)`,
+        args,
       })
     }
   }

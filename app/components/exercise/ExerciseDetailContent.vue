@@ -74,7 +74,26 @@ const formatHistoryDate = (dateString: string): string => {
 <template>
   <div class="flex flex-col gap-8 overflow-y-auto p-5 pt-6">
     <div v-if="exercise" class="space-y-3">
-      <div v-if="exercise.images.length" class="relative">
+      <!-- Exercises added beyond free-exercise-db have no start/end ROM photos,
+           so the muscle map stands in as the hero visual and the copy further
+           down is dropped rather than shown twice. -->
+      <div
+        v-if="!exercise.images.length"
+        class="rounded-xl bg-card py-2"
+        style="
+          background: radial-gradient(
+            ellipse at center,
+            var(--popover),
+            transparent 70%
+          );
+        "
+      >
+        <ExerciseMuscleMap
+          :primary-muscles="exercise.primaryMuscles"
+          :secondary-muscles="exercise.secondaryMuscles"
+        />
+      </div>
+      <div v-else class="relative">
         <UiCarousel class="w-full" @init-api="onImageCarouselInit">
           <UiCarouselContent>
             <UiCarouselItem v-for="image in exercise.images" :key="image">
@@ -198,6 +217,7 @@ const formatHistoryDate = (dateString: string): string => {
         class="space-y-5 rounded-xl border border-surface-strong bg-card p-5"
       >
         <div
+          v-if="exercise.images.length"
           class="rounded-lg py-2"
           style="
             background: radial-gradient(
