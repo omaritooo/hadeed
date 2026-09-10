@@ -98,6 +98,10 @@ export class ProfileService extends BaseService {
     }
   }
 
+  async updateDisplayName(displayName: string): Promise<void> {
+    await this.users.updateDisplayName(this.ctx.userId, displayName)
+  }
+
   async getProfile() {
     const profile = await this.profiles.findByUserId(this.ctx.userId)
     if (!profile) return null

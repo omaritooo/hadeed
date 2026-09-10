@@ -205,6 +205,26 @@ const progressPct = (card: AchievementCard): number => {
   return Math.min(100, Math.round((card.progress.current / card.progress.target) * 100));
 };
 
+const displayName = ref("");
+let seededDisplayNameFromProfile = false;
+watch(profileData, (data) => {
+  if (seededDisplayNameFromProfile || !data?.profile) return;
+  displayName.value = data.profile.displayName ?? "";
+  seededDisplayNameFromProfile = true;
+}, { immediate: true });
+
+const { mutateAsync: saveDisplayName, isLoading: savingDisplayName } = useUpdateDisplayName();
+
+const onSaveDisplayName = async () => {
+  const trimmed = displayName.value.trim();
+  if (!trimmed) return;
+  try {
+    await saveDisplayName(trimmed);
+  } catch {
+    // Swallow: on failure the field stays as the user left it.
+  }
+};
+
 const { mutateAsync: logout, isLoading: loggingOut } = useLogout();
 
 const onLogout = async () => {
@@ -392,7 +412,22 @@ const onLogout = async () => {
         <h2 class="font-heading text-lg uppercase text-foreground">Account</h2>
       </div>
       <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
-        <div class="flex items-center justify-between gap-4">
+        <div class="space-y-2">
+          <p class="text-sm font-semibold text-foreground">Display name</p>
+          <div class="flex items-center gap-2">
+            <UiInput v-model="displayName" placeholder="Your name" class="flex-1" />
+            <Button
+              variant="secondary"
+              size="sm"
+              class="shrink-0"
+              :disabled="!displayName.trim() || savingDisplayName"
+              @click="onSaveDisplayName"
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-surface-strong pt-4">
           <div>
             <p class="text-sm font-semibold text-foreground">Log out</p>
             <p class="text-xs text-muted-foreground">Sign out of this device.</p>
