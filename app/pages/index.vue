@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  AwardIcon,
   DropletIcon,
   FlameIcon,
   HistoryIcon,
@@ -8,6 +9,7 @@ import {
   StarIcon,
   TrendingDownIcon,
   TrendingUpIcon,
+  TrophyIcon,
   UtensilsIcon,
 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,16 @@ const undoLastHydrationLog = async () => {
 
 onBeforeUnmount(clearHydrationUndo);
 
+// Hydration was the only progress metric on this page rendered as a bare "1.2/2.5L" with
+// no bar, while calories, XP and the weight goal all had one.
+const hydrationPct = computed(() => {
+  if (!hydration.value?.targetMl) return 0;
+  return Math.min(
+    100,
+    Math.round((hydration.value.totalMl / hydration.value.targetMl) * 100)
+  );
+});
+
 const { data: nutrition } = useNutritionToday();
 const caloriePct = computed(() => {
   if (!nutrition.value?.target?.calories) return 0;
@@ -76,12 +88,39 @@ const caloriePct = computed(() => {
     Math.round((nutrition.value.totals.calories / nutrition.value.target.calories) * 100)
   );
 });
+// Wording matches nutrition.vue's own remainingLabel -- the two rendered "326 left" and
+// "326 to go" for the identical figure.
 const remainingLabel = (remaining: number | undefined): string => {
   if (remaining === undefined) return "";
   return remaining >= 0
-    ? `${Math.round(remaining)} to go`
+    ? `${Math.round(remaining)} left`
     : `${Math.round(-remaining)} over`;
 };
+
+// Protein/carbs/fat get the same consumed-against-target treatment calories already had;
+// previously they rendered as flat text with no target and no bar. The row is deliberately
+// NOT gated on a target existing -- without one the bars are dropped but the raw grams
+// still show, since they're then the only nutrition figure the card can offer.
+const MACRO_META = [
+  { key: "proteinG", label: "Protein", indicatorClass: "bg-primary" },
+  { key: "carbsG", label: "Carbs", indicatorClass: "bg-lime" },
+  { key: "fatG", label: "Fat", indicatorClass: "bg-peach" },
+] as const;
+
+const macroBreakdown = computed(() => {
+  return MACRO_META.map((meta) => {
+    const consumed = Math.round(nutrition.value?.totals[meta.key] ?? 0);
+    const target = nutrition.value?.target
+      ? Math.round(nutrition.value.target[meta.key])
+      : null;
+    return {
+      ...meta,
+      consumed,
+      target,
+      pct: target ? Math.min(100, Math.round((consumed / target) * 100)) : 0,
+    };
+  });
+});
 const weightGoal = computed(() => {
   const target = profile.value?.profile?.targets[0];
   const current = profile.value?.stats?.latestWeightKg;
@@ -115,6 +154,11 @@ const xpProgress = computed(() => {
     : 0;
   return stats.value ? (stats.value?.xp.xpIntoLevel / total) * 100 : 0;
 });
+
+// Distinguishes "rest day" from "no split at all" for the hero card's empty state.
+// `weeklyProgress.scheduledDays` is the active block's non-rest day count, so 0 means no
+// active block (or one made entirely of rest days) rather than a day off.
+const hasScheduledTraining = computed(() => (stats.value?.weeklyProgress.scheduledDays ?? 0) > 0);
 
 const consistencyWeeks = computed(() => {
   const days = stats.value?.consistency ?? [];
@@ -226,6 +270,30 @@ const continueWorkout = async () => {
       </Button>
       <p v-if="startError" class="text-sm text-destructive">{{ startError }}</p>
     </UiCard>
+    <!-- Without this branch the hero slot renders nothing at all on a rest day or before a
+         split exists, silently removing the largest card on the page. The two cases need
+         different copy (and different destinations), so they're split on whether the active
+         block schedules any training days at all rather than lumped into one empty state. -->
+    <UiCard v-else class="space-y-3">
+      <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">
+        {{ hasScheduledTraining ? "Today" : "Get Started" }}
+      </span>
+      <p class="font-heading text-2xl font-semibold text-foreground">
+        {{ hasScheduledTraining ? "Rest Day" : "No Split Yet" }}
+      </p>
+      <p class="text-sm text-muted-foreground">
+        {{
+          hasScheduledTraining
+            ? "Nothing scheduled today. Recovery is part of the programme."
+            : "Build a split to get a workout scheduled for you each day."
+        }}
+      </p>
+      <NuxtLink :to="hasScheduledTraining ? '/workouts' : '/builder'">
+        <Button size="lg" variant="secondary" class="w-full">
+          {{ hasScheduledTraining ? "View This Week" : "Build A Split" }}
+        </Button>
+      </NuxtLink>
+    </UiCard>
 
     <div class="flex gap-x-2 font-heading min-h-max h-max">
       <NuxtLink to="/profile" class="contents">
@@ -234,7 +302,11 @@ const continueWorkout = async () => {
             <FlameIcon fill="currentColor" class="text-primary" />
             <h2 class="text-3xl">{{ stats?.streak.current ?? 0 }}</h2></span
           >
-          <span class="text-muted-foreground font-thin">Day Streak</span>
+          <span class="text-muted-foreground font-thin"
+            >Day Streak<template v-if="stats?.streak.longest">
+              &middot; Best {{ stats.streak.longest }}</template
+            ></span
+          >
         </UiCard>
       </NuxtLink>
       <NuxtLink to="/profile" class="contents">
@@ -377,16 +449,25 @@ const continueWorkout = async () => {
                   >/{{ (hydration.targetMl / 1000).toFixed(1) }}L</span
                 >
               </span>
+              <!-- Kept mounted and hidden rather than v-if'd, so the row doesn't reflow
+                   every time the 5s undo window opens and closes. -->
               <button
-                v-if="lastLoggedHydrationId"
                 type="button"
                 class="font-mono text-xs uppercase tracking-[1.2px] text-cyan-pale underline disabled:opacity-50"
-                :disabled="deleteHydration.isLoading.value"
+                :class="lastLoggedHydrationId ? '' : 'invisible'"
+                :aria-hidden="!lastLoggedHydrationId"
+                :tabindex="lastLoggedHydrationId ? undefined : -1"
+                :disabled="deleteHydration.isLoading.value || !lastLoggedHydrationId"
                 @click="undoLastHydrationLog"
               >
                 Undo
               </button>
             </div>
+            <UiProgress
+              :model-value="hydrationPct"
+              class="h-1.5 bg-muted"
+              indicator-class="bg-cyan-pale"
+            />
             <div class="flex items-center gap-x-1.5">
               <Button
                 v-for="preset in HYDRATION_PRESETS_ML"
@@ -466,18 +547,82 @@ const continueWorkout = async () => {
           class="h-1.5 bg-muted"
           indicator-class="bg-lime"
         />
-        <div
-          v-if="nutrition?.target"
-          class="grid grid-cols-3 gap-2 font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground"
-        >
-          <span>P {{ Math.round(nutrition.totals.proteinG) }}g</span>
-          <span>C {{ Math.round(nutrition.totals.carbsG) }}g</span>
-          <span>F {{ Math.round(nutrition.totals.fatG) }}g</span>
+        <div class="grid grid-cols-3 gap-3">
+          <div v-for="macro in macroBreakdown" :key="macro.key" class="space-y-1">
+            <div class="flex items-baseline justify-between gap-1">
+              <span
+                class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground"
+                >{{ macro.label }}</span
+              >
+              <span
+                class="font-heading text-xs text-foreground [font-variant-numeric:tabular-nums]"
+              >
+                {{ macro.consumed
+                }}<span v-if="macro.target" class="text-muted-foreground"
+                  >/{{ macro.target }}</span
+                >g
+              </span>
+            </div>
+            <UiProgress
+              v-if="macro.target"
+              :model-value="macro.pct"
+              class="h-1 bg-muted"
+              :indicator-class="macro.indicatorClass"
+            />
+          </div>
         </div>
-        <NuxtLink to="/nutrition">
-          <Button variant="secondary" size="sm">Log meal</Button>
+        <NuxtLink to="/nutrition" class="block">
+          <Button variant="secondary" size="lg" class="w-full">
+            <PlusIcon class="size-4" />
+            Log meal
+          </Button>
         </NuxtLink>
       </UiCard>
+    </div>
+
+    <div v-if="stats?.recentPrs?.length" class="space-y-2">
+      <div class="flex items-center gap-2">
+        <TrophyIcon class="size-4.5 text-lime" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Recent PRs</h2>
+      </div>
+      <UiCard class="space-y-2.5">
+        <div
+          v-for="pr in stats.recentPrs.slice(0, 3)"
+          :key="`${pr.exerciseName}-${pr.achievedAt}`"
+          class="flex items-baseline justify-between gap-3"
+        >
+          <span class="min-w-0 truncate text-sm text-foreground">{{ pr.exerciseName }}</span>
+          <span class="flex shrink-0 items-baseline gap-2">
+            <span
+              class="font-heading text-base text-lime [font-variant-numeric:tabular-nums]"
+              >{{ formatWeight(pr.weightKg) }} &times; {{ pr.reps }}</span
+            >
+            <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">
+              {{ useDateFormat(new Date(`${pr.achievedAt.replace(" ", "T")}Z`), "MMM DD") }}
+            </span>
+          </span>
+        </div>
+      </UiCard>
+    </div>
+
+    <div v-if="stats?.recentAchievements?.length" class="space-y-2">
+      <div class="flex items-center gap-2">
+        <AwardIcon class="size-4.5 text-primary" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Just Unlocked</h2>
+      </div>
+      <div class="flex gap-x-2 overflow-x-auto">
+        <NuxtLink
+          v-for="achievement in stats.recentAchievements.slice(0, 3)"
+          :key="achievement.key"
+          to="/profile"
+          class="contents"
+        >
+          <UiCard class="flex min-w-0 flex-1 flex-col items-center gap-y-1 text-center">
+            <span class="text-2xl">{{ achievement.icon ?? "🏅" }}</span>
+            <span class="min-w-0 truncate text-xs text-foreground">{{ achievement.name }}</span>
+          </UiCard>
+        </NuxtLink>
+      </div>
     </div>
 
     <div v-if="lastSession" class="space-y-2">

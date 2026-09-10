@@ -191,6 +191,21 @@
     scrollbar-color: var(--border) transparent;
     scrollbar-width: thin;
   }
+
+  /* Native number-input increment/decrement controls are suppressed app-wide. They render
+     as a small stepper glued to the right edge of the field, which collides with every
+     numeric input in this app: UiMetricInput centres a 2xl value the arrows then overlap,
+     and UiNumberStepper already supplies its own +/- buttons. Every numeric field here is
+     either large-tap-target or has an explicit stepper, so nothing loses affordance.
+     `inputmode` on the inputs still drives the numeric keypad on mobile. */
+  input[type="number"] {
+    appearance: textfield; /* Firefox, and the standard property */
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 /* scrollbar-color has only been Baseline "newly available" since Dec 2025 -- keep the legacy
