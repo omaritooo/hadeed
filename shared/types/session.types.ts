@@ -23,6 +23,7 @@ export interface ExerciseLog {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  restSeconds: number | null
 }
 
 export interface SetLog {

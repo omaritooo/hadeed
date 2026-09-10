@@ -62,6 +62,7 @@ const startWorkout = async () => {
         targetSets: exercise.targetSets,
         targetReps: exercise.targetReps,
         targetRpe: exercise.targetRpe,
+        restSeconds: exercise.restSeconds,
       })),
     });
     await navigateTo(`/workouts/session/${session.id}`);

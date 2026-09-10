@@ -118,6 +118,7 @@ export class WorkoutsService extends BaseService {
           targetSets: exercise.targetSets,
           targetReps: exercise.targetReps,
           targetRpe: exercise.targetRpe,
+          restSeconds: exercise.restSeconds,
           thumbnailUrl: details?.images[0] ?? null,
           primaryMuscle: details?.primaryMuscles[0] ?? null,
           lastPerformed: lastPerformed[exercise.exerciseId] ?? null,

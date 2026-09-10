@@ -76,6 +76,18 @@ const openInfo = (exerciseId: string) => {
 const finishError = ref<string | null>(null);
 const logErrors = reactive<Record<string, string | null>>({});
 
+const REST_FALLBACK_SECONDS = 90;
+const restTimerKey = ref(0);
+const restTimerDuration = ref<number | null>(null);
+const startRestTimer = (exerciseLogId: string) => {
+  const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
+  restTimerDuration.value = exercise?.restSeconds ?? REST_FALLBACK_SECONDS;
+  restTimerKey.value += 1;
+};
+const dismissRestTimer = () => {
+  restTimerDuration.value = null;
+};
+
 const editingSetId = ref<string | null>(null);
 const editError = ref<string | null>(null);
 const editDrafts = reactive<Record<string, { weightKg: string, reps: string, rpe: string }>>({});
@@ -147,6 +159,7 @@ const logNextSet = async (exerciseLogId: string) => {
     draft.weightKg = "";
     draft.reps = "";
     draft.rpe = "";
+    startRestTimer(exerciseLogId);
   }
 };
 
@@ -198,6 +211,13 @@ const finish = async () => {
     </div>
 
     <p v-if="finishError" class="text-sm text-destructive">{{ finishError }}</p>
+
+    <SessionRestTimer
+      v-if="restTimerDuration !== null"
+      :key="restTimerKey"
+      :duration-seconds="restTimerDuration"
+      @dismiss="dismissRestTimer"
+    />
 
     <UiCard v-for="exercise in exerciseDisplayInfo" :key="exercise.id" class="space-y-3">
       <div class="space-y-1 border-b border-surface-strong pb-3">

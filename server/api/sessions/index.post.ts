@@ -31,6 +31,7 @@ defineRouteMeta({
                     targetSets: { type: 'number', nullable: true },
                     targetReps: { type: 'number', nullable: true },
                     targetRpe: { type: 'number', nullable: true },
+                    restSeconds: { type: 'number', nullable: true },
                   },
                 },
               },

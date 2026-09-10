@@ -310,6 +310,10 @@ CREATE TABLE IF NOT EXISTS exercise_logs (
   target_rpe         REAL
 );
 
+-- Snapshotted from split_exercises/preset_split_exercises.rest_seconds at session-start time,
+-- so a later edit to the split's planned rest doesn't retroactively change a past session's log.
+ALTER TABLE exercise_logs ADD COLUMN rest_seconds INTEGER;
+
 CREATE TABLE IF NOT EXISTS set_logs (
   id               TEXT PRIMARY KEY,
   exercise_log_id  TEXT NOT NULL REFERENCES exercise_logs(id) ON DELETE CASCADE,

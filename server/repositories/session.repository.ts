@@ -21,6 +21,7 @@ export interface StartSessionExerciseInput {
   targetSets: number | null
   targetReps: number | null
   targetRpe: number | null
+  restSeconds?: number | null
 }
 
 export interface StartSessionInput {
@@ -91,6 +92,7 @@ export class SessionRepository {
       targetSets: row.target_sets as number | null,
       targetReps: row.target_reps as number | null,
       targetRpe: row.target_rpe as number | null,
+      restSeconds: row.rest_seconds as number | null,
     }
   }
 
@@ -137,8 +139,8 @@ export class SessionRepository {
 
     try {
       const inserted = await this.db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe, rest_seconds)
+              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
               WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
               RETURNING id`,
         args: [
@@ -151,6 +153,7 @@ export class SessionRepository {
           exercise.targetSets,
           exercise.targetReps,
           exercise.targetRpe,
+          exercise.restSeconds ?? null,
           session.id,
         ],
       })
@@ -265,8 +268,8 @@ export class SessionRepository {
     return this.insertIdempotent({
       selectSql: 'SELECT * FROM exercise_logs WHERE id = ?',
       selectArgs: [input.id],
-      insertSql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-                  SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL
+      insertSql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe, rest_seconds)
+                  SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, NULL
                   WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
                   RETURNING *`,
       insertArgs: [input.id, input.sessionId, input.exerciseId, input.position, input.setType, input.sessionId],
