@@ -115,6 +115,13 @@ export class NutritionService extends BaseService {
     return this.mealLogs.log(this.ctx.userId, preset.name, resolved)
   }
 
+  async editMealLog(id: number, items: { ingredientId: number, quantity: number }[]): Promise<MealLog> {
+    const resolved = await this.resolveItems(items)
+    const updated = await this.mealLogs.replaceItems(id, this.ctx.userId, resolved)
+    if (!updated) throw createError({ statusCode: 404, statusMessage: 'Meal not found' })
+    return updated
+  }
+
   deleteMealLog(id: number): Promise<void> {
     return this.mealLogs.delete(id, this.ctx.userId)
   }

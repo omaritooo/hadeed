@@ -62,6 +62,28 @@ export class MealLogRepository {
     return { ...mealLog, items: await this.loadItems(mealLog.id) }
   }
 
+  // Wholesale replacement of a meal's items (delete-then-reinsert) rather than diffing
+  // individual item rows -- simpler and safer, matching this codebase's general preference
+  // for replacing a whole block over fine-grained patching. Returns null if the meal log
+  // doesn't exist or isn't owned by this user (mirrors delete's ownership scoping).
+  async replaceItems(id: number, userId: string, items: MealLogItemInput[]): Promise<MealLog | null> {
+    const existing = await this.db.execute({ sql: 'SELECT * FROM meal_logs WHERE id = ? AND user_id = ?', args: [id, userId] })
+    const row = existing.rows[0]
+    if (!row) return null
+    const mealLog = this.mapLog(row as unknown as Record<string, unknown>)
+
+    await this.db.execute({ sql: 'DELETE FROM meal_log_items WHERE meal_log_id = ?', args: [id] })
+    for (const item of items) {
+      await this.db.execute({
+        sql: `INSERT INTO meal_log_items (meal_log_id, ingredient_id, ingredient_name, quantity, calories, protein_g, carbs_g, fat_g)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [id, item.ingredientId, item.ingredientName, item.quantity, item.calories, item.proteinG, item.carbsG, item.fatG],
+      })
+    }
+
+    return { ...mealLog, items: await this.loadItems(id) }
+  }
+
   async findForRange(userId: string, startIso: string, endIso: string): Promise<MealLog[]> {
     const result = await this.db.execute({
       sql: 'SELECT * FROM meal_logs WHERE user_id = ? AND logged_at >= ? AND logged_at < ? ORDER BY logged_at',
