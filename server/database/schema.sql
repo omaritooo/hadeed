@@ -298,6 +298,13 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
   version       INTEGER NOT NULL DEFAULT 1
 );
 
+-- Snapshotted from split_days/preset_split_days.format/rounds at session-start time (same
+-- reasoning as exercise_logs.rest_seconds below): a whole session is either a circuit or
+-- straight sets, so this lives on the session, not per-exercise. A later edit to the split's
+-- format doesn't retroactively change a past session's logging UI.
+ALTER TABLE workout_sessions ADD COLUMN format TEXT NOT NULL DEFAULT 'straight_sets' CHECK (format IN ('straight_sets', 'circuit'));
+ALTER TABLE workout_sessions ADD COLUMN rounds INTEGER NOT NULL DEFAULT 1;
+
 CREATE TABLE IF NOT EXISTS exercise_logs (
   id                 TEXT PRIMARY KEY,
   session_id         TEXT NOT NULL REFERENCES workout_sessions(id) ON DELETE CASCADE,

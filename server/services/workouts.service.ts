@@ -107,6 +107,8 @@ export class WorkoutsService extends BaseService {
       splitDayId: day.id,
       blockId: day.blockId,
       dayName: day.name,
+      format: day.format,
+      rounds: day.rounds,
       exercises: day.exercises.map((exercise) => {
         const details = detailsById.get(exercise.exerciseId)
         return {

@@ -72,6 +72,39 @@ const exerciseDisplayInfo = computed(() => {
   }));
 });
 
+// Circuit-format sessions ("Round 1 of 4" cycling through every exercise in order) present as a
+// state machine, but that state is derived from the logged sets rather than tracked in local
+// refs — a page refresh, or simply the query refetch that follows every logged set, always
+// reflects the true position with no local state to fall out of sync.
+const isCircuitSession = computed(() => session.value?.format === "circuit");
+
+// Fully-completed rounds: the fewest sets any circuit exercise has logged so far. Once every
+// exercise has at least this many sets, that round is done.
+const circuitRoundsCompleted = computed(() => {
+  const exercises = session.value?.exercises ?? [];
+  if (exercises.length === 0) return 0;
+  return Math.min(...exercises.map(exercise => exercise.sets.length));
+});
+
+const circuitComplete = computed(() => {
+  if (!session.value || session.value.exercises.length === 0) return false;
+  return circuitRoundsCompleted.value >= session.value.rounds;
+});
+
+const circuitCurrentRound = computed(() => {
+  if (!session.value) return 1;
+  return Math.min(circuitRoundsCompleted.value + 1, session.value.rounds);
+});
+
+// The first exercise (in split-day order) that hasn't yet logged a set for the round in
+// progress — i.e. whose set count still equals the number of fully-completed rounds.
+const circuitCurrentExerciseIndex = computed(() => {
+  if (circuitComplete.value) return -1;
+  const exercises = session.value?.exercises ?? [];
+  const index = exercises.findIndex(exercise => exercise.sets.length === circuitRoundsCompleted.value);
+  return index === -1 ? 0 : index;
+});
+
 const infoDrawerOpen = ref(false);
 const infoExerciseId = ref("");
 const openInfo = (exerciseId: string) => {
@@ -246,6 +279,7 @@ const finish = async () => {
       @dismiss="dismissRestTimer"
     />
 
+    <template v-if="!isCircuitSession">
     <UiCard v-for="exercise in exerciseDisplayInfo" :key="exercise.id" class="space-y-3">
       <div class="space-y-1 border-b border-surface-strong pb-3">
         <div class="flex items-center justify-between">
@@ -350,6 +384,76 @@ const finish = async () => {
       </div>
       <p v-if="logErrors[exercise.id]" class="text-sm text-destructive">{{ logErrors[exercise.id] }}</p>
     </UiCard>
+    </template>
+
+    <template v-else>
+      <UiCard v-if="exerciseDisplayInfo.length === 0" class="space-y-1">
+        <p class="text-sm text-muted-foreground">No exercises in this circuit.</p>
+      </UiCard>
+      <UiCard v-else class="space-y-3">
+        <div class="flex items-center justify-between border-b border-surface-strong pb-3">
+          <p class="font-heading text-lg text-foreground">
+            {{ circuitComplete ? "Circuit complete" : `Round ${circuitCurrentRound} of ${session.rounds}` }}
+          </p>
+          <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">
+            {{ circuitRoundsCompleted }}/{{ session.rounds }} rounds
+          </span>
+        </div>
+
+        <div class="space-y-2">
+          <div
+            v-for="(exercise, index) in exerciseDisplayInfo"
+            :key="exercise.id"
+            class="rounded-lg border p-3"
+            :class="index === circuitCurrentExerciseIndex ? 'border-foreground' : 'border-surface-strong opacity-60'"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="shrink-0 font-mono text-xs text-muted-foreground">{{ index + 1 }}.</span>
+                <p class="truncate text-sm font-medium text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
+                <button class="shrink-0" @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-3.5 text-muted-foreground" /></button>
+              </div>
+              <span class="shrink-0 font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">
+                {{ exercise.sets.length }}/{{ session.rounds }}
+              </span>
+            </div>
+            <p
+              v-if="exercise.targetLabel || exercise.lastPerformanceLabel"
+              class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
+            >
+              <span v-if="exercise.targetLabel">{{ exercise.targetLabel }}</span>
+              <span v-if="exercise.lastPerformanceLabel">{{ exercise.lastPerformanceLabel }}</span>
+            </p>
+
+            <div v-if="!circuitComplete && index === circuitCurrentExerciseIndex" class="mt-3 border-t border-surface-strong pt-3">
+              <label class="mb-2 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+                Warm-up
+                <UiCheckbox
+                  :model-value="draftFor(exercise.id).isWarmup"
+                  @update:model-value="(value) => (draftFor(exercise.id).isWarmup = !!value)"
+                />
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ circuitCurrentRound }}</span>
+                <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
+                  <UiNumberStepper v-model="draftFor(exercise.id).weightKg" :step="2.5" placeholder="kg" />
+                  <UiNumberStepper v-model="draftFor(exercise.id).reps" :step="1" placeholder="reps" />
+                  <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
+                </div>
+                <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
+                  <CheckIcon class="size-4" />
+                </Button>
+              </div>
+              <p v-if="logErrors[exercise.id]" class="mt-1 text-sm text-destructive">{{ logErrors[exercise.id] }}</p>
+            </div>
+          </div>
+        </div>
+
+        <p v-if="circuitComplete" class="text-sm text-muted-foreground">
+          All {{ session.rounds }} rounds complete — hit Finish above when you're done.
+        </p>
+      </UiCard>
+    </template>
 
     <ExerciseDetailDrawer v-model:open="infoDrawerOpen" :exercise-id="infoExerciseId" />
   </div>

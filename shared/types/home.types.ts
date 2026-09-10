@@ -1,4 +1,4 @@
-import type { SetType } from '~~/shared/types/split.types'
+import type { SetType, SplitFormat } from '~~/shared/types/split.types'
 
 export interface TodaysWorkoutExercise {
   exerciseId: string
@@ -19,6 +19,8 @@ export interface TodaysWorkout {
   splitDayId: number
   blockId: number
   dayName: string
+  format: SplitFormat
+  rounds: number
   exercises: TodaysWorkoutExercise[]
 }
 

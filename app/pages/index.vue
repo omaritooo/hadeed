@@ -177,6 +177,8 @@ const startTodaysWorkout = async () => {
   try {
     const session = await startSession.mutateAsync({
       splitDayId: workout.splitDayId,
+      format: workout.format,
+      rounds: workout.rounds,
       exercises: workout.exercises.map(exercise => ({
         id: crypto.randomUUID(),
         exerciseId: exercise.exerciseId,

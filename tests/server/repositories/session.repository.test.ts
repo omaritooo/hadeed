@@ -66,6 +66,38 @@ describe('SessionRepository.startSession', () => {
     const withLogs = await repo.findWithLogs('session-2')
     expect(withLogs?.exercises).toHaveLength(0)
   })
+
+  it('defaults format/rounds to straight_sets/1 when not provided', async () => {
+    const session = await repo.startSession('user-1', { id: 'session-3', splitDayId: null, exercises: [] })
+    expect(session.format).toBe('straight_sets')
+    expect(session.rounds).toBe(1)
+  })
+
+  it('snapshots format/rounds from the originating circuit split day', async () => {
+    const session = await repo.startSession('user-1', {
+      id: 'session-4',
+      splitDayId: 1,
+      format: 'circuit',
+      rounds: 4,
+      exercises: [{
+        id: 'exlog-2',
+        exerciseId: 'bench-press',
+        splitExerciseId: 1,
+        position: 0,
+        setType: 'weight_reps',
+        targetSets: 3,
+        targetReps: 8,
+        targetRpe: 7,
+      }],
+    })
+
+    expect(session.format).toBe('circuit')
+    expect(session.rounds).toBe(4)
+
+    const withLogs = await repo.findWithLogs('session-4')
+    expect(withLogs?.format).toBe('circuit')
+    expect(withLogs?.rounds).toBe(4)
+  })
 })
 
 describe('SessionRepository logging', () => {

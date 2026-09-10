@@ -17,6 +17,8 @@ defineRouteMeta({
             properties: {
               id: { type: 'string' },
               splitDayId: { type: 'number', nullable: true },
+              format: { type: 'string', enum: ['straight_sets', 'circuit'] },
+              rounds: { type: 'number' },
               exercises: {
                 type: 'array',
                 items: {

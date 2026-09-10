@@ -1,5 +1,5 @@
 import type { Client, InArgs } from '@libsql/client'
-import type { SetType } from '~~/shared/types/split.types'
+import type { SetType, SplitFormat } from '~~/shared/types/split.types'
 import type {
   ExerciseHistoryEntry,
   ExerciseLog,
@@ -28,6 +28,11 @@ export interface StartSessionInput {
   id: string
   splitDayId: number | null
   exercises: StartSessionExerciseInput[]
+  // Snapshotted from the originating split_day/preset_split_day at session-start time (same
+  // pattern as StartSessionExerciseInput.restSeconds) — a whole session is either a circuit or
+  // straight sets, so this is session-level rather than per-exercise.
+  format?: SplitFormat
+  rounds?: number
 }
 
 export interface LogSetInput {
@@ -79,6 +84,8 @@ export class SessionRepository {
       startedAt: row.started_at as string,
       completedAt: row.completed_at as string | null,
       version: row.version as number,
+      format: row.format as SplitFormat,
+      rounds: row.rounds as number,
     }
   }
 
@@ -116,8 +123,8 @@ export class SessionRepository {
     const session = await this.insertIdempotent({
       selectSql: 'SELECT * FROM workout_sessions WHERE id = ?',
       selectArgs: [input.id],
-      insertSql: 'INSERT INTO workout_sessions (id, user_id, split_day_id) VALUES (?, ?, ?) RETURNING *',
-      insertArgs: [input.id, userId, input.splitDayId],
+      insertSql: 'INSERT INTO workout_sessions (id, user_id, split_day_id, format, rounds) VALUES (?, ?, ?, ?, ?) RETURNING *',
+      insertArgs: [input.id, userId, input.splitDayId, input.format ?? 'straight_sets', input.rounds ?? 1],
       scopeField: 'user_id',
       scopeValue: userId,
       scopeErrorMessage: 'Session id already exists under a different user',

@@ -1,4 +1,4 @@
-import type { SetType } from '~~/shared/types/split.types'
+import type { SetType, SplitFormat } from '~~/shared/types/split.types'
 
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned'
 
@@ -10,6 +10,9 @@ export interface WorkoutSession {
   startedAt: string
   completedAt: string | null
   version: number
+  // Snapshotted from split_days/preset_split_days.format/rounds at session-start time.
+  format: SplitFormat
+  rounds: number
 }
 
 export interface ExerciseLog {
