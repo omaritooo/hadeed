@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, PlusIcon, ScaleIcon, TrashIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, CalculatorIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, PlusIcon, ScaleIcon, TrashIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
 import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
+import { suggestNutritionTarget } from "~~/shared/lib/nutrition-targets";
 import { Button } from "@/components/ui/button";
 
 const remindersEnabled = ref(false);
@@ -46,6 +47,28 @@ watch(profileData, (data) => {
   targetFat.value = target?.fatG ?? undefined;
   seededTargetFromProfile = true;
 }, { immediate: true });
+
+// "Calculate for me": pre-fills the four fields below from the user's existing TDEE
+// (already computed by profile.service.ts's getComputedStats, shown on Home) and their
+// primaryGoal, using a standard calorie adjustment + macro split. This never auto-saves --
+// the user still has to review the pre-filled values and hit "Save target" themselves.
+const tdee = computed(() => profileData.value?.stats?.tdee ?? null);
+const primaryGoal = computed(() => profileData.value?.profile?.primaryGoal ?? null);
+const canCalculateTarget = computed(() => tdee.value !== null && primaryGoal.value !== null);
+const calculateTargetDisabledReason = computed(() => {
+  if (tdee.value === null) return "Add more profile details (weight, height, age, activity level) to calculate your TDEE first.";
+  if (primaryGoal.value === null) return "Set a primary goal in onboarding to calculate a suggested target.";
+  return null;
+});
+
+const onCalculateTarget = () => {
+  if (tdee.value === null || primaryGoal.value === null) return;
+  const suggestion = suggestNutritionTarget({ tdee: tdee.value, goal: primaryGoal.value });
+  targetCalories.value = suggestion.calories;
+  targetProtein.value = suggestion.proteinG;
+  targetCarbs.value = suggestion.carbsG;
+  targetFat.value = suggestion.fatG;
+};
 
 const onSaveTarget = async () => {
   const hasAllFields =
@@ -235,6 +258,11 @@ const onLogout = async () => {
       </div>
       <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
         <p class="text-xs text-muted-foreground">Leave any field blank to clear your target entirely.</p>
+        <Button variant="outline" size="sm" class="gap-1.5" :disabled="!canCalculateTarget" @click="onCalculateTarget">
+          <CalculatorIcon class="size-4" />
+          Calculate for me
+        </Button>
+        <p v-if="calculateTargetDisabledReason" class="text-xs text-muted-foreground">{{ calculateTargetDisabledReason }}</p>
         <div class="grid grid-cols-2 gap-3">
           <UiMetricInput v-model="targetCalories" unit="cal" />
           <UiMetricInput v-model="targetProtein" unit="g protein" />
