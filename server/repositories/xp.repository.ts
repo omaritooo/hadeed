@@ -33,7 +33,9 @@ export class XpRepository {
     return row ? (row.total as number) : 0
   }
 
-  async recentPrs(userId: string, limit: number): Promise<RecentPr[]> {
+  // `limit` omitted returns the full PR history (most recent first) — used by the Stats tab's
+  // PR timeline, as opposed to the home/workouts summaries which always pass a small cap.
+  async recentPrs(userId: string, limit?: number): Promise<RecentPr[]> {
     const result = await this.db.execute({
       sql: `SELECT xl.created_at AS achieved_at, sl.weight_kg, sl.reps, e.name AS exercise_name
             FROM xp_ledger xl
@@ -42,8 +44,8 @@ export class XpRepository {
             JOIN exercises e ON e.id = el.exercise_id
             WHERE xl.user_id = ? AND xl.source_type = 'pr'
             ORDER BY xl.created_at DESC
-            LIMIT ?`,
-      args: [userId, limit],
+            ${limit !== undefined ? 'LIMIT ?' : ''}`,
+      args: limit !== undefined ? [userId, limit] : [userId],
     })
     return result.rows.map(row => ({
       exerciseName: row.exercise_name as string,
