@@ -35,10 +35,10 @@ export const equipmentOptions: OnboardingOption<Exclude<Equipment, "both">>[] = 
 // The 5 primary-goal options, including `mobility`. Shared between onboarding's
 // ThirdStep and Profile's Training Preferences section.
 export const goalOptions: OnboardingOption<Goal>[] = [
-  { value: "fat_loss", icon: FlameIcon, title: "Fat Loss", description: "New to exercising" },
+  { value: "fat_loss", icon: FlameIcon, title: "Fat Loss", description: "Lose fat & lean out" },
   { value: "muscle_gain", icon: DumbbellIcon, title: "Muscle Gain", description: "Hypertrophy & Size" },
-  { value: "maintenance", icon: WrenchIcon, title: "Maintenance", description: "3+ years" },
-  { value: "general_fitness", icon: HeartIcon, title: "General Health", description: "3+ years" },
+  { value: "maintenance", icon: WrenchIcon, title: "Maintenance", description: "Stay at current weight" },
+  { value: "general_fitness", icon: HeartIcon, title: "General Health", description: "Overall health & wellness" },
   { value: "mobility", icon: AccessibilityIcon, title: "Mobility", description: "Flexibility & Movement" },
 ]
 
