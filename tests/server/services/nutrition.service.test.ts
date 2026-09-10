@@ -98,6 +98,22 @@ describe('NutritionService', () => {
     expect(log.items[0]).toMatchObject({ calories: 700, proteinG: 42, carbsG: 126, fatG: 3 })
   })
 
+  it('uses an explicitly provided meal type instead of inferring one', async () => {
+    const chicken = await service.createIngredient({
+      name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,
+    })
+    const log = await service.logMeal('Midnight snack', [{ ingredientId: chicken.id, quantity: 100 }], 'snack')
+    expect(log.mealType).toBe('snack')
+  })
+
+  it('infers a meal type from the current time of day when none is provided', async () => {
+    const chicken = await service.createIngredient({
+      name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,
+    })
+    const log = await service.logMeal('Lunch', [{ ingredientId: chicken.id, quantity: 100 }])
+    expect(['breakfast', 'lunch', 'dinner', 'snack']).toContain(log.mealType)
+  })
+
   it('rejects logging an unknown ingredient', async () => {
     await expect(service.logMeal('Lunch', [{ ingredientId: 999, quantity: 100 }])).rejects.toThrow()
   })

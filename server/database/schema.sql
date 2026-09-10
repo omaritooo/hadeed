@@ -395,6 +395,12 @@ CREATE TABLE IF NOT EXISTS meal_logs (
   logged_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Nullable so pre-existing rows (logged before this column existed) stay uncategorized
+-- rather than being forced into a guessed bucket. New logs are always given a value by
+-- the service layer -- either the user's explicit pick or a time-of-day inference (see
+-- shared/lib/meal-type.ts) -- so NULL should only ever be seen on historical rows.
+ALTER TABLE meal_logs ADD COLUMN meal_type TEXT CHECK (meal_type IN ('breakfast','lunch','dinner','snack'));
+
 -- ingredient_name/calories/protein_g/carbs_g/fat_g are a snapshot computed at
 -- log time (quantity scaled against the ingredient's macros then), not a live
 -- join -- editing an ingredient later must not rewrite past totals.

@@ -31,8 +31,14 @@ describe('MealLogRepository', () => {
   it('logs a meal with its items and reads it back', async () => {
     const log = await repo.log('user-1', 'Lunch', [chickenItem])
     expect(log.name).toBe('Lunch')
+    expect(log.mealType).toBeNull()
     expect(log.items).toHaveLength(1)
     expect(log.items[0]).toMatchObject(chickenItem)
+  })
+
+  it('persists an explicit meal type', async () => {
+    const log = await repo.log('user-1', 'Lunch', [chickenItem], 'lunch')
+    expect(log.mealType).toBe('lunch')
   })
 
   it('finds meals logged within a date range', async () => {

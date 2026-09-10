@@ -2,6 +2,8 @@ import type { MacroTarget } from '~~/shared/types/split.types'
 
 export type IngredientUnitType = 'weight_100g' | 'count'
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
 export interface Ingredient {
   id: number
   userId: string
@@ -31,6 +33,9 @@ export interface MealLog {
   userId: string
   name: string | null
   loggedAt: string
+  // Null only for rows logged before meal_type existed -- new logs are always given a
+  // value (explicit or inferred from time of day), never left uncategorized.
+  mealType: MealType | null
   items: MealLogItem[]
 }
 

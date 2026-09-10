@@ -1,5 +1,5 @@
 import type { Client } from '@libsql/client'
-import type { MealLog, MealLogItem } from '~~/shared/types/nutrition.types'
+import type { MealLog, MealLogItem, MealType } from '~~/shared/types/nutrition.types'
 
 export interface MealLogItemInput {
   ingredientId: number
@@ -20,6 +20,7 @@ export class MealLogRepository {
       userId: row.user_id as string,
       name: row.name as string | null,
       loggedAt: row.logged_at as string,
+      mealType: row.meal_type as MealType | null,
     }
   }
 
@@ -42,10 +43,10 @@ export class MealLogRepository {
     return result.rows.map(row => this.mapItem(row as unknown as Record<string, unknown>))
   }
 
-  async log(userId: string, name: string | null, items: MealLogItemInput[]): Promise<MealLog> {
+  async log(userId: string, name: string | null, items: MealLogItemInput[], mealType: MealType | null = null): Promise<MealLog> {
     const result = await this.db.execute({
-      sql: 'INSERT INTO meal_logs (user_id, name) VALUES (?, ?) RETURNING *',
-      args: [userId, name],
+      sql: 'INSERT INTO meal_logs (user_id, name, meal_type) VALUES (?, ?, ?) RETURNING *',
+      args: [userId, name, mealType],
     })
     const row = result.rows[0]
     if (!row) throw new Error('Failed to log meal')

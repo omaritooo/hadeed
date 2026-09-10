@@ -6,6 +6,7 @@ import { MealLogRepository } from '~~/server/repositories/meal-log.repository'
 import { PresetMealRepository } from '~~/server/repositories/preset-meal.repository'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
 import { NutritionService } from '~~/server/services/nutrition.service'
+import type { MealType } from '~~/shared/types/nutrition.types'
 
 defineRouteMeta({
   openAPI: {
@@ -19,6 +20,11 @@ defineRouteMeta({
             required: ['items'],
             properties: {
               name: { type: 'string', nullable: true },
+              mealType: {
+                type: 'string',
+                enum: ['breakfast', 'lunch', 'dinner', 'snack'],
+                description: 'Omit to infer from the current time of day (server-side, in the user\'s timezone)',
+              },
               items: {
                 type: 'array',
                 items: {
@@ -44,7 +50,7 @@ defineRouteMeta({
 
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
-  const body = await readBody(event) as { name?: string | null, items: { ingredientId: number, quantity: number }[] }
+  const body = await readBody(event) as { name?: string | null, mealType?: MealType, items: { ingredientId: number, quantity: number }[] }
   const db = useDb()
   const service = new NutritionService(
     ctx,
@@ -53,5 +59,5 @@ export default defineEventHandler(async (event) => {
     new PresetMealRepository(db),
     new ProfileRepository(db),
   )
-  return service.logMeal(body.name ?? null, body.items)
+  return service.logMeal(body.name ?? null, body.items, body.mealType)
 })

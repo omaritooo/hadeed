@@ -1,9 +1,11 @@
 import type { FetchError } from 'ofetch'
-import type { MealLog } from '~~/shared/types/nutrition.types'
+import type { MealLog, MealType } from '~~/shared/types/nutrition.types'
 import { useMutation, useQueryCache } from '@pinia/colada'
 
 export interface LogMealInput {
   name?: string | null
+  // Omit to let the server infer breakfast/lunch/dinner/snack from the current time of day.
+  mealType?: MealType
   items: { ingredientId: number, quantity: number }[]
 }
 

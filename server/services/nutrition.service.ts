@@ -5,9 +5,10 @@ import type { MealLogItemInput, MealLogRepository } from '~~/server/repositories
 import type { CreatePresetMealInput, PresetMealRepository } from '~~/server/repositories/preset-meal.repository'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import type { Ingredient, IngredientUnitType, MealLog, NutritionToday, PresetMeal } from '~~/shared/types/nutrition.types'
+import type { Ingredient, IngredientUnitType, MealLog, MealType, NutritionToday, PresetMeal } from '~~/shared/types/nutrition.types'
 import type { MacroTarget } from '~~/shared/types/split.types'
 import { toSqliteDatetime } from '~~/server/utils/date'
+import { inferMealType } from '~~/shared/lib/meal-type'
 
 const todayRange = (): { start: string, end: string } => {
   const start = new Date()
@@ -32,6 +33,18 @@ const requireUnitLabelForCount = (unitType: IngredientUnitType, unitLabel: strin
   if (unitType === 'count' && (!unitLabel || !unitLabel.trim())) {
     throw createError({ statusCode: 400, statusMessage: 'unitLabel is required for count-type ingredients' })
   }
+}
+
+// Local wall-clock hour in the given IANA timezone (falls back to UTC when the user hasn't
+// set one), used only to feed inferMealType -- kept separate from that pure function so the
+// inference logic itself stays trivially testable without timezone plumbing.
+const localHour = (timezone: string | null): number => {
+  const formatted = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone ?? 'UTC',
+    hour: 'numeric',
+    hour12: false,
+  }).format(new Date())
+  return Number(formatted) % 24
 }
 
 export class NutritionService extends BaseService {
@@ -103,16 +116,26 @@ export class NutritionService extends BaseService {
     }))
   }
 
-  async logMeal(name: string | null, items: { ingredientId: number, quantity: number }[]): Promise<MealLog> {
-    const resolved = await this.resolveItems(items)
-    return this.mealLogs.log(this.ctx.userId, name, resolved)
+  // Falls back to a time-of-day guess (breakfast/lunch/dinner/snack) whenever the caller
+  // doesn't pick one explicitly, rather than forcing a manual selection on every log.
+  private async resolveMealType(mealType: MealType | undefined): Promise<MealType> {
+    if (mealType) return mealType
+    const profile = await this.profiles.findByUserId(this.ctx.userId)
+    return inferMealType(localHour(profile?.timezone ?? null))
   }
 
-  async logPresetMeal(presetMealId: number): Promise<MealLog> {
+  async logMeal(name: string | null, items: { ingredientId: number, quantity: number }[], mealType?: MealType): Promise<MealLog> {
+    const resolved = await this.resolveItems(items)
+    const resolvedMealType = await this.resolveMealType(mealType)
+    return this.mealLogs.log(this.ctx.userId, name, resolved, resolvedMealType)
+  }
+
+  async logPresetMeal(presetMealId: number, mealType?: MealType): Promise<MealLog> {
     const preset = await this.presetMeals.findById(presetMealId, this.ctx.userId)
     if (!preset) throw createError({ statusCode: 404, statusMessage: 'Preset meal not found' })
     const resolved = await this.resolveItems(preset.items.map(item => ({ ingredientId: item.ingredientId, quantity: item.quantity })))
-    return this.mealLogs.log(this.ctx.userId, preset.name, resolved)
+    const resolvedMealType = await this.resolveMealType(mealType)
+    return this.mealLogs.log(this.ctx.userId, preset.name, resolved, resolvedMealType)
   }
 
   async editMealLog(id: number, items: { ingredientId: number, quantity: number }[]): Promise<MealLog> {
