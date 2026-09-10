@@ -13,6 +13,9 @@ const completeSession = useCompleteSession();
 const editSetLog = useEditSetLog();
 const deleteSetLog = useDeleteSetLog();
 
+const { data: profile } = useProfile();
+const unitSystem = computed(() => profile.value?.profile?.unitSystem ?? "metric");
+
 const now = useNow({ interval: 1000 });
 const elapsed = computed(() => {
   if (!session.value) return "0:00";
@@ -63,14 +66,32 @@ const formatSetsProgress = (loggedSets: number, targetSets: number | null) => {
   return targetSets === null ? `${loggedSets} sets` : `${loggedSets}/${targetSets} sets`;
 };
 
+// Batched exercise metadata (currently just `equipment`, needed to gate the plate calculator to
+// barbell exercises) for every exercise in the session. useExercisesByIds resolves them all in
+// one request rather than one per exercise — this page can have several, and a per-exercise
+// query here (like the useExerciseHistory one above) would be an avoidable N+1.
+const sessionExerciseIds = computed(() => [...new Set(session.value?.exercises.map(exercise => exercise.exerciseId) ?? [])]);
+const { data: sessionExerciseDetails } = useExercisesByIds(sessionExerciseIds);
+const equipmentByExerciseId = computed(() => {
+  const map = new Map<string, string | null>();
+  for (const exercise of sessionExerciseDetails.value ?? []) map.set(exercise.id, exercise.equipment);
+  return map;
+});
+
 const exerciseDisplayInfo = computed(() => {
   return (session.value?.exercises ?? []).map(exercise => ({
     ...exercise,
     targetLabel: formatTarget(exercise.targetSets, exercise.targetReps, exercise.targetRpe),
     lastPerformanceLabel: formatLastPerformance(exercise.exerciseId),
     setsProgressLabel: formatSetsProgress(exercise.sets.length, exercise.targetSets),
+    isBarbell: equipmentByExerciseId.value.get(exercise.exerciseId) === "barbell",
   }));
 });
+
+const draftWeightKgNumber = (exerciseLogId: string) => {
+  const parsed = Number(draftFor(exerciseLogId).weightKg);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 // Circuit-format sessions ("Round 1 of 4" cycling through every exercise in order) present as a
 // state machine, but that state is derived from the logged sets rather than tracked in local
@@ -377,6 +398,11 @@ const finish = async () => {
             <UiNumberStepper v-model="draftFor(exercise.id).reps" :step="1" placeholder="reps" />
             <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
           </div>
+          <SessionPlateCalculator
+            v-if="exercise.isBarbell"
+            :target-weight-kg="draftWeightKgNumber(exercise.id)"
+            :unit-system="unitSystem"
+          />
           <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
             <CheckIcon class="size-4" />
           </Button>
@@ -440,6 +466,11 @@ const finish = async () => {
                   <UiNumberStepper v-model="draftFor(exercise.id).reps" :step="1" placeholder="reps" />
                   <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
                 </div>
+                <SessionPlateCalculator
+                  v-if="exercise.isBarbell"
+                  :target-weight-kg="draftWeightKgNumber(exercise.id)"
+                  :unit-system="unitSystem"
+                />
                 <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
                   <CheckIcon class="size-4" />
                 </Button>
