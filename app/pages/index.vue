@@ -204,20 +204,24 @@ const continueWorkout = async () => {
     </UiCard>
 
     <div class="flex gap-x-2 font-heading min-h-max h-max">
-      <UiCard class="w-1/2 flex flex-col gap-y-1">
-        <span class="flex gap-x-2 items-center flex-row">
-          <FlameIcon fill="currentColor" class="text-primary" />
-          <h2 class="text-3xl">{{ stats?.streak.current ?? 0 }}</h2></span
-        >
-        <span class="text-muted-foreground font-thin">Day Streak</span>
-      </UiCard>
-      <UiCard class="w-1/2 flex flex-col gap-y-4">
-        <span class="flex gap-x-2 items-center flex-row font-heading">
-          <StarIcon fill="currentColor" class="text-primary" />
-          <h2 class="text-3xl">Level {{ stats?.xp.level }}</h2></span
-        >
-        <UiProgress :model-value="xpProgress" class="h-1.5 bg-muted" />
-      </UiCard>
+      <NuxtLink to="/profile" class="contents">
+        <UiCard class="w-1/2 flex flex-col gap-y-1">
+          <span class="flex gap-x-2 items-center flex-row">
+            <FlameIcon fill="currentColor" class="text-primary" />
+            <h2 class="text-3xl">{{ stats?.streak.current ?? 0 }}</h2></span
+          >
+          <span class="text-muted-foreground font-thin">Day Streak</span>
+        </UiCard>
+      </NuxtLink>
+      <NuxtLink to="/profile" class="contents">
+        <UiCard class="w-1/2 flex flex-col gap-y-4">
+          <span class="flex gap-x-2 items-center flex-row font-heading">
+            <StarIcon fill="currentColor" class="text-primary" />
+            <h2 class="text-3xl">Level {{ stats?.xp.level }}</h2></span
+          >
+          <UiProgress :model-value="xpProgress" class="h-1.5 bg-muted" />
+        </UiCard>
+      </NuxtLink>
     </div>
 
     <UiCard v-if="stats?.consistency?.length" class="space-y-4">
