@@ -15,7 +15,6 @@ import { kgToLbs } from "~~/shared/lib/formulas";
 definePageMeta({});
 const { data: profile, isLoading, isPending } = useProfile();
 const { data: stats } = useHomeStats();
-console.log(stats.value);
 const now = useNow();
 const timeOfDay = computed(() => {
   if (now.value.getHours() >= 5 && now.value.getHours() <= 11) return `Good Morning, `;
@@ -131,7 +130,7 @@ const lastSessionTimeAgo = useTimeAgo(() => lastSession.value?.completedAt ?? ne
 </script>
 
 <template>
-  <div class="px-4 py-4 flex flex-col gap-y-4" v-if="!isLoading || !isPending">
+  <div class="px-4 py-4 flex flex-col gap-y-4" v-if="!isLoading && !isPending">
     <span class="font-mono text-muted-foreground">
       {{ useDateFormat(now, "MMM DD, YYYY") }}
     </span>
@@ -377,5 +376,5 @@ const lastSessionTimeAgo = useTimeAgo(() => lastSession.value?.completedAt ?? ne
       </UiCard>
     </div>
   </div>
-  <div v-else>Is Loading</div>
+  <div v-else class="px-4 py-4 text-muted-foreground">Loading...</div>
 </template>
