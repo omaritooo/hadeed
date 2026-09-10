@@ -19,5 +19,6 @@ export const queryKeys = {
   presetMeals: () => ['preset-meals'] as const,
   workouts: () => ['workouts'] as const,
   weeklyVolume: () => ['weekly-volume'] as const,
+  achievements: () => ['achievements'] as const,
   session: (id: string) => ['session', id] as const,
 }

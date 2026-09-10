@@ -34,3 +34,19 @@ export interface UserAchievement {
   achievementId: number
   unlockedAt: string
 }
+
+export interface AchievementProgress {
+  current: number
+  target: number
+  unit: string
+}
+
+export interface AchievementWithProgress {
+  key: string
+  name: string
+  description: string | null
+  icon: string | null
+  criteriaType: AchievementCriteriaType
+  unlocked: boolean
+  progress: AchievementProgress | null
+}

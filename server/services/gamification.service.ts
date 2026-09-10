@@ -2,6 +2,7 @@ import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import type { SessionRepository } from '~~/server/repositories/session.repository'
+import type { Achievement, AchievementWithProgress, Streak } from '~~/shared/types/gamification.types'
 
 const XP_PER_SET = 10
 const XP_SESSION_COMPLETE_BONUS = 25
@@ -11,6 +12,15 @@ export interface SessionCompletionFacts {
   scheduledDaysThisWeek: number
   completedDaysThisWeek: number
   missedScheduledDay?: boolean
+}
+
+interface AchievementFacts {
+  published: Achievement[]
+  unlockedKeys: string[]
+  streak: Streak
+  sessionCount: number
+  prCount: number
+  totalVolumeKg: number
 }
 
 export class GamificationService {
@@ -42,7 +52,45 @@ export class GamificationService {
     await this.evaluateAchievements(userId)
   }
 
-  private async evaluateAchievements(userId: string): Promise<void> {
+  /**
+   * Returns every published achievement for the user, annotated with whether it's unlocked
+   * and, if not, how close the user is to unlocking it. Reuses the exact same underlying facts
+   * (streak, session count, PR count, total volume) that `evaluateAchievements` gathers to decide
+   * unlocks, so progress shown to the user can never drift from progress used to unlock.
+   */
+  async getAchievementProgress(userId: string): Promise<AchievementWithProgress[]> {
+    const facts = await this.gatherAchievementFacts(userId)
+
+    return facts.published.map((achievement) => {
+      const unlocked = facts.unlockedKeys.includes(achievement.key)
+      return {
+        key: achievement.key,
+        name: achievement.name,
+        description: achievement.description,
+        icon: achievement.icon,
+        criteriaType: achievement.criteriaType,
+        unlocked,
+        progress: unlocked ? null : this.computeProgress(achievement, facts),
+      }
+    })
+  }
+
+  private computeProgress(achievement: Achievement, facts: AchievementFacts): AchievementWithProgress['progress'] {
+    switch (achievement.criteriaType) {
+      case 'streak_length':
+        return { current: facts.streak.currentStreak, target: achievement.criteriaValue.days as number, unit: 'days' }
+      case 'session_count':
+        return { current: facts.sessionCount, target: achievement.criteriaValue.count as number, unit: 'sessions' }
+      case 'pr_count':
+        return { current: facts.prCount, target: achievement.criteriaValue.count as number, unit: 'PRs' }
+      case 'total_volume_kg':
+        return { current: facts.totalVolumeKg, target: achievement.criteriaValue.kg as number, unit: 'kg' }
+      case 'target_hit':
+        return null
+    }
+  }
+
+  private async gatherAchievementFacts(userId: string): Promise<AchievementFacts> {
     const [published, unlockedKeys, streak, sessionCount, prCount, totalVolumeKg] = await Promise.all([
       this.achievements.findPublished(),
       this.achievements.findUnlockedKeys(userId),
@@ -51,23 +99,28 @@ export class GamificationService {
       this.xp.countBySourceType(userId, 'pr'),
       this.sessions.totalVolumeKg(userId),
     ])
+    return { published, unlockedKeys, streak, sessionCount, prCount, totalVolumeKg }
+  }
 
-    for (const achievement of published) {
-      if (unlockedKeys.includes(achievement.key)) continue
+  private async evaluateAchievements(userId: string): Promise<void> {
+    const facts = await this.gatherAchievementFacts(userId)
+
+    for (const achievement of facts.published) {
+      if (facts.unlockedKeys.includes(achievement.key)) continue
 
       let met = false
       switch (achievement.criteriaType) {
         case 'streak_length':
-          met = streak.currentStreak >= (achievement.criteriaValue.days as number)
+          met = facts.streak.currentStreak >= (achievement.criteriaValue.days as number)
           break
         case 'session_count':
-          met = sessionCount >= (achievement.criteriaValue.count as number)
+          met = facts.sessionCount >= (achievement.criteriaValue.count as number)
           break
         case 'pr_count':
-          met = prCount >= (achievement.criteriaValue.count as number)
+          met = facts.prCount >= (achievement.criteriaValue.count as number)
           break
         case 'total_volume_kg':
-          met = totalVolumeKg >= (achievement.criteriaValue.kg as number)
+          met = facts.totalVolumeKg >= (achievement.criteriaValue.kg as number)
           break
         case 'target_hit':
           break

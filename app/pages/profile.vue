@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, TrendingUpIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
+import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
 import { Button } from "@/components/ui/button";
 
 const remindersEnabled = ref(false);
@@ -86,57 +87,43 @@ interface AchievementGroup {
   items: AchievementCard[];
 }
 
-const groups: AchievementGroup[] = [
-  {
-    key: "streaks",
-    label: "Streaks",
-    icon: FlameIcon,
-    iconClass: "text-primary",
-    items: [
-      { key: "week_streak", icon: "🔥", name: "7-Day Streak", description: "Hit every scheduled day for a week straight.", unlocked: false, progress: { current: 3, target: 7, unit: "days" } },
-      { key: "month_streak", icon: "🏆", name: "30-Day Streak", description: "A full month of hitting every scheduled day.", unlocked: false, progress: { current: 3, target: 30, unit: "days" } },
-      { key: "iron_will", icon: "⚡", name: "100-Day Streak", description: "Trained every scheduled day for 100 days straight.", unlocked: false, progress: { current: 3, target: 100, unit: "days" } },
-    ],
-  },
-  {
-    key: "sessions",
-    label: "Sessions",
-    icon: DumbbellIcon,
-    iconClass: "text-foreground",
-    items: [
-      { key: "first_session", icon: "🎉", name: "First Session Logged", description: "Logged your first workout session.", unlocked: true },
-      { key: "ten_sessions", icon: "💪", name: "Regular", description: "Completed 10 workout sessions.", unlocked: true },
-      { key: "fifty_sessions", icon: "🐀", name: "Gym Rat", description: "Completed 50 workout sessions.", unlocked: false, progress: { current: 16, target: 50, unit: "sessions" } },
-      { key: "hundred_sessions", icon: "🛡️", name: "Iron Veteran", description: "Completed 100 workout sessions.", unlocked: false, progress: { current: 16, target: 100, unit: "sessions" } },
-    ],
-  },
-  {
-    key: "prs",
-    label: "Personal Records",
-    icon: TrendingUpIcon,
-    iconClass: "text-lime",
-    items: [
-      { key: "first_pr", icon: "🥇", name: "First PR", description: "Logged your first personal record.", unlocked: true },
-      { key: "pr_five", icon: "📈", name: "Personal Best Club", description: "Set 5 personal records.", unlocked: false, progress: { current: 2, target: 5, unit: "PRs" } },
-      { key: "pr_twenty", icon: "🚀", name: "Record Breaker", description: "Set 20 personal records.", unlocked: false, progress: { current: 2, target: 20, unit: "PRs" } },
-    ],
-  },
-  {
-    key: "volume",
-    label: "Volume",
-    icon: WeightIcon,
-    iconClass: "text-foreground",
-    items: [
-      { key: "volume_car", icon: "🚗", name: "Lifted a Car", description: "Lifted a cumulative 1,500 kg -- about the weight of a small car.", unlocked: true },
-      { key: "volume_elephant", icon: "🐘", name: "Lifted an Elephant", description: "Lifted a cumulative 5,400 kg -- about the weight of an African elephant.", unlocked: true },
-      { key: "volume_bus", icon: "🚌", name: "Lifted a School Bus", description: "Lifted a cumulative 12,000 kg -- about the weight of a school bus.", unlocked: true },
-    ],
-  },
-];
+// Every published achievement's `criteriaType` maps onto one of the page's four
+// hand-designed groups. `target_hit` has no seeded achievements yet, but is grouped under
+// "Other" rather than silently dropped in case one is published later.
+const GROUP_META: Record<AchievementCriteriaType, { key: string; label: string; icon: Component; iconClass: string }> = {
+  streak_length: { key: "streaks", label: "Streaks", icon: FlameIcon, iconClass: "text-primary" },
+  session_count: { key: "sessions", label: "Sessions", icon: DumbbellIcon, iconClass: "text-foreground" },
+  pr_count: { key: "prs", label: "Personal Records", icon: TrendingUpIcon, iconClass: "text-lime" },
+  total_volume_kg: { key: "volume", label: "Volume", icon: WeightIcon, iconClass: "text-foreground" },
+  target_hit: { key: "other", label: "Other", icon: TrophyIcon, iconClass: "text-foreground" },
+};
+const GROUP_ORDER: AchievementCriteriaType[] = ["streak_length", "session_count", "pr_count", "total_volume_kg", "target_hit"];
 
-const totalCount = groups.reduce((sum, group) => sum + group.items.length, 0);
-const unlockedCount = groups.reduce((sum, group) => sum + group.items.filter((item) => item.unlocked).length, 0);
-const unlockedPct = Math.round((unlockedCount / totalCount) * 100);
+const { data: achievementsData } = useAchievements();
+
+const groups = computed<AchievementGroup[]>(() => {
+  const byType = new Map<AchievementCriteriaType, AchievementCard[]>();
+  for (const achievement of achievementsData.value ?? []) {
+    const card: AchievementCard = {
+      key: achievement.key,
+      icon: achievement.icon ?? "🏅",
+      name: achievement.name,
+      description: achievement.description ?? "",
+      unlocked: achievement.unlocked,
+      progress: achievement.progress ?? undefined,
+    };
+    const items = byType.get(achievement.criteriaType) ?? [];
+    items.push(card);
+    byType.set(achievement.criteriaType, items);
+  }
+  return GROUP_ORDER
+    .filter((type) => byType.has(type))
+    .map((type) => ({ ...GROUP_META[type], items: byType.get(type)! }));
+});
+
+const totalCount = computed(() => groups.value.reduce((sum, group) => sum + group.items.length, 0));
+const unlockedCount = computed(() => groups.value.reduce((sum, group) => sum + group.items.filter((item) => item.unlocked).length, 0));
+const unlockedPct = computed(() => (totalCount.value === 0 ? 0 : Math.round((unlockedCount.value / totalCount.value) * 100)));
 
 const progressPct = (card: AchievementCard): number => {
   if (!card.progress) return 0;
