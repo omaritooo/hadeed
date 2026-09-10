@@ -19,7 +19,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: '/favicon.ico',
+      icon: '/pwa-192x192.png',
       tag: 'hydration-reminder',
     }),
   )

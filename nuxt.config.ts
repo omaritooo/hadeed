@@ -21,6 +21,19 @@ export default defineNuxtConfig({
     },
   },
 
+  app: {
+    head: {
+      link: [
+        // SVG first: browsers that support it pick it and get a crisp mark at any size.
+        // The .ico stays as the legacy fallback, and apple-touch-icon is what iOS uses
+        // for the home-screen tile (it must be opaque -- iOS renders alpha as black).
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
+      ],
+    },
+  },
+
   pwa: {
     strategies: 'injectManifest',
     srcDir: '.',
@@ -31,8 +44,22 @@ export default defineNuxtConfig({
     manifest: {
       name: 'Hadeed',
       short_name: 'Hadeed',
+      description: 'Training, nutrition and hydration tracking.',
       theme_color: '#131313',
       background_color: '#131313',
+      // iOS only grants web push to a PWA launched from the home screen in standalone
+      // display mode -- without this the install is a plain bookmark and
+      // Notification.requestPermission() never resolves to 'granted'.
+      display: 'standalone',
+      start_url: '/',
+      icons: [
+        { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+        // Separate maskable art: the mark is inset to ~72% so Android's adaptive-icon
+        // crop can't clip the plates. Any purpose is fine on a square-mask launcher, but
+        // a circular one would cut the standard icon's corners into the artwork.
+        { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
     },
     devOptions: {
       enabled: true,

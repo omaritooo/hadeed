@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Hadeed">
+  <rect width="64" height="64" rx="14" fill="#131313"/>
+  <g fill="#ff5722">
+    <rect x="12" y="9" width="10" height="46" rx="4"/>
+    <rect x="42" y="9" width="10" height="46" rx="4"/>
+    <rect x="20" y="28.5" width="24" height="7"/>
+  </g>
+</svg>

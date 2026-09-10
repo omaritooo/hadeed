@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { DumbbellIcon, UserRoundIcon, ZapIcon } from "@lucide/vue";
+import { UserRoundIcon, ZapIcon } from "@lucide/vue";
 const { data: stats } = useHomeStats();
 </script>
 
@@ -13,12 +13,7 @@ const { data: stats } = useHomeStats();
       </UiAvatarFallback>
     </UiAvatar>
 
-    <div class="flex items-center gap-1.5">
-      <DumbbellIcon class="size-4.5 text-primary" />
-      <h1 class="font-heading text-lg uppercase tracking-[-0.02em] text-foreground">
-        Hadeed
-      </h1>
-    </div>
+    <UiLogo />
 
     <div class="flex items-center gap-1.5 rounded-full bg-popover py-1 pl-2 pr-3">
       <ZapIcon class="size-3.5 text-primary" />
