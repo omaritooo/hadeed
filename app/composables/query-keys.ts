@@ -22,4 +22,6 @@ export const queryKeys = {
   achievements: () => ['achievements'] as const,
   session: (id: string) => ['session', id] as const,
   bodyMetrics: () => ['body-metrics'] as const,
+  volumeHistory: (weeks: number | undefined) => ['volume-history', weeks ?? null] as const,
+  prHistory: (limit: number | undefined) => ['pr-history', limit ?? null] as const,
 }

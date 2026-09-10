@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { kgToLbs } from "~~/shared/lib/formulas";
+import { buildSparkline } from "~~/shared/lib/sparkline";
 
 const HYDRATION_PRESETS_ML = [250, 500, 750] as const;
 const HYDRATION_UNDO_WINDOW_MS = 5000;
@@ -105,26 +106,7 @@ const weightGoal = computed(() => {
 
 const weightSparkline = computed(() => {
   const trend = stats.value?.weightTrend ?? [];
-  if (trend.length < 2) return null;
-
-  const width = 100;
-  const height = 32;
-  const values = trend.map((point) => point.weightKg);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const padding = (max - min || 1) * 0.15;
-  const paddedMin = min - padding;
-  const paddedRange = max + padding - paddedMin || 1;
-
-  const toX = (index: number) => (index / (values.length - 1)) * width;
-  const toY = (value: number) => height - ((value - paddedMin) / paddedRange) * height;
-
-  const linePoints = values
-    .map((value, index) => `${toX(index)},${toY(value)}`)
-    .join(" ");
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-
-  return { width, height, linePoints, averageY: toY(average) };
+  return buildSparkline(trend.map((point) => point.weightKg));
 });
 
 const xpProgress = computed(() => {
