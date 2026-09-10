@@ -14,7 +14,11 @@ export const queryKeys = {
   presetSplitsRecommend: (input: RecommendationInput) => ['preset-splits', 'recommend', input] as const,
   presetSplitDetails: (id: number) => ['preset-splits', id] as const,
   block: (id: number) => ['block', id] as const,
-  nutrition: () => ['nutrition'] as const,
+  // `date` (YYYY-MM-DD) is appended only when given, so the no-arg call every existing
+  // mutation already uses (queryKeys.nutrition()) still resolves to the bare ['nutrition']
+  // prefix -- invalidateQueries' default prefix match then still reaches whichever day's
+  // query is currently cached (today's default key included), with no changes needed there.
+  nutrition: (date?: string) => (date ? ['nutrition', date] as const : ['nutrition'] as const),
   ingredients: () => ['ingredients'] as const,
   presetMeals: () => ['preset-meals'] as const,
   workouts: () => ['workouts'] as const,

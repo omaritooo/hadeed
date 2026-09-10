@@ -178,6 +178,37 @@ describe('NutritionService', () => {
     expect(today.remaining).toBeNull()
   })
 
+  it('includes the resolved calendar day (today, by default) in the response', async () => {
+    const today = await service.getToday()
+    expect(today.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(today.date).toBe(new Date().toISOString().slice(0, 10))
+  })
+
+  it('scopes totals to the requested past day, leaving today\'s totals unaffected', async () => {
+    const chicken = await service.createIngredient({
+      name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,
+    })
+    const yesterdayLog = await service.logMeal('Yesterday\'s lunch', [{ ingredientId: chicken.id, quantity: 100 }])
+    await service.logMeal('Today\'s lunch', [{ ingredientId: chicken.id, quantity: 200 }])
+    await db.execute({ sql: 'UPDATE meal_logs SET logged_at = ? WHERE id = ?', args: ['2020-01-01 12:00:00', yesterdayLog.id] })
+
+    const pastDay = await service.getToday('2020-01-01')
+    expect(pastDay.date).toBe('2020-01-01')
+    expect(pastDay.meals).toHaveLength(1)
+    expect(pastDay.meals[0].name).toBe('Yesterday\'s lunch')
+    expect(pastDay.totals).toMatchObject({ calories: 165, proteinG: 31 })
+
+    const today = await service.getToday()
+    expect(today.meals).toHaveLength(1)
+    expect(today.meals[0].name).toBe('Today\'s lunch')
+    expect(today.totals).toMatchObject({ calories: 330, proteinG: 62 })
+  })
+
+  it('rejects a malformed date param', async () => {
+    await expect(service.getToday('not-a-date')).rejects.toThrow()
+    await expect(service.getToday('2020-1-1')).rejects.toThrow()
+  })
+
   it('deletes a meal log', async () => {
     const chicken = await service.createIngredient({
       name: 'Chicken breast', unitType: 'weight_100g', unitLabel: null, calories: 165, proteinG: 31, carbsG: 0, fatG: 3.6,

@@ -58,4 +58,7 @@ export interface NutritionToday {
   target: MacroTarget | null
   remaining: MacroTarget | null
   meals: MealLog[]
+  // The calendar day (YYYY-MM-DD, UTC) these totals cover -- always present, whether the
+  // caller asked for a specific day or let it default to today.
+  date: string
 }

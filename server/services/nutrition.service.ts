@@ -10,8 +10,16 @@ import type { MacroTarget } from '~~/shared/types/split.types'
 import { toSqliteDatetime } from '~~/server/utils/date'
 import { inferMealType } from '~~/shared/lib/meal-type'
 
-const todayRange = (): { start: string, end: string } => {
-  const start = new Date()
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+// Defaults to today (UTC) when no date is given -- `date`, when provided, must be a plain
+// YYYY-MM-DD string (as sent by the nutrition history UI's day-navigation), not a full
+// datetime, since callers are always asking for one whole calendar day.
+const dayRange = (date?: string): { start: string, end: string } => {
+  if (date !== undefined && !DATE_ONLY_PATTERN.test(date)) {
+    throw createError({ statusCode: 400, statusMessage: 'date must be in YYYY-MM-DD format' })
+  }
+  const start = date ? new Date(`${date}T00:00:00Z`) : new Date()
   start.setUTCHours(0, 0, 0, 0)
   const end = new Date(start)
   end.setUTCDate(start.getUTCDate() + 1)
@@ -168,8 +176,11 @@ export class NutritionService extends BaseService {
     await this.profiles.setNutritionTarget(this.ctx.userId, target)
   }
 
-  async getToday(): Promise<NutritionToday> {
-    const { start, end } = todayRange()
+  async getToday(date?: string): Promise<NutritionToday> {
+    const { start, end } = dayRange(date)
+    // `start` is already a normalized "YYYY-MM-DD HH:MM:SS" -- slicing it gives back the
+    // resolved calendar day even when `date` itself was omitted (defaulted to today).
+    const resolvedDate = start.slice(0, 10)
     const [meals, profile] = await Promise.all([
       this.mealLogs.findForRange(this.ctx.userId, start, end),
       this.profiles.findByUserId(this.ctx.userId),
@@ -196,6 +207,6 @@ export class NutritionService extends BaseService {
         }
       : null
 
-    return { totals, target, remaining, meals }
+    return { totals, target, remaining, meals, date: resolvedDate }
   }
 }
