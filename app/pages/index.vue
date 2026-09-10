@@ -11,7 +11,11 @@ import {
   UtensilsIcon,
 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { kgToLbs } from "~~/shared/lib/formulas";
+
+const HYDRATION_PRESETS_ML = [250, 500, 750] as const;
+const HYDRATION_UNDO_WINDOW_MS = 5000;
 
 definePageMeta({});
 const { data: profile, isLoading, isPending } = useProfile();
@@ -27,6 +31,41 @@ const timeOfDay = computed(() => {
 });
 const { data: hydration } = useHydrationStatus();
 const logHydration = useLogHydration();
+const deleteHydration = useDeleteHydration();
+const customHydrationAmount = ref<number | undefined>(undefined);
+const lastLoggedHydrationId = ref<number | null>(null);
+let undoHydrationTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const clearHydrationUndo = () => {
+  if (undoHydrationTimeout) clearTimeout(undoHydrationTimeout);
+  undoHydrationTimeout = null;
+};
+
+const logHydrationAmount = async (amountMl: number) => {
+  if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+  const log = await logHydration.mutateAsync(amountMl);
+  clearHydrationUndo();
+  lastLoggedHydrationId.value = log.id;
+  undoHydrationTimeout = setTimeout(() => {
+    lastLoggedHydrationId.value = null;
+  }, HYDRATION_UNDO_WINDOW_MS);
+};
+
+const logCustomHydrationAmount = () => {
+  const amountMl = customHydrationAmount.value;
+  customHydrationAmount.value = undefined;
+  if (amountMl) logHydrationAmount(amountMl);
+};
+
+const undoLastHydrationLog = async () => {
+  const id = lastLoggedHydrationId.value;
+  if (!id) return;
+  lastLoggedHydrationId.value = null;
+  clearHydrationUndo();
+  await deleteHydration.mutateAsync(id);
+};
+
+onBeforeUnmount(clearHydrationUndo);
 
 const { data: nutrition } = useNutritionToday();
 const caloriePct = computed(() => {
@@ -342,25 +381,58 @@ const continueWorkout = async () => {
               >{{ (hydration.targetMl / 1000).toFixed(1) }}L Goal</span
             >
           </div>
-          <div v-if="hydration?.targetMl" class="flex items-center justify-between">
-            <span
-              class="flex items-center gap-x-2 font-heading text-2xl font-semibold text-foreground [font-variant-numeric:tabular-nums]"
-            >
-              <DropletIcon class="size-5 text-cyan-pale" />
-              {{ (hydration.totalMl / 1000).toFixed(1)
-              }}<span class="text-base font-normal text-muted-foreground"
-                >/{{ (hydration.targetMl / 1000).toFixed(1) }}L</span
+          <div v-if="hydration?.targetMl" class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span
+                class="flex items-center gap-x-2 font-heading text-2xl font-semibold text-foreground [font-variant-numeric:tabular-nums]"
               >
-            </span>
-            <Button
-              size="icon"
-              variant="secondary"
-              class="rounded-full"
-              :disabled="logHydration.isLoading.value"
-              @click="logHydration.mutate(250)"
-            >
-              <PlusIcon class="size-4" />
-            </Button>
+                <DropletIcon class="size-5 text-cyan-pale" />
+                {{ (hydration.totalMl / 1000).toFixed(1)
+                }}<span class="text-base font-normal text-muted-foreground"
+                  >/{{ (hydration.targetMl / 1000).toFixed(1) }}L</span
+                >
+              </span>
+              <button
+                v-if="lastLoggedHydrationId"
+                type="button"
+                class="font-mono text-xs uppercase tracking-[1.2px] text-cyan-pale underline disabled:opacity-50"
+                :disabled="deleteHydration.isLoading.value"
+                @click="undoLastHydrationLog"
+              >
+                Undo
+              </button>
+            </div>
+            <div class="flex items-center gap-x-1.5">
+              <Button
+                v-for="preset in HYDRATION_PRESETS_ML"
+                :key="preset"
+                size="sm"
+                variant="secondary"
+                :disabled="logHydration.isLoading.value"
+                @click="logHydrationAmount(preset)"
+              >
+                +{{ preset }}
+              </Button>
+              <div class="ml-auto flex items-center gap-x-1">
+                <Input
+                  v-model="customHydrationAmount"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  placeholder="mL"
+                  class="h-8 w-16 px-2 py-1 text-xs"
+                />
+                <Button
+                  size="icon-sm"
+                  variant="secondary"
+                  class="rounded-full"
+                  :disabled="logHydration.isLoading.value || !customHydrationAmount"
+                  @click="logCustomHydrationAmount"
+                >
+                  <PlusIcon class="size-3.5" />
+                </Button>
+              </div>
+            </div>
           </div>
           <p v-else class="text-xs text-muted-foreground">
             No daily target --
