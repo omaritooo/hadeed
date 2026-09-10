@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, TrendingUpIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, TrendingUpIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
 import { Button } from "@/components/ui/button";
 
@@ -142,6 +142,17 @@ const progressPct = (card: AchievementCard): number => {
   if (!card.progress) return 0;
   return Math.min(100, Math.round((card.progress.current / card.progress.target) * 100));
 };
+
+const { mutateAsync: logout, isLoading: loggingOut } = useLogout();
+
+const onLogout = async () => {
+  try {
+    await logout();
+  } catch {
+    // Swallow: even if the request fails, fall through and clear the client-side session below.
+  }
+  await navigateTo("/login");
+};
 </script>
 
 <template>
@@ -243,6 +254,22 @@ const progressPct = (card: AchievementCard): number => {
               {{ card.progress.current }}/{{ card.progress.target }} {{ card.progress.unit }}
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <LogOutIcon class="size-4.5 text-destructive" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Account</h2>
+      </div>
+      <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-foreground">Log out</p>
+            <p class="text-xs text-muted-foreground">Sign out of this device.</p>
+          </div>
+          <Button variant="secondary" size="sm" :disabled="loggingOut" @click="onLogout">Log Out</Button>
         </div>
       </div>
     </section>
