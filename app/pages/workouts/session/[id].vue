@@ -7,7 +7,7 @@ import type { SetLog } from "~~/shared/types/session.types";
 const route = useRoute();
 const sessionId = computed(() => route.params.id as string);
 
-const { data: session, refetch } = useSession(sessionId);
+const { data: session, refetch, isLoading } = useSession(sessionId);
 const logSet = useLogSet();
 const completeSession = useCompleteSession();
 const editSetLog = useEditSetLog();
@@ -194,5 +194,10 @@ const finish = async () => {
     </UiCard>
 
     <ExerciseDetailDrawer v-model:open="infoDrawerOpen" :exercise-id="infoExerciseId" />
+  </div>
+  <div v-else-if="isLoading" class="px-4 py-4 text-muted-foreground">Loading...</div>
+  <div v-else class="flex flex-col gap-y-2 px-4 py-4">
+    <p class="text-sm text-destructive">Couldn't load this session.</p>
+    <NuxtLink to="/workouts" class="text-sm text-muted-foreground underline">Back to Workouts</NuxtLink>
   </div>
 </template>
