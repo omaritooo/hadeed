@@ -455,9 +455,13 @@ describe('TdeeEstimateService', () => {
 })
 ```
 
-The dismissal test's second call is at 09-25, when the window (08-29 → 09-25) holds 17 of the
-seeded days and 9 weigh-ins spanning 16 days. Confidence = (17/21)·(16/21) ≈ 0.617, so the
-estimate is ≈ 0.617·2800 + 0.383·2400 ≈ 2647. With no target set, `shouldSuggest` is true.
+Intake excludes today, so at `NOW` the seeded window has 27 intake days (confidence is still 1)
+and 14 weigh-ins. The dismissal test's second call is at 09-25, when the window (08-28 → 09-25)
+holds 18 intake days and 9 weigh-ins spanning 16 days. Confidence = (18/21)·(16/21) ≈ 0.653,
+so the estimate is ≈ 0.653·2800 + 0.347·2400 ≈ 2661. With no target set, `shouldSuggest` is true.
+
+Add one more test for the today exclusion: seed the 28 days at 2800 as usual, then log an extra
+1500 kcal meal at `NOW` (today, 12:00). The estimate must still be 2800.
 
 **Step 3: Run to verify failure**
 
@@ -502,14 +506,17 @@ export class TdeeEstimateService extends BaseService {
 
   async getEstimate(now: Date = new Date()): Promise<TdeeEstimateResponse> {
     const userId = this.ctx.userId
-    const start = isoDay(now, -(WINDOW_DAYS - 1))
-    const end = isoDay(now, 1)
+    const start = isoDay(now, -WINDOW_DAYS)
+    const today = isoDay(now)
+    const tomorrow = isoDay(now, 1)
 
     const [profile, computed, dailyIntake, weighIns] = await Promise.all([
       this.profiles.findByUserId(userId),
       this.stats.getComputedStats(),
-      this.mealLogs.dailyCaloriesInRange(userId, start, end),
-      this.bodyMetrics.findWeightsInRange(userId, start, end),
+      // Today is still being logged: a half-logged day that clears the incomplete-day filter
+      // would drag the average down, so intake covers the 28 finished days before today.
+      this.mealLogs.dailyCaloriesInRange(userId, start, today),
+      this.bodyMetrics.findWeightsInRange(userId, start, tomorrow),
     ])
 
     const currentTarget = profile?.nutritionTarget ?? null
