@@ -51,7 +51,7 @@ export const estimateTdee = (input: {
 
 1. **Drop incomplete days**: intake under 50% of `calorieTarget`, or of `formulaTdee` when
    there's no target.
-2. **Gate**: at least 10 logged days, and at least 4 weigh-ins spanning at least 10 days.
+2. **Gate**: at least 10 logged days, and weigh-ins on at least 4 distinct days spanning at least 10 days.
    Otherwise return `insufficient` with how many more of each are needed.
 3. **Weight trend**: a least-squares slope over the raw weigh-ins in the window, in kg/day.
    The regression itself averages out day-to-day water noise.
