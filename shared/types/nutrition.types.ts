@@ -1,4 +1,5 @@
 import type { MacroTarget } from '~~/shared/types/split.types'
+import type { TdeeEstimate } from '~~/shared/lib/adaptive-tdee'
 
 export type IngredientUnitType = 'weight_100g' | 'count'
 
@@ -61,4 +62,9 @@ export interface NutritionToday {
   // The calendar day (YYYY-MM-DD, UTC) these totals cover -- always present, whether the
   // caller asked for a specific day or let it default to today.
   date: string
+}
+
+export type TdeeEstimateResponse = TdeeEstimate & {
+  suggestedTarget: MacroTarget | null
+  shouldSuggest: boolean
 }
