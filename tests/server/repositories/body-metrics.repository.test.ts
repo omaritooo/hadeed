@@ -58,10 +58,13 @@ describe('BodyMetricsRepository', () => {
       ['2026-07-31T07:00:00.000Z', 81],
       ['2026-08-02T07:00:00.000Z', 80],
       ['2026-08-29T07:00:00.000Z', 79], // on the exclusive end date -> excluded
+      ['2026-08-29', 79], // plain date on the exclusive end date -> excluded
     ] as const
     for (const [recordedAt, weightKg] of entries) {
       await repo.record('user-1', { recordedAt, weightKg, source: 'manual', measurements: [] })
     }
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    await repo.record('user-2', { recordedAt: '2026-08-05', weightKg: 70, source: 'manual', measurements: [] }) // another user's -> excluded
 
     expect(await repo.findWeightsInRange('user-1', '2026-08-01', '2026-08-29')).toEqual([
       { date: '2026-08-02T07:00:00.000Z', weightKg: 80 },

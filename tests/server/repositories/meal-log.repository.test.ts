@@ -65,16 +65,18 @@ describe('MealLogRepository', () => {
 
   it('sums calories per calendar day in range, omitting days with no meals', async () => {
     const item = (calories: number): MealLogItemInput => ({ ...chickenItem, calories })
-    const logAt = async (items: MealLogItemInput[], loggedAt: string) => {
-      const log = await repo.log('user-1', null, items)
+    const logAt = async (items: MealLogItemInput[], loggedAt: string, userId = 'user-1') => {
+      const log = await repo.log(userId, null, items)
       await db.execute({ sql: 'UPDATE meal_logs SET logged_at = ? WHERE id = ?', args: [loggedAt, log.id] })
     }
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
 
     await logAt([item(300)], '2026-08-01 08:00:00')
     await logAt([item(500), item(200)], '2026-08-01 13:00:00')
     await logAt([item(900)], '2026-08-03 19:00:00')
     await logAt([item(700)], '2026-07-31 23:59:59') // before the inclusive start -> excluded
     await logAt([item(600)], '2026-08-29 00:00:00') // on the exclusive end -> excluded
+    await logAt([item(400)], '2026-08-01 12:00:00', 'user-2') // another user's meal -> excluded
 
     expect(await repo.dailyCaloriesInRange('user-1', '2026-08-01', '2026-08-29')).toEqual([
       { date: '2026-08-01', calories: 1000 },

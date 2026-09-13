@@ -77,6 +77,7 @@ export class BodyMetricsRepository {
     return Promise.all(rows.map(async row => ({ ...row, measurements: await this.loadMeasurements(row.id) })))
   }
 
+  // Adaptive TDEE input: `start`/`end` are YYYY-MM-DD and recorded_at values start with a date, so text comparison bounds them; multiple weigh-ins per day are returned as-is.
   async findWeightsInRange(userId: string, start: string, end: string): Promise<{ date: string, weightKg: number }[]> {
     const result = await this.db.execute({
       sql: 'SELECT recorded_at, weight_kg FROM body_metrics WHERE user_id = ? AND recorded_at >= ? AND recorded_at < ? ORDER BY recorded_at',
