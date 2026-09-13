@@ -65,7 +65,8 @@ export const estimateTdee = (input: {
    **Estimate** = `confidence × observed + (1 − confidence) × formulaTdee`. With no
    `formulaTdee` (no activity level on the profile), `confidence` must be 1, otherwise
    `insufficient`.
-6. **Sanity bound**: clamp to `[0.7, 1.4] × formulaTdee`, setting `bounded`.
+6. **Sanity bound**: clamp to `[0.7, 1.4] × formulaTdee`, setting `bounded`. With no
+   `formulaTdee`, clamp to absolute bounds of `[1200, 5000]` kcal instead.
 
 ## Server
 

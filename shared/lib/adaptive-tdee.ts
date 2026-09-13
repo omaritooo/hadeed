@@ -27,6 +27,8 @@ const FULL_CONFIDENCE_DAYS = 21
 const INCOMPLETE_DAY_FRACTION = 0.5
 const LOWER_BOUND = 0.7
 const UPPER_BOUND = 1.4
+const ABSOLUTE_MIN_TDEE = 1200
+const ABSOLUTE_MAX_TDEE = 5000
 
 const MS_PER_DAY = 86_400_000
 const dayNumber = (value: string) => Math.floor(Date.parse(`${value.slice(0, 10)}T00:00:00Z`) / MS_PER_DAY)
@@ -48,7 +50,9 @@ export const estimateTdee = (input: TdeeEstimateInput): TdeeEstimate => {
   const incompleteBelow = (calorieTarget ?? formulaTdee ?? 0) * INCOMPLETE_DAY_FRACTION
   const loggedDays = input.dailyIntake.filter(d => d.calories >= incompleteBelow)
 
-  const days = input.weighIns.map(w => dayNumber(w.date))
+  // A bad date string would turn the span and slope into NaN, so those entries are dropped.
+  const validWeighIns = input.weighIns.filter(w => Number.isFinite(dayNumber(w.date)))
+  const days = validWeighIns.map(w => dayNumber(w.date))
   const spanDays = days.length === 0 ? 0 : Math.max(...days) - Math.min(...days)
 
   // Without a formula to blend toward, only a full-confidence window is trustworthy.
@@ -56,23 +60,22 @@ export const estimateTdee = (input: TdeeEstimateInput): TdeeEstimate => {
   const neededSpan = formulaTdee === null ? FULL_CONFIDENCE_DAYS : MIN_WEIGH_IN_SPAN_DAYS
   const missing = {
     loggedDays: Math.max(0, neededDays - loggedDays.length),
-    weighIns: Math.max(0, MIN_WEIGH_INS - input.weighIns.length),
+    weighIns: Math.max(0, MIN_WEIGH_INS - new Set(days).size),
     weighInSpanDays: Math.max(0, neededSpan - spanDays),
   }
   if (missing.loggedDays > 0 || missing.weighIns > 0 || missing.weighInSpanDays > 0) return { status: 'insufficient', missing }
 
   const avgIntake = loggedDays.reduce((s, d) => s + d.calories, 0) / loggedDays.length
-  const slope = weightSlopeKgPerDay(input.weighIns)
+  const slope = weightSlopeKgPerDay(validWeighIns)
   const observed = avgIntake - slope * KCAL_PER_KG
   const confidence = Math.min(1, loggedDays.length / FULL_CONFIDENCE_DAYS) * Math.min(1, spanDays / FULL_CONFIDENCE_DAYS)
 
-  let estimate = formulaTdee === null ? observed : confidence * observed + (1 - confidence) * formulaTdee
-  let bounded = false
-  if (formulaTdee !== null) {
-    const clamped = Math.min(UPPER_BOUND * formulaTdee, Math.max(LOWER_BOUND * formulaTdee, estimate))
-    bounded = clamped !== estimate
-    estimate = clamped
-  }
+  const blended = formulaTdee === null ? observed : confidence * observed + (1 - confidence) * formulaTdee
+  const [lower, upper] = formulaTdee === null
+    ? [ABSOLUTE_MIN_TDEE, ABSOLUTE_MAX_TDEE]
+    : [LOWER_BOUND * formulaTdee, UPPER_BOUND * formulaTdee]
+  const estimate = Math.min(upper, Math.max(lower, blended))
+  const bounded = estimate !== blended
 
   return {
     status: 'ready',
