@@ -76,4 +76,12 @@ export class BodyMetricsRepository {
     const rows = result.rows.map(row => this.mapRow(row as unknown as Record<string, unknown>))
     return Promise.all(rows.map(async row => ({ ...row, measurements: await this.loadMeasurements(row.id) })))
   }
+
+  async findWeightsInRange(userId: string, start: string, end: string): Promise<{ date: string, weightKg: number }[]> {
+    const result = await this.db.execute({
+      sql: 'SELECT recorded_at, weight_kg FROM body_metrics WHERE user_id = ? AND recorded_at >= ? AND recorded_at < ? ORDER BY recorded_at',
+      args: [userId, start, end],
+    })
+    return result.rows.map(row => ({ date: row.recorded_at as string, weightKg: row.weight_kg as number }))
+  }
 }

@@ -51,4 +51,21 @@ describe('BodyMetricsRepository', () => {
     const results = await repo.findForUser('user-1')
     expect(results.map(r => r.recordedAt)).toEqual(['2026-08-15', '2026-08-01'])
   })
+
+  it('returns weigh-ins in range, oldest first', async () => {
+    const entries = [
+      ['2026-08-10T07:00:00.000Z', 79.5],
+      ['2026-07-31T07:00:00.000Z', 81],
+      ['2026-08-02T07:00:00.000Z', 80],
+      ['2026-08-29T07:00:00.000Z', 79], // on the exclusive end date -> excluded
+    ] as const
+    for (const [recordedAt, weightKg] of entries) {
+      await repo.record('user-1', { recordedAt, weightKg, source: 'manual', measurements: [] })
+    }
+
+    expect(await repo.findWeightsInRange('user-1', '2026-08-01', '2026-08-29')).toEqual([
+      { date: '2026-08-02T07:00:00.000Z', weightKg: 80 },
+      { date: '2026-08-10T07:00:00.000Z', weightKg: 79.5 },
+    ])
+  })
 })

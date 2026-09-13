@@ -94,6 +94,21 @@ export class MealLogRepository {
     return Promise.all(logs.map(async log => ({ ...log, items: await this.loadItems(log.id) })))
   }
 
+  // Adaptive TDEE input: one row per day that has any logged meal. `start`/`end` are
+  // YYYY-MM-DD; logged_at is "YYYY-MM-DD HH:MM:SS", so plain string comparison bounds it.
+  async dailyCaloriesInRange(userId: string, start: string, end: string): Promise<{ date: string, calories: number }[]> {
+    const result = await this.db.execute({
+      sql: `SELECT date(ml.logged_at) AS day, SUM(mli.calories) AS calories
+            FROM meal_logs ml
+            JOIN meal_log_items mli ON mli.meal_log_id = ml.id
+            WHERE ml.user_id = ? AND ml.logged_at >= ? AND ml.logged_at < ?
+            GROUP BY day
+            ORDER BY day`,
+      args: [userId, start, end],
+    })
+    return result.rows.map(row => ({ date: row.day as string, calories: row.calories as number }))
+  }
+
   async delete(id: number, userId: string): Promise<void> {
     await this.db.execute({ sql: 'DELETE FROM meal_logs WHERE id = ? AND user_id = ?', args: [id, userId] })
   }

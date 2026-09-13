@@ -46,6 +46,7 @@ export class ProfileRepository {
             fatG: row.nutrition_target_fat_g as number,
           }
         : null,
+      tdeeSuggestionDismissedAt: row.tdee_suggestion_dismissed_at as string | null,
       updatedAt: row.updated_at as string,
       displayName: null,
     }
@@ -154,6 +155,10 @@ export class ProfileRepository {
             WHERE user_id = ?`,
       args: [target?.calories ?? null, target?.proteinG ?? null, target?.carbsG ?? null, target?.fatG ?? null, userId],
     })
+  }
+
+  async setTdeeSuggestionDismissedAt(userId: string, at: string): Promise<void> {
+    await this.db.execute({ sql: 'UPDATE user_profiles SET tdee_suggestion_dismissed_at = ? WHERE user_id = ?', args: [at, userId] })
   }
 
   async setHydrationReminderSettings(userId: string, enabled: boolean, intervalMinutes: number): Promise<void> {

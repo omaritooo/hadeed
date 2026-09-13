@@ -449,6 +449,7 @@ ALTER TABLE user_profiles ADD COLUMN nutrition_target_calories REAL;
 ALTER TABLE user_profiles ADD COLUMN nutrition_target_protein_g REAL;
 ALTER TABLE user_profiles ADD COLUMN nutrition_target_carbs_g REAL;
 ALTER TABLE user_profiles ADD COLUMN nutrition_target_fat_g REAL;
+ALTER TABLE user_profiles ADD COLUMN tdee_suggestion_dismissed_at TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_ingredients_user       ON ingredients(user_id);
 CREATE INDEX IF NOT EXISTS idx_meal_logs_user          ON meal_logs(user_id, logged_at);

@@ -24,6 +24,7 @@ export interface UserProfile {
   hydrationReminderIntervalMinutes: number
   hydrationLastRemindedAt: string | null
   nutritionTarget: MacroTarget | null
+  tdeeSuggestionDismissedAt: string | null
   updatedAt: string
   displayName: string | null
 }

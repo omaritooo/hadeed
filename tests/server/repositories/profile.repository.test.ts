@@ -41,6 +41,14 @@ describe('ProfileRepository', () => {
     expect(second?.heightCm).toBe(182)
   })
 
+  it('stores when the TDEE suggestion was dismissed', async () => {
+    await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
+    expect((await repo.findByUserId('user-1'))!.tdeeSuggestionDismissedAt).toBeNull()
+
+    await repo.setTdeeSuggestionDismissedAt('user-1', '2026-09-14 10:00:00')
+    expect((await repo.findByUserId('user-1'))!.tdeeSuggestionDismissedAt).toBe('2026-09-14 10:00:00')
+  })
+
   it('has the four new profile columns in the schema', async () => {
     await repo.upsert('user-1', { dateOfBirth: '1995-01-01', gender: 'male', height: 180 })
     await db.execute({
