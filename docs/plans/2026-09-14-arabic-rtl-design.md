@@ -97,7 +97,7 @@ Staged so each step is reviewable and behavior-preserving:
 ## RTL styling
 
 - Convert the ~30 physical-direction Tailwind classes to logical ones: `ml/mr → ms/me`,
-  `pl/pr → ps/pe`, `left/right → start/end`, `text-left/right → text-start/end`,
+  `pl/pr → ps/pe`, `left/right → inset-s/inset-e`, `text-left/right → text-start/end`,
   `rounded-l/r → rounded-s/e`, `border-l/r → border-s/e`.
 - `npm run lint:rtl`: a grep check failing on physical-direction classes, run in the lint
   step.

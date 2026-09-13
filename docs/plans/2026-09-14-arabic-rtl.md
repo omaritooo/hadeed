@@ -229,7 +229,7 @@ describe('findPhysicalDirectionClasses', () => {
   })
 
   it('ignores logical classes and look-alike words', () => {
-    const source = `<div class="ms-4 pe-2 start-1 text-start rounded-s-lg border-e"> pr-history printer left-handed`
+    const source = `<div class="ms-4 pe-2 inset-s-1 text-start rounded-s-lg border-e"> pr-history printer left-handed`
     expect(findPhysicalDirectionClasses(source)).toEqual([])
   })
 })
@@ -245,7 +245,7 @@ import { globSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 // Physical-direction Tailwind utilities that break in RTL; each has a logical equivalent
-// (ms/me, ps/pe, start/end, text-start/end, rounded-s/e, border-s/e).
+// (ms/me, ps/pe, inset-s/inset-e, text-start/end, rounded-s/e, border-s/e).
 const PATTERN = /(?<![\w-])((?:[a-z0-9]+:)*-?(?:(?:m|p)[lr]-(?:\d[\d.]*|px|auto|\[[^\]]+\])|(?:left|right)-(?:\d[\d.]*|px|full|auto|\[[^\]]+\]|1\/2)|text-(?:left|right)|rounded-(?:l|r|tl|tr|bl|br)(?:-[a-z0-9]+)?|border-(?:l|r)(?:-\d+)?))(?![\w-])/g
 
 export const findPhysicalDirectionClasses = (source: string): string[] =>
@@ -261,7 +261,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
   }
   if (failures) {
-    console.error(`\n${failures} physical-direction class(es). Use ms/me, ps/pe, start/end, text-start/end, rounded-s/e, border-s/e.`)
+    console.error(`\n${failures} physical-direction class(es). Use ms/me, ps/pe, inset-s/inset-e, text-start/end, rounded-s/e, border-s/e.`)
     process.exit(1)
   }
 }
@@ -281,7 +281,7 @@ Run `npm run lint:rtl` and convert every hit:
 | --- | --- |
 | `ml-*` / `mr-*` | `ms-*` / `me-*` |
 | `pl-*` / `pr-*` | `ps-*` / `pe-*` |
-| `left-*` / `right-*` | `start-*` / `end-*` |
+| `left-*` / `right-*` | `inset-s-*` / `inset-e-*` |
 | `text-left` / `text-right` | `text-start` / `text-end` |
 | `rounded-l*` / `rounded-r*` | `rounded-s*` / `rounded-e*` |
 | `rounded-tl` / `tr` / `bl` / `br` | `rounded-ss` / `se` / `es` / `ee` |
