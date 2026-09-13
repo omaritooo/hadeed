@@ -9,7 +9,7 @@ has both inputs needed to measure it: logged meals and weigh-ins.
 
 ## Approach
 
-Estimate TDEE from a smoothed weight trend and logged intake, and **suggest** a target
+Estimate TDEE from the weight trend and logged intake, and **suggest** a target
 change the user accepts with one tap. Targets are never rewritten silently: a user may
 have set theirs deliberately, and patchy logging would make an automatic change harmful.
 
@@ -29,7 +29,7 @@ have set theirs deliberately, and patchy logging would make an automatic change 
 
 ```ts
 export type TdeeEstimate =
-  | { status: 'insufficient', missing: { loggedDays: number, weighIns: number } }
+  | { status: 'insufficient', missing: { loggedDays: number, weighIns: number, weighInSpanDays: number } }
   | {
       status: 'ready'
       estimate: number        // blended, bounded
@@ -43,7 +43,7 @@ export type TdeeEstimate =
 
 export const estimateTdee = (input: {
   dailyIntake: { date: string, calories: number }[]  // last 28 days, logged days only
-  weighIns: { date: string, weightKg: number }[]     // last 28 days, plus one earlier to seed the trend
+  weighIns: { date: string, weightKg: number }[]     // last 28 days
   formulaTdee: number | null
   calorieTarget: number | null
 }): TdeeEstimate
@@ -53,23 +53,25 @@ export const estimateTdee = (input: {
    there's no target.
 2. **Gate**: at least 10 logged days, and at least 4 weigh-ins spanning at least 10 days.
    Otherwise return `insufficient` with how many more of each are needed.
-3. **Weight trend**: an EWMA over weigh-ins with a gap-adjusted smoothing factor,
-   `α_eff = 1 − 0.9^gapDays`, so a weigh-in after a week away moves the trend more than
-   one taken the next day.
-4. **Slope**: least-squares over the trend points in the window, in kg/day.
-5. **Observed TDEE** = `avgIntake − slope × 7700`.
-6. **Confidence** = `min(1, loggedDays / 21) × min(1, weighInSpanDays / 21)`.
+3. **Weight trend**: a least-squares slope over the raw weigh-ins in the window, in kg/day.
+   The regression itself averages out day-to-day water noise.
+
+   *Revised during planning.* The original design smoothed weigh-ins with an EWMA
+   (α = 0.1) before fitting. Simulation showed the EWMA's lag biases a 28-day slope ~30% low:
+   a true 550 kcal/day deficit read as ~400. Least-squares on raw weigh-ins is unbiased, with
+   ~±110 kcal/day spread under ±0.7kg daily noise and a weigh-in every other day.
+4. **Observed TDEE** = `avgIntake − slope × 7700`.
+5. **Confidence** = `min(1, loggedDays / 21) × min(1, weighInSpanDays / 21)`.
    **Estimate** = `confidence × observed + (1 − confidence) × formulaTdee`. With no
    `formulaTdee` (no activity level on the profile), `confidence` must be 1, otherwise
    `insufficient`.
-7. **Sanity bound**: clamp to `[0.7, 1.4] × formulaTdee`, setting `bounded`.
+6. **Sanity bound**: clamp to `[0.7, 1.4] × formulaTdee`, setting `bounded`.
 
 ## Server
 
 - `MealLogRepository.dailyCaloriesInRange(userId, start, end)`: one grouped query summing
   `meal_log_items.calories` by `date(meal_logs.logged_at)`.
-- `BodyMetricsRepository.findWeightsInRange(userId, start, end)`: plus the single most
-  recent weigh-in before `start`.
+- `BodyMetricsRepository.findWeightsInRange(userId, start, end)`.
 - `ALTER TABLE user_profiles ADD COLUMN tdee_suggestion_dismissed_at TEXT;`
 - **`GET /api/nutrition/tdee-estimate`** returns the `TdeeEstimate`, plus when ready:
   - `suggestedTarget`: `suggestNutritionTarget({ tdee: estimate, goal })`
@@ -100,7 +102,7 @@ export const estimateTdee = (input: {
 - Each `insufficient` threshold and its `missing` counts.
 
 Repository tests for `dailyCaloriesInRange` (multiple meals per day, empty days) and
-`findWeightsInRange` (including the seed weigh-in).
+`findWeightsInRange`.
 
 ## Out of scope
 
