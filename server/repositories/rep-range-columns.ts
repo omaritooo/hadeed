@@ -8,10 +8,13 @@ export interface RepRangeInput {
   targetRepsMax?: number | null
 }
 
-// Column values for (target_reps, target_reps_min, target_reps_max), in that order.
+// Column values for (target_reps, target_reps_min, target_reps_max), in that order. Older PWA
+// builds still post a single targetReps to session start and block creation, so it stands in for
+// whichever end of the range is missing.
 export const repRangeArgs = (exercise: RepRangeInput): [number | null, number | null, number | null] => {
-  const min = exercise.targetRepsMin ?? null
-  const max = exercise.targetRepsMax ?? null
+  const legacy = (exercise as { targetReps?: number | null }).targetReps
+  const min = exercise.targetRepsMin ?? legacy ?? null
+  const max = exercise.targetRepsMax ?? legacy ?? null
   return [min, min, max]
 }
 

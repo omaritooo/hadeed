@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
-import { SessionRepository } from '~~/server/repositories/session.repository'
+import { SessionRepository, type StartSessionExerciseInput } from '~~/server/repositories/session.repository'
 import { MuscleRepository } from '~~/server/repositories/muscle.repository'
 
 async function seedUserAndBlock(db: Client) {
@@ -88,6 +88,21 @@ describe('SessionRepository.startSession', () => {
     const exercise = (await repo.findWithLogs('session-5'))?.exercises[0]
     expect(exercise?.targetRepsMin).toBe(6)
     expect(exercise?.targetRepsMax).toBe(6)
+  })
+
+  it('stores the prescription from a legacy payload that sends targetReps and omits nullable fields', async () => {
+    // An older PWA build posts a single targetReps and may leave out splitExerciseId / targetRpe.
+    const legacyExercise = { id: 'exlog-6', exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8 }
+    await repo.startSession('user-1', {
+      id: 'session-6',
+      splitDayId: 1,
+      exercises: [legacyExercise as unknown as StartSessionExerciseInput],
+    })
+
+    const exercise = (await repo.findWithLogs('session-6'))?.exercises[0]
+    expect(exercise).toMatchObject({ targetSets: 3, targetRepsMin: 8, targetRepsMax: 8, targetRpe: null, splitExerciseId: null })
+    const row = (await db.execute({ sql: 'SELECT target_reps FROM exercise_logs WHERE id = ?', args: ['exlog-6'] })).rows[0]!
+    expect(row.target_reps).toBe(8)
   })
 
   it('snapshots format/rounds from the originating circuit split day', async () => {

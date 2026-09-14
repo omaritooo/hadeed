@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
-import { BlockRepository } from '~~/server/repositories/block.repository'
+import { BlockRepository, type CreateSplitExerciseInput } from '~~/server/repositories/block.repository'
 
 describe('BlockRepository', () => {
   let db: Client
@@ -138,6 +138,21 @@ describe('BlockRepository', () => {
     const exercise = (await repo.findWithDays(block.id))?.days[0]?.exercises[0]
     expect(exercise?.targetRepsMin).toBe(6)
     expect(exercise?.targetRepsMax).toBe(6)
+  })
+
+  it('stores the prescription from a legacy payload that sends targetReps and omits nullable fields', async () => {
+    // An older PWA build posts a single targetReps and may leave out targetRpe / restSeconds.
+    const legacyExercise = { exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetReps: 8 }
+    const block = await repo.createWithDays('user-1', {
+      programId: null, name: 'Legacy payload', startDate: '2026-08-18', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{ name: 'Push', dayOfWeek: 1, location: 'gym', exercises: [legacyExercise as unknown as CreateSplitExerciseInput] }],
+    })
+
+    const exercise = (await repo.findWithDays(block.id))?.days[0]?.exercises[0]
+    expect(exercise).toMatchObject({ targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: null, restSeconds: null })
+    const row = (await db.execute('SELECT target_reps FROM split_exercises')).rows[0]!
+    expect(row.target_reps).toBe(8)
   })
 
   it('creates an implicit program when programId is not provided', async () => {
