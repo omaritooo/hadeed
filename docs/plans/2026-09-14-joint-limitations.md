@@ -730,7 +730,7 @@ defaults, and below the equipment group:
 <ProfileLimitationChips v-model="form.limitations" />
 ```
 
-In `OnboardingForm.vue`'s `completeOnboarding({ … })` call, pass `limitations: store.form.limitations ?? []`.
+In `OnboardingForm.vue`'s `completeOnboarding({ … })` call, pass `limitations: store.form.limitations ?? []`. The submit body builds its fields one by one, so `limitations` must be added there explicitly. The schema field is `.optional()` (see Task 5), so seed it as `store.form.limitations ?? []` in `FifthStep.vue`. Also add `limitations: JointArea[]` to `CompletedOnboardingProfile` in `app/composables/useCompleteOnboarding.ts`.
 Add `limitations` to the onboarding store's form type if it's typed separately.
 
 **Step 5: Profile.** Add a "Limitations" card with `<ProfileLimitationChips v-model="limitationsDraft" />`,
