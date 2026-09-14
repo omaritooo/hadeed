@@ -42,6 +42,7 @@ export class TdeeEstimateService extends BaseService {
       // Today is still being logged: a half-logged day that clears the incomplete-day filter
       // would drag the average down, so intake covers the 28 finished days before today.
       this.mealLogs.dailyCaloriesInRange(userId, start, today),
+      // Weigh-ins deliberately include today: today's weight is complete, today's intake isn't.
       this.bodyMetrics.findWeightsInRange(userId, start, tomorrow),
     ])
 

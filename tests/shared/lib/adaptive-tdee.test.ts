@@ -82,6 +82,16 @@ describe('estimateTdee', () => {
     expect(result).toMatchObject({ status: 'ready', avgIntake: 2400 })
   })
 
+  it('drops days under an absolute 800 kcal floor when there is no target or formula', () => {
+    const result = estimateTdee({
+      dailyIntake: [...intake(25, 2600), ...intake(5, 300, 25)],
+      weighIns: weighIns(EVERY_OTHER_DAY, () => 80),
+      formulaTdee: null,
+      calorieTarget: null,
+    })
+    expect(result).toMatchObject({ status: 'ready', avgIntake: 2600 })
+  })
+
   it('blends toward the formula at partial confidence', () => {
     // confidence = (14/21) * (13/21) = 0.4127 -> 0.4127*2600 + 0.5873*2200 = 2365
     const result = estimateTdee({ dailyIntake: intake(14, 2600), weighIns: weighIns([0, 4, 8, 13], () => 80), formulaTdee: 2200, calorieTarget: null })

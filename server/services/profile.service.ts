@@ -130,14 +130,13 @@ export class ProfileService extends BaseService {
     const profile = await this.profiles.findByUserId(this.ctx.userId)
     if (!profile) return null
 
-    const metrics = await this.bodyMetrics.findForUser(this.ctx.userId)
-    const latestMetric = metrics[0]
-    if (!latestMetric) return null
+    const latestWeightKg = await this.bodyMetrics.findLatestWeightKg(this.ctx.userId)
+    if (latestWeightKg === null) return null
 
-    const bmiValue = bmi({ weightKg: latestMetric.weightKg, heightCm: profile.heightCm })
+    const bmiValue = bmi({ weightKg: latestWeightKg, heightCm: profile.heightCm })
     const tdeeValue = profile.activityLevel
       ? tdee({
-          weightKg: latestMetric.weightKg,
+          weightKg: latestWeightKg,
           heightCm: profile.heightCm,
           age: ageFromDob(profile.dateOfBirth),
           gender: profile.gender,
@@ -145,6 +144,6 @@ export class ProfileService extends BaseService {
         })
       : null
 
-    return { bmi: bmiValue, tdee: tdeeValue, latestWeightKg: latestMetric.weightKg }
+    return { bmi: bmiValue, tdee: tdeeValue, latestWeightKg }
   }
 }

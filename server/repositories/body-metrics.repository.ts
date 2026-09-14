@@ -77,6 +77,15 @@ export class BodyMetricsRepository {
     return Promise.all(rows.map(async row => ({ ...row, measurements: await this.loadMeasurements(row.id) })))
   }
 
+  async findLatestWeightKg(userId: string): Promise<number | null> {
+    const result = await this.db.execute({
+      sql: 'SELECT weight_kg FROM body_metrics WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 1',
+      args: [userId],
+    })
+    const row = result.rows[0]
+    return row ? row.weight_kg as number : null
+  }
+
   // Adaptive TDEE input: `start`/`end` are YYYY-MM-DD and recorded_at values start with a date, so text comparison bounds them; multiple weigh-ins per day are returned as-is.
   async findWeightsInRange(userId: string, start: string, end: string): Promise<{ date: string, weightKg: number }[]> {
     const result = await this.db.execute({

@@ -77,6 +77,21 @@ describe('TdeeEstimateService', () => {
     expect(await service.getEstimate(NOW)).toMatchObject({ status: 'insufficient', shouldSuggest: false, suggestedTarget: null })
   })
 
+  it('suggests at exactly 150 kcal from the target but not at 149', async () => {
+    await seedData(2800)
+    await profiles.setNutritionTarget('user-1', { calories: 2650, proteinG: 180, carbsG: 240, fatG: 80 })
+    expect((await service.getEstimate(NOW)).shouldSuggest).toBe(true)
+
+    await profiles.setNutritionTarget('user-1', { calories: 2651, proteinG: 180, carbsG: 240, fatG: 80 })
+    expect((await service.getEstimate(NOW)).shouldSuggest).toBe(false)
+  })
+
+  it('estimates without a formula TDEE once the window is full', async () => {
+    formulaTdee = null
+    await seedData(2800)
+    expect(await service.getEstimate(NOW)).toMatchObject({ status: 'ready', estimate: 2800, formulaTdee: null, shouldSuggest: true })
+  })
+
   it('ignores a partially logged today', async () => {
     await seedData(2800)
     await logMeal(1500, '2026-09-14 12:00:00')

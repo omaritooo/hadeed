@@ -25,6 +25,8 @@ const MIN_WEIGH_INS = 4
 const MIN_WEIGH_IN_SPAN_DAYS = 10
 const FULL_CONFIDENCE_DAYS = 21
 const INCOMPLETE_DAY_FRACTION = 0.5
+// Keeps snack-only days out even when there's no target or formula to take a fraction of.
+const INCOMPLETE_DAY_FLOOR_KCAL = 800
 const LOWER_BOUND = 0.7
 const UPPER_BOUND = 1.4
 const ABSOLUTE_MIN_TDEE = 1200
@@ -47,7 +49,7 @@ export const weightSlopeKgPerDay = (weighIns: { date: string, weightKg: number }
 
 export const estimateTdee = (input: TdeeEstimateInput): TdeeEstimate => {
   const { formulaTdee, calorieTarget } = input
-  const incompleteBelow = (calorieTarget ?? formulaTdee ?? 0) * INCOMPLETE_DAY_FRACTION
+  const incompleteBelow = Math.max(INCOMPLETE_DAY_FLOOR_KCAL, (calorieTarget ?? formulaTdee ?? 0) * INCOMPLETE_DAY_FRACTION)
   const loggedDays = input.dailyIntake.filter(d => d.calories >= incompleteBelow)
 
   // A bad date string would turn the span and slope into NaN, so those entries are dropped.

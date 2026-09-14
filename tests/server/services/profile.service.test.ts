@@ -54,6 +54,12 @@ describe('ProfileService', () => {
     expect(await service.getComputedStats()).toBeNull()
   })
 
+  it('returns null computed stats when the profile has no weigh-in', async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await new ProfileRepository(db).upsert('user-1', { dateOfBirth: '1995-06-15', gender: 'male', height: 178, activityLevel: 'moderately_active' })
+    expect(await service.getComputedStats()).toBeNull()
+  })
+
   it('persists displayName, trainingDaysPerWeek, equipment, unitSystem, and timezone when provided', async () => {
     await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com',
       displayName: 'Jordan',

@@ -52,6 +52,15 @@ describe('BodyMetricsRepository', () => {
     expect(results.map(r => r.recordedAt)).toEqual(['2026-08-15', '2026-08-01'])
   })
 
+  it('finds the latest weight, or null when there are no weigh-ins', async () => {
+    expect(await repo.findLatestWeightKg('user-1')).toBeNull()
+
+    await repo.record('user-1', { recordedAt: '2026-08-15', weightKg: 80, source: 'manual', measurements: [] })
+    await repo.record('user-1', { recordedAt: '2026-08-01', weightKg: 82, source: 'manual', measurements: [] })
+
+    expect(await repo.findLatestWeightKg('user-1')).toBe(80)
+  })
+
   it('returns weigh-ins in range, oldest first', async () => {
     const entries = [
       ['2026-08-10T07:00:00.000Z', 79.5],
