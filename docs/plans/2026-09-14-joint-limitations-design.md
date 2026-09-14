@@ -55,13 +55,27 @@ existing word-boundary `nameHas`:
 
 | Area | Rules |
 | --- | --- |
-| `shoulder` | `vertical_push`; dip, upright row, behind the neck, snatch, jerk, kipping |
-| `lower_back` | tier-1 `hip_dominant`; barbell `knee_dominant`; barbell `horizontal_pull`; hyperextension, clean, snatch |
-| `knee` | tier 1–2 `knee_dominant`; `plyometrics` category; jump, pistol |
-| `wrist` | push-up, front squat, clean, handstand, wrist curl, barbell curl |
-| `elbow` | `elbow_extension`; dip, close-grip |
-| `ankle` | `plyometrics` category; jump, calf raise, lunge, sprint, skipping |
+| `shoulder` | overhead press (`vertical_push`, or `lateral_isolation` named press/jerk); dip (not `knee_dominant`); upright, behind the neck, jerk, kipping; snatch unless an olympic pull |
+| `lower_back` | tier-1 `hip_dominant`; barbell `knee_dominant`; barbell `horizontal_pull`; deadlift, good morning, hyperextension, back extension, clean, snatch |
+| `knee` | any `knee_dominant`; `plyometrics` category; jump, pistol |
+| `wrist` | barbell `elbow_flexion`; push-up, front squat, handstand, wrist curl, barbell curl; clean unless an olympic pull |
+| `elbow` | `elbow_extension`; dip (not `knee_dominant`); skullcrusher; close-grip `horizontal_push`/`vertical_push` |
+| `ankle` | `plyometrics` category; jump, calf raise, calf press, lunge, sprint, skipping |
 
+- `stretching` rows get no tags: they load joints through range, not under weight.
+- "Olympic pull" means the name also has pull, deadlift or shrug (Clean Pull, Snatch Pull,
+  Clean Deadlift, Clean Shrug). These stop before the catch, so they skip the rack-position
+  wrist and overhead shoulder tags, but keep `lower_back`.
+- The `lateral_isolation` press/jerk case exists because `classifyMovementPattern` labels many
+  overhead presses (Seated Dumbbell Press, Push Press) `lateral_isolation` through its
+  shoulders fallback.
+- Run after the tier is resolved (including the dumbbell/kettlebell table), since the
+  `hip_dominant` rule reads it.
+- Over gym_exercises.json + exercise_additions.json (973 rows): shoulder 103, lower_back 146,
+  knee 173, ankle 95, wrist 74, elbow 73; 464 rows tagged.
+- Known rule misses, fixed by overrides rather than rules: chest-supported barbell rows
+  (Lying Cambered Barbell Row, Incline Bench Pull, Seal Row) wrongly get `lower_back`; Frog Hops
+  is a jump drill filed under `stretching` and needs `knee`, `ankle`.
 - The classify script deletes and rewrites `source = 'rule'` rows; `manual` rows are never
   touched.
 - `exercise_stressor_overrides.json` (`{ "<exerciseId>": { "add": [...], "remove": [...] } }`)

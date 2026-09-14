@@ -195,8 +195,45 @@ describe('classifyStressors', () => {
   })
 
   it('avoids substring false positives', () => {
-    expect(classifyStressors(ex('Medicine Ball Chest Pass'))).toEqual([])
-    expect(classifyStressors(ex('Seated Cable Rows', { movementPattern: 'horizontal_pull', equipment: 'cable', tier: 2 }))).toEqual([])
+    // 'skipping' contains 'kipping', but not at a word start.
+    expect(classifyStressors(ex('Fast Skipping', { category: 'plyometrics', movementPattern: 'knee_dominant', equipment: 'body only', tier: 1 }))).not.toContain('shoulder')
+  })
+
+  it('flags overhead presses that the movement classifier labels lateral_isolation for the shoulder', () => {
+    expect(classifyStressors(ex('Seated Dumbbell Press', { movementPattern: 'lateral_isolation', equipment: 'dumbbell', tier: 1 }))).toContain('shoulder')
+    expect(classifyStressors(ex('Push Press', { category: 'olympic weightlifting', movementPattern: 'lateral_isolation', equipment: 'barbell', tier: 1 }))).toContain('shoulder')
+  })
+
+  it('flags any deadlift for the lower back, whatever its tier', () => {
+    expect(classifyStressors(ex('Trap Bar Deadlift', { movementPattern: 'hip_dominant', equipment: 'other', tier: 2 }))).toContain('lower_back')
+  })
+
+  it('flags every knee-dominant pattern for the knee, including isolation and untiered rows', () => {
+    expect(classifyStressors(ex('Leg Extensions', { movementPattern: 'knee_dominant', equipment: 'machine', tier: 3 }))).toContain('knee')
+    expect(classifyStressors(ex('Goblet Squat', { movementPattern: 'knee_dominant', equipment: 'kettlebells', tier: null }))).toContain('knee')
+  })
+
+  it('never flags stretches', () => {
+    expect(classifyStressors(ex('Quad Stretch', { category: 'stretching', movementPattern: 'knee_dominant', equipment: 'other', tier: 2 }))).toEqual([])
+  })
+
+  it('does not treat the dip in a jerk dip squat as a dip', () => {
+    expect(classifyStressors(ex('Jerk Dip Squat', { category: 'olympic weightlifting', movementPattern: 'knee_dominant', equipment: 'barbell', tier: 1 }))).not.toContain('elbow')
+  })
+
+  it('does not give olympic pulls the catch or overhead stressors of the full lift', () => {
+    expect(classifyStressors(ex('Clean Pull', { category: 'olympic weightlifting', movementPattern: 'knee_dominant', equipment: 'barbell', tier: 1 }))).not.toContain('wrist')
+    expect(classifyStressors(ex('Snatch Pull', { movementPattern: 'hip_dominant', equipment: 'barbell', tier: 1 }))).not.toContain('shoulder')
+    expect(classifyStressors(ex('Power Clean', { movementPattern: 'hip_dominant', equipment: 'barbell', tier: 1 }))).toContain('wrist')
+  })
+
+  it('flags close-grip pressing for the elbow, but not close-grip pulling', () => {
+    expect(classifyStressors(ex('Close-Grip Front Lat Pulldown', { movementPattern: 'vertical_pull', equipment: 'cable', tier: 2 }))).not.toContain('elbow')
+    expect(classifyStressors(ex('Close-Grip Barbell Bench Press', { movementPattern: 'horizontal_push', equipment: 'barbell', tier: 1 }))).toContain('elbow')
+  })
+
+  it('flags straight-bar curls for the wrist even without barbell in the name', () => {
+    expect(classifyStressors(ex('Preacher Curl', { movementPattern: 'elbow_flexion', equipment: 'barbell', tier: 3 }))).toContain('wrist')
   })
 
   it('returns areas in canonical order without duplicates', () => {

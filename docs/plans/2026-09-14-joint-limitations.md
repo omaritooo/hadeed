@@ -134,6 +134,14 @@ Expected: FAIL, `classifyStressors` is not exported.
 
 **Step 3: Implement** (append to `exercise-classification.ts`)
 
+> Revised after code review (verified over all 973 exercises): stretching returns no tags,
+> overhead presses labelled `lateral_isolation` are recovered by name, knee drops the tier gate,
+> olympic pulls skip the wrist/shoulder catch tags, close-grip only counts for pressing, and
+> deadlift/good morning/calf press were added. The tests for these are in
+> `tests/server/utils/exercise-classification.test.ts` and `tests/shared/lib/joint-areas.test.ts`;
+> the Step 1 test block above is the original subset. The rule table lives in the design doc's
+> "Tagging rules".
+
 ```ts
 import { JOINT_AREAS, type JointArea } from '~~/shared/lib/joint-areas'
 
@@ -141,34 +149,52 @@ export interface StressorClassifiableExercise {
   name: string
   category: string | null
   equipment: string | null
-  movementPattern: string | null
+  movementPattern: MovementPattern | null
   tier: number | null
 }
 
 // Which joints an exercise commonly loads, for flagging against a user's limitations. Not a
 // medical model: a coarse, explainable rule set over data already on the row, reviewed via the
 // per-area counts classify-exercises.ts prints, and corrected through
-// exercise_stressor_overrides.json rather than more rules.
+// exercise_stressor_overrides.json rather than more rules. Call it after the tier is resolved:
+// the lower-back hinge rule reads it.
 export const classifyStressors = (exercise: StressorClassifiableExercise): JointArea[] => {
   const { name, category, equipment, movementPattern: pattern, tier } = exercise
+  // Stretches load joints through range, not under weight; flagging them would bury real conflicts.
+  if (category === 'stretching') return []
+
   const plyo = category === 'plyometrics'
   const barbell = equipment === 'barbell'
+  // "Jerk Dip Squat" names the dip of a jerk, not a bar dip.
+  const dip = nameHas(name, 'dip') && pattern !== 'knee_dominant'
+  // Clean/snatch pulls, deadlifts and shrugs stop before the catch, so they skip the rack-position
+  // wrist and overhead shoulder stress of the full lift.
+  const olympicPull = nameHas(name, 'pull', 'deadlift', 'shrug')
+  // classifyMovementPattern labels many overhead presses lateral_isolation (via the shoulders
+  // fallback, e.g. "Seated Dumbbell Press", "Push Press"), so recover them by name here.
+  const overheadPress = pattern === 'vertical_push' || (pattern === 'lateral_isolation' && nameHas(name, 'press', 'jerk'))
   const areas = new Set<JointArea>()
 
-  if (pattern === 'vertical_push' || nameHas(name, 'dip', 'upright', 'behind the neck', 'snatch', 'jerk', 'kipping')) areas.add('shoulder')
+  if (overheadPress || dip
+    || nameHas(name, 'upright', 'behind the neck', 'behind neck', 'jerk', 'kipping')
+    || (nameHas(name, 'snatch') && !olympicPull)) areas.add('shoulder')
 
   if ((pattern === 'hip_dominant' && tier === 1)
     || (pattern === 'knee_dominant' && barbell)
     || (pattern === 'horizontal_pull' && barbell)
-    || nameHas(name, 'hyperextension', 'back extension', 'clean', 'snatch')) areas.add('lower_back')
+    || nameHas(name, 'deadlift', 'good morning', 'hyperextension', 'back extension', 'clean', 'snatch')) areas.add('lower_back')
 
-  if ((pattern === 'knee_dominant' && tier !== null && tier <= 2) || plyo || nameHas(name, 'jump', 'pistol')) areas.add('knee')
+  if (pattern === 'knee_dominant' || plyo || nameHas(name, 'jump', 'pistol')) areas.add('knee')
 
-  if (nameHas(name, 'push-up', 'push up', 'pushup', 'front squat', 'front barbell squat', 'clean', 'handstand', 'wrist curl', 'barbell curl')) areas.add('wrist')
+  if ((pattern === 'elbow_flexion' && barbell)
+    || nameHas(name, 'push-up', 'push up', 'pushup', 'front squat', 'front barbell squat', 'handstand', 'wrist curl', 'barbell curl')
+    || (nameHas(name, 'clean') && !olympicPull)) areas.add('wrist')
 
-  if (pattern === 'elbow_extension' || nameHas(name, 'dip', 'close-grip', 'close grip', 'skullcrusher', 'skull crusher')) areas.add('elbow')
+  if (pattern === 'elbow_extension' || dip
+    || nameHas(name, 'skullcrusher', 'skull crusher')
+    || (nameHas(name, 'close-grip', 'close grip') && (pattern === 'horizontal_push' || pattern === 'vertical_push'))) areas.add('elbow')
 
-  if (plyo || nameHas(name, 'jump', 'calf raise', 'lunge', 'sprint', 'skipping')) areas.add('ankle')
+  if (plyo || nameHas(name, 'jump', 'calf raise', 'calf press', 'lunge', 'sprint', 'skipping')) areas.add('ankle')
 
   return JOINT_AREAS.filter(area => areas.has(area))
 }
@@ -302,6 +328,13 @@ export const applyStressorOverrides = async (db: Client, overrides: StressorOver
 }
 ```
 
+**Seed these overrides** (the rules get them wrong; don't add rules for them):
+
+- `Lying_Cambered_Barbell_Row`, `Incline_Bench_Pull`, `Seal_Row`: `{ "remove": ["lower_back"] }`.
+  Chest-supported rows, caught by the barbell `horizontal_pull` rule.
+- `Frog_Hops`: `{ "add": ["knee", "ankle"] }`. A jump drill filed under `stretching`, which
+  gets no rule tags.
+
 In `classify-exercises.ts` `main`, after the existing `UPDATE exercises SET movement_pattern…`:
 
 ```ts
@@ -317,6 +350,8 @@ In `classify-exercises.ts` `main`, after the existing `UPDATE exercises SET move
 ```
 
 with `const stressorCounts = new Map<string, number>()` declared with the other counters.
+`classifyStressors` must be called after `tier` is resolved (after the
+`AMBIGUOUS_TIER_OVERRIDES` fallback), since its `hip_dominant` lower-back rule reads the tier.
 After the loop:
 
 ```ts
