@@ -426,43 +426,56 @@ export class SessionRepository {
     })
   }
 
-  // Excludes warm-up sets from both the top-set ranking and the sets_count, so a warm-up rep
-  // never becomes the displayed "last time" top set and doesn't inflate the set count.
+  // Excludes warm-up sets from the top-set ranking, the sets_count and the per-set breakdown, so
+  // a warm-up rep never becomes the displayed "last time" top set and doesn't inflate the set
+  // count. `sets` keeps every working set in set order -- sets within one session are routinely
+  // done at different weights (ramping, back-off sets), which the top set alone can't show.
   async findExerciseHistory(userId: string, exerciseId: string): Promise<ExerciseHistoryEntry[]> {
     const result = await this.db.execute({
-      sql: `WITH ranked_sets AS (
-              SELECT
-                ws.id AS session_id,
-                COALESCE(ws.completed_at, ws.started_at) AS session_date,
-                sl.weight_kg AS weight_kg,
-                sl.reps AS reps,
-                ROW_NUMBER() OVER (
-                  PARTITION BY ws.id
-                  ORDER BY sl.weight_kg DESC, sl.reps DESC
-                ) AS rn,
-                COUNT(*) OVER (PARTITION BY ws.id) AS sets_count
-              FROM workout_sessions ws
-              JOIN exercise_logs el ON el.session_id = ws.id
-              JOIN set_logs sl ON sl.exercise_log_id = el.id
-              WHERE ws.user_id = ?
-                AND el.exercise_id = ?
-                AND sl.weight_kg IS NOT NULL
-                AND sl.reps IS NOT NULL
-                AND sl.is_warmup = 0
-            )
-            SELECT session_id, session_date, weight_kg, reps, sets_count
-            FROM ranked_sets
-            WHERE rn = 1
-            ORDER BY session_date DESC`,
+      sql: `SELECT
+              ws.id AS session_id,
+              COALESCE(ws.completed_at, ws.started_at) AS session_date,
+              sl.set_number AS set_number,
+              sl.weight_kg AS weight_kg,
+              sl.reps AS reps
+            FROM workout_sessions ws
+            JOIN exercise_logs el ON el.session_id = ws.id
+            JOIN set_logs sl ON sl.exercise_log_id = el.id
+            WHERE ws.user_id = ?
+              AND el.exercise_id = ?
+              AND sl.weight_kg IS NOT NULL
+              AND sl.reps IS NOT NULL
+              AND sl.is_warmup = 0
+            ORDER BY session_date DESC, ws.id, sl.set_number`,
       args: [userId, exerciseId],
     })
-    return result.rows.map(row => ({
-      sessionId: row.session_id as string,
-      date: row.session_date as string,
-      topSetWeightKg: row.weight_kg as number,
-      topSetReps: row.reps as number,
-      setsCount: row.sets_count as number,
-    }))
+
+    const bySession = new Map<string, ExerciseHistoryEntry>()
+    for (const row of result.rows) {
+      const sessionId = row.session_id as string
+      const set = { setNumber: row.set_number as number, weightKg: row.weight_kg as number, reps: row.reps as number }
+      const entry = bySession.get(sessionId)
+      if (!entry) {
+        bySession.set(sessionId, {
+          sessionId,
+          date: row.session_date as string,
+          topSetWeightKg: set.weightKg,
+          topSetReps: set.reps,
+          setsCount: 1,
+          sets: [set],
+        })
+        continue
+      }
+      entry.sets.push(set)
+      entry.setsCount += 1
+      const isHeavier = set.weightKg > entry.topSetWeightKg
+        || (set.weightKg === entry.topSetWeightKg && set.reps > entry.topSetReps)
+      if (isHeavier) {
+        entry.topSetWeightKg = set.weightKg
+        entry.topSetReps = set.reps
+      }
+    }
+    return [...bySession.values()]
   }
 
   // Excludes warm-up sets: "last performed" should reflect the last real working set, not a

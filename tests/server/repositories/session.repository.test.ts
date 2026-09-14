@@ -794,6 +794,24 @@ describe('SessionRepository warm-up exclusion from PR baseline and history', () 
     expect(lastPerformed['bench-press']).toEqual({ weightKg: 60, reps: 8, date: history[0]?.date })
   })
 
+  it('returns every working set in set order from findExerciseHistory, not just the top set', async () => {
+    await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 40, reps: 12, rpe: 4, isWarmup: true })
+    await repo.logSet({ id: 'set-a', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 60, reps: 10, rpe: 7, isWarmup: false })
+    await repo.logSet({ id: 'set-b', exerciseLogId: 'exlog-1', setNumber: 3, weightKg: 70, reps: 8, rpe: 8, isWarmup: false })
+    await repo.logSet({ id: 'set-c', exerciseLogId: 'exlog-1', setNumber: 4, weightKg: 65, reps: 9, rpe: 9, isWarmup: false })
+
+    const history = await repo.findExerciseHistory('user-1', 'bench-press')
+    expect(history).toHaveLength(1)
+    expect(history[0]?.topSetWeightKg).toBe(70)
+    expect(history[0]?.topSetReps).toBe(8)
+    expect(history[0]?.setsCount).toBe(3)
+    expect(history[0]?.sets).toEqual([
+      { setNumber: 2, weightKg: 60, reps: 10 },
+      { setNumber: 3, weightKg: 70, reps: 8 },
+      { setNumber: 4, weightKg: 65, reps: 9 },
+    ])
+  })
+
   it('excludes a warm-up set from weeklySetsByMuscle', async () => {
     const { MuscleRepository } = await import('~~/server/repositories/muscle.repository')
     const muscles = new MuscleRepository(db)

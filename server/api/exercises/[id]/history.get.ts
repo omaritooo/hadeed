@@ -6,7 +6,7 @@ import { SessionRepository } from '~~/server/repositories/session.repository'
 defineRouteMeta({
   openAPI: {
     summary: 'Get exercise history and personal record',
-    description: 'Per-session heaviest set logged for this exercise by the caller, most recent first, plus the overall personal record.',
+    description: 'Per-session heaviest set and every working set logged for this exercise by the caller, most recent first, plus the overall personal record.',
     parameters: [
       { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
     ],
@@ -37,6 +37,17 @@ defineRouteMeta({
                       topSetWeightKg: { type: 'number' },
                       topSetReps: { type: 'number' },
                       setsCount: { type: 'number' },
+                      sets: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            setNumber: { type: 'number' },
+                            weightKg: { type: 'number' },
+                            reps: { type: 'number' },
+                          },
+                        },
+                      },
                     },
                   },
                 },

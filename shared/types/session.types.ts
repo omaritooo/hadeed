@@ -51,6 +51,14 @@ export interface ExerciseHistoryEntry {
   topSetWeightKg: number
   topSetReps: number
   setsCount: number
+  // Working sets only, in set order.
+  sets: ExerciseHistorySet[]
+}
+
+export interface ExerciseHistorySet {
+  setNumber: number
+  weightKg: number
+  reps: number
 }
 
 export interface SessionPrHit {

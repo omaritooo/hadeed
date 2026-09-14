@@ -32,22 +32,24 @@ const adjust = (delta: number) => {
 </script>
 
 <template>
-  <div class="flex shrink-0 items-center gap-1">
+  <!-- Grows to fill whatever it's placed in, so the value field (not the fixed-size
+       buttons) absorbs the space -- a fixed w-10 field clipped weights like 102.5. -->
+  <div class="flex min-w-0 items-center gap-1">
     <Button
       type="button"
       variant="outline"
-      size="icon-xs"
+      size="icon-sm"
       class="shrink-0 rounded-full"
       :aria-label="`Decrease by ${step}`"
       @click="adjust(-step)"
     >
       <MinusIcon class="size-3" />
     </Button>
-    <Input v-model="model" type="number" :placeholder="placeholder" class="w-10 shrink-0 text-center text-sm" />
+    <Input v-model="model" type="number" :placeholder="placeholder" class="h-9 min-w-0 flex-1 px-1 py-0 text-center text-sm" />
     <Button
       type="button"
       variant="outline"
-      size="icon-xs"
+      size="icon-sm"
       class="shrink-0 rounded-full"
       :aria-label="`Increase by ${step}`"
       @click="adjust(step)"

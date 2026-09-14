@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
+import type { ExerciseHistorySet, ExerciseLog, SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
 
 const route = useRoute();
 const sessionId = computed(() => route.params.id as string);
@@ -56,11 +55,64 @@ const formatTarget = (targetSets: number | null, targetReps: number | null, targ
   return targetRpe === null ? `Target: ${setsReps}` : `Target: ${setsReps} @ RPE ${targetRpe}`;
 };
 
-const formatLastPerformance = (exerciseId: string) => {
-  const lastEntry = exerciseHistoryQueries.get(exerciseId)?.data.value?.history[0];
-  if (!lastEntry) return null;
-  return `Last: ${lastEntry.topSetWeightKg}kg × ${lastEntry.topSetReps}`;
+// The most recent *other* session for this exercise. History includes the in-progress session
+// as soon as it has a working set, so history[0] alone would start echoing today's sets back.
+const previousSessionSets = (exerciseId: string): ExerciseHistorySet[] | null => {
+  const history = exerciseHistoryQueries.get(exerciseId)?.data.value?.history;
+  return history?.find(entry => entry.sessionId !== sessionId.value)?.sets ?? null;
 };
+
+// Every working set from last time, not just the heaviest: sets are routinely done at
+// different weights (ramping up, back-off sets), and the top set alone hides that.
+const formatLastPerformance = (exerciseId: string) => {
+  const sets = previousSessionSets(exerciseId);
+  if (!sets?.length) return null;
+  return `Last: ${sets.map(set => `${set.weightKg}×${set.reps}`).join(" · ")} kg`;
+};
+
+type SetsByExercise = ExerciseLog & { sets: SetLog[] };
+const workingSetCount = (exercise: SetsByExercise) => exercise.sets.filter(set => !set.isWarmup).length;
+
+// Working sets are matched by position rather than raw setNumber, so logging a warm-up first
+// doesn't shift "set 2 today" onto "set 3 last time".
+const nextSetHint = (exercise: SetsByExercise) => {
+  const index = workingSetCount(exercise);
+  const match = previousSessionSets(exercise.exerciseId)?.[index];
+  return match ? `Set ${index + 1} last time: ${match.weightKg}kg × ${match.reps}` : null;
+};
+
+// What to pre-fill for the working set at `index`: the same set from last session if there
+// was one, otherwise whatever was just done (so a weight carries over set to set instead of
+// being typed again), otherwise nothing.
+const suggestedSetValues = (exercise: SetsByExercise, index: number, justLogged?: { weightKg: string, reps: string }) => {
+  const match = previousSessionSets(exercise.exerciseId)?.[index];
+  if (match) return { weightKg: String(match.weightKg), reps: String(match.reps) };
+  if (justLogged) return justLogged;
+  const lastWorking = exercise.sets.filter(set => !set.isWarmup).at(-1);
+  if (!lastWorking) return null;
+  return {
+    weightKg: lastWorking.weightKg === null ? "" : String(lastWorking.weightKg),
+    reps: lastWorking.reps === null ? "" : String(lastWorking.reps),
+  };
+};
+
+// Seeds each exercise's draft once, as soon as its history has loaded -- only into a draft the
+// user hasn't started typing into, and never again afterwards, so clearing a field sticks.
+const seededDrafts = new Set<string>();
+watchEffect(() => {
+  for (const exercise of session.value?.exercises ?? []) {
+    if (seededDrafts.has(exercise.id)) continue;
+    const historyQuery = exerciseHistoryQueries.get(exercise.exerciseId);
+    if (!historyQuery || historyQuery.data.value === undefined) continue;
+    seededDrafts.add(exercise.id);
+    const draft = draftFor(exercise.id);
+    if (draft.weightKg !== "" || draft.reps !== "") continue;
+    const suggestion = suggestedSetValues(exercise, workingSetCount(exercise));
+    if (!suggestion) continue;
+    draft.weightKg = suggestion.weightKg;
+    draft.reps = suggestion.reps;
+  }
+});
 
 const formatSetsProgress = (loggedSets: number, targetSets: number | null) => {
   return targetSets === null ? `${loggedSets} sets` : `${loggedSets}/${targetSets} sets`;
@@ -83,6 +135,7 @@ const exerciseDisplayInfo = computed(() => {
     ...exercise,
     targetLabel: formatTarget(exercise.targetSets, exercise.targetReps, exercise.targetRpe),
     lastPerformanceLabel: formatLastPerformance(exercise.exerciseId),
+    nextSetHint: nextSetHint(exercise),
     setsProgressLabel: formatSetsProgress(exercise.sets.length, exercise.targetSets),
     isBarbell: equipmentByExerciseId.value.get(exercise.exerciseId) === "barbell",
   }));
@@ -230,11 +283,17 @@ const submitSet = async (exerciseLogId: string, values: { weightKg: string, reps
 };
 
 const logNextSet = async (exerciseLogId: string) => {
+  const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
   const draft = draftFor(exerciseLogId);
+  // Captured before submitting: the session refetch triggered by the mutation may or may not
+  // have landed by the time this resumes, so exercise.sets can't be trusted to include it.
+  const nextWorkingIndex = exercise ? workingSetCount(exercise) + (draft.isWarmup ? 0 : 1) : 0;
+  const justLogged = { weightKg: draft.weightKg, reps: draft.reps };
   const success = await submitSet(exerciseLogId, draft);
   if (success) {
-    draft.weightKg = "";
-    draft.reps = "";
+    const suggestion = exercise ? suggestedSetValues(exercise, nextWorkingIndex, justLogged) : null;
+    draft.weightKg = suggestion?.weightKg ?? "";
+    draft.reps = suggestion?.reps ?? "";
     draft.rpe = "";
     draft.isWarmup = false;
     startRestTimer(exerciseLogId);
@@ -352,9 +411,9 @@ const doneWithSummary = () => navigateTo("/workouts");
     <template v-if="!isCircuitSession">
     <UiCard v-for="exercise in exerciseDisplayInfo" :key="exercise.id" class="space-y-3">
       <div class="space-y-1 border-b border-surface-strong pb-3">
-        <div class="flex items-center justify-between">
-          <p class="font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
-          <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="min-w-0 font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
+          <div class="flex shrink-0 items-center gap-2">
             <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">{{ exercise.setsProgressLabel }}</span>
             <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
           </div>
@@ -370,26 +429,21 @@ const doneWithSummary = () => navigateTo("/workouts");
 
       <div class="space-y-2">
         <div v-for="set in exercise.sets" :key="set.id" class="space-y-1">
-          <div v-if="editingSetId === set.id" class="space-y-1.5">
-            <label class="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
-              Warm-up
-              <UiCheckbox
-                :model-value="editDraftFor(set.id).isWarmup"
-                @update:model-value="(value) => (editDraftFor(set.id).isWarmup = !!value)"
-              />
-            </label>
-            <div class="flex items-center gap-2">
-              <span class="w-6 shrink-0 text-sm text-muted-foreground">{{ set.setNumber }}</span>
-              <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
-                <UiNumberStepper v-model="editDraftFor(set.id).weightKg" :step="2.5" placeholder="kg" />
-                <UiNumberStepper v-model="editDraftFor(set.id).reps" :step="1" placeholder="reps" />
-                <Input v-model="editDraftFor(set.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
-              </div>
-              <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
-                <CheckIcon class="size-4" />
-              </Button>
-            </div>
-            <button class="block w-full text-right text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
+          <div v-if="editingSetId === set.id" class="rounded-lg border border-surface-strong p-2">
+            <SessionSetFields
+              v-model:weight-kg="editDraftFor(set.id).weightKg"
+              v-model:reps="editDraftFor(set.id).reps"
+              v-model:rpe="editDraftFor(set.id).rpe"
+              v-model:is-warmup="editDraftFor(set.id).isWarmup"
+              :set-label="set.setNumber"
+            >
+              <template #actions>
+                <button class="text-xs text-muted-foreground underline" @click="cancelEdit">Cancel</button>
+                <Button size="icon-lg" class="rounded-full" aria-label="Save set" :disabled="editSetLog.isLoading.value" @click="saveEdit(set)">
+                  <CheckIcon class="size-4" />
+                </Button>
+              </template>
+            </SessionSetFields>
           </div>
           <div v-else class="flex w-full items-center gap-1">
             <button
@@ -404,10 +458,9 @@ const doneWithSummary = () => navigateTo("/workouts");
               >
                 W
               </UiBadge>
-              <span class="flex flex-1 items-center justify-end gap-1">
-                <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.weightKg ?? "–" }}kg</span>
-                <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.reps ?? "–" }} reps</span>
-                <span class="w-16 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
+              <span class="flex min-w-0 flex-1 items-center justify-end gap-1 [font-variant-numeric:tabular-nums]">
+                <span class="min-w-0 whitespace-nowrap text-right text-foreground">{{ set.weightKg ?? "–" }}kg × {{ set.reps ?? "–" }}</span>
+                <span class="w-14 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
               </span>
             </button>
             <button
@@ -433,29 +486,26 @@ const doneWithSummary = () => navigateTo("/workouts");
         >
           Same as last set
         </button>
-        <label class="mb-2 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
-          Warm-up
-          <UiCheckbox
-            :model-value="draftFor(exercise.id).isWarmup"
-            @update:model-value="(value) => (draftFor(exercise.id).isWarmup = !!value)"
-          />
-        </label>
-        <div class="flex items-center gap-2">
-          <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ exercise.sets.length + 1 }}</span>
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
-            <UiNumberStepper v-model="draftFor(exercise.id).weightKg" :step="2.5" placeholder="kg" />
-            <UiNumberStepper v-model="draftFor(exercise.id).reps" :step="1" placeholder="reps" />
-            <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
-          </div>
-          <SessionPlateCalculator
-            v-if="exercise.isBarbell"
-            :target-weight-kg="draftWeightKgNumber(exercise.id)"
-            :unit-system="unitSystem"
-          />
-          <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
-            <CheckIcon class="size-4" />
-          </Button>
-        </div>
+        <SessionSetFields
+          v-model:weight-kg="draftFor(exercise.id).weightKg"
+          v-model:reps="draftFor(exercise.id).reps"
+          v-model:rpe="draftFor(exercise.id).rpe"
+          v-model:is-warmup="draftFor(exercise.id).isWarmup"
+          :set-label="exercise.sets.length + 1"
+          :hint="exercise.nextSetHint"
+          emphasized
+        >
+          <template #actions>
+            <SessionPlateCalculator
+              v-if="exercise.isBarbell"
+              :target-weight-kg="draftWeightKgNumber(exercise.id)"
+              :unit-system="unitSystem"
+            />
+            <Button size="icon-lg" class="rounded-full" aria-label="Log set" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
+              <CheckIcon class="size-4" />
+            </Button>
+          </template>
+        </SessionSetFields>
       </div>
       <p v-if="logErrors[exercise.id]" class="text-sm text-destructive">{{ logErrors[exercise.id] }}</p>
     </UiCard>
@@ -501,29 +551,26 @@ const doneWithSummary = () => navigateTo("/workouts");
             </p>
 
             <div v-if="!circuitComplete && index === circuitCurrentExerciseIndex" class="mt-3 border-t border-surface-strong pt-3">
-              <label class="mb-2 flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
-                Warm-up
-                <UiCheckbox
-                  :model-value="draftFor(exercise.id).isWarmup"
-                  @update:model-value="(value) => (draftFor(exercise.id).isWarmup = !!value)"
-                />
-              </label>
-              <div class="flex items-center gap-2">
-                <span class="w-6 shrink-0 text-sm font-semibold text-foreground">{{ circuitCurrentRound }}</span>
-                <div class="flex flex-1 flex-wrap items-center justify-end gap-1">
-                  <UiNumberStepper v-model="draftFor(exercise.id).weightKg" :step="2.5" placeholder="kg" />
-                  <UiNumberStepper v-model="draftFor(exercise.id).reps" :step="1" placeholder="reps" />
-                  <Input v-model="draftFor(exercise.id).rpe" type="number" placeholder="RPE" class="w-12 shrink-0 text-right text-sm" />
-                </div>
-                <SessionPlateCalculator
-                  v-if="exercise.isBarbell"
-                  :target-weight-kg="draftWeightKgNumber(exercise.id)"
-                  :unit-system="unitSystem"
-                />
-                <Button size="icon-lg" class="shrink-0 rounded-full" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
-                  <CheckIcon class="size-4" />
-                </Button>
-              </div>
+              <SessionSetFields
+                v-model:weight-kg="draftFor(exercise.id).weightKg"
+                v-model:reps="draftFor(exercise.id).reps"
+                v-model:rpe="draftFor(exercise.id).rpe"
+                v-model:is-warmup="draftFor(exercise.id).isWarmup"
+                :set-label="circuitCurrentRound"
+                :hint="exercise.nextSetHint"
+                emphasized
+              >
+                <template #actions>
+                  <SessionPlateCalculator
+                    v-if="exercise.isBarbell"
+                    :target-weight-kg="draftWeightKgNumber(exercise.id)"
+                    :unit-system="unitSystem"
+                  />
+                  <Button size="icon-lg" class="rounded-full" aria-label="Log set" :disabled="logSet.isLoading.value" @click="logNextSet(exercise.id)">
+                    <CheckIcon class="size-4" />
+                  </Button>
+                </template>
+              </SessionSetFields>
               <p v-if="logErrors[exercise.id]" class="mt-1 text-sm text-destructive">{{ logErrors[exercise.id] }}</p>
             </div>
           </div>

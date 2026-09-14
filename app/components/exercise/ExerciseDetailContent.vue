@@ -8,7 +8,7 @@ import {
   TrophyIcon,
 } from "@lucide/vue";
 import type { CarouselApi } from "@/components/ui/carousel";
-import { kgToLbs } from "~~/shared/lib/formulas";
+import { kgToLbs, round1 } from "~~/shared/lib/formulas";
 
 const props = defineProps<{ exerciseId: string }>();
 const exerciseId = toRef(props, "exerciseId");
@@ -52,11 +52,13 @@ const titleCase = (value: string): string => {
   return value.replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
+// One decimal rather than whole numbers: plate jumps are often 2.5kg/1.25kg, and with every
+// set listed side by side, 102.5 rounding to 103 would misreport what was lifted.
 const formatWeight = (weightKg: number): string => {
   if (profileData.value?.profile?.unitSystem === "imperial") {
-    return `${Math.round(kgToLbs(weightKg))} lbs`;
+    return `${round1(kgToLbs(weightKg))} lbs`;
   }
-  return `${Math.round(weightKg)} kg`;
+  return `${round1(weightKg)} kg`;
 };
 
 const formatHistoryDate = (dateString: string): string => {
@@ -290,22 +292,21 @@ const formatHistoryDate = (dateString: string): string => {
       <div
         v-for="entry in history"
         :key="entry.sessionId"
-        class="flex items-center justify-between rounded-xl border border-surface-strong bg-card p-5"
+        class="flex items-center justify-between gap-3 rounded-xl border border-surface-strong bg-card p-4 sm:p-5"
       >
-        <div>
+        <div class="min-w-0">
           <p class="mb-1 font-mono text-xs text-muted-foreground">
-            {{ formatHistoryDate(entry.date) }}
+            {{ formatHistoryDate(entry.date) }} · {{ entry.setsCount }} {{ entry.setsCount === 1 ? "set" : "sets" }}
           </p>
-          <div class="flex items-baseline gap-4">
-            <span class="font-heading text-lg text-foreground">{{
-              formatWeight(entry.topSetWeightKg)
-            }}</span>
-            <span class="font-heading text-lg text-muted-foreground"
-              >{{ entry.topSetReps }} Reps</span
-            >
-            <span class="font-heading text-lg text-muted-foreground"
-              >{{ entry.setsCount }} Sets</span
-            >
+          <!-- Every working set, since weights usually differ set to set; the top set is
+               highlighted rather than shown alone. -->
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span
+              v-for="set in entry.sets"
+              :key="set.setNumber"
+              class="whitespace-nowrap font-heading text-base [font-variant-numeric:tabular-nums]"
+              :class="set.weightKg === entry.topSetWeightKg && set.reps === entry.topSetReps ? 'text-foreground' : 'text-muted-foreground'"
+            >{{ formatWeight(set.weightKg) }} × {{ set.reps }}</span>
           </div>
         </div>
         <div
