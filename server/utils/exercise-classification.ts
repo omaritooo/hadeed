@@ -1,3 +1,5 @@
+import { JOINT_AREAS, type JointArea } from '~~/shared/lib/joint-areas'
+
 export type MovementPattern =
   | 'horizontal_push' | 'vertical_push'
   | 'horizontal_pull' | 'vertical_pull'
@@ -118,4 +120,40 @@ export const classifyTierDeterministic = (exercise: { mechanic: string | null, e
   // roll, e-z curl bar, other) or null equipment (77 rows in the real data)
   // is treated as Tier 2 by default.
   return 2
+}
+
+export interface StressorClassifiableExercise {
+  name: string
+  category: string | null
+  equipment: string | null
+  movementPattern: string | null
+  tier: number | null
+}
+
+// Which joints an exercise commonly loads, for flagging against a user's limitations. Not a
+// medical model: a coarse, explainable rule set over data already on the row, reviewed via the
+// per-area counts classify-exercises.ts prints, and corrected through
+// exercise_stressor_overrides.json rather than more rules.
+export const classifyStressors = (exercise: StressorClassifiableExercise): JointArea[] => {
+  const { name, category, equipment, movementPattern: pattern, tier } = exercise
+  const plyo = category === 'plyometrics'
+  const barbell = equipment === 'barbell'
+  const areas = new Set<JointArea>()
+
+  if (pattern === 'vertical_push' || nameHas(name, 'dip', 'upright', 'behind the neck', 'snatch', 'jerk', 'kipping')) areas.add('shoulder')
+
+  if ((pattern === 'hip_dominant' && tier === 1)
+    || (pattern === 'knee_dominant' && barbell)
+    || (pattern === 'horizontal_pull' && barbell)
+    || nameHas(name, 'hyperextension', 'back extension', 'clean', 'snatch')) areas.add('lower_back')
+
+  if ((pattern === 'knee_dominant' && tier !== null && tier <= 2) || plyo || nameHas(name, 'jump', 'pistol')) areas.add('knee')
+
+  if (nameHas(name, 'push-up', 'push up', 'pushup', 'front squat', 'front barbell squat', 'clean', 'handstand', 'wrist curl', 'barbell curl')) areas.add('wrist')
+
+  if (pattern === 'elbow_extension' || nameHas(name, 'dip', 'close-grip', 'close grip', 'skullcrusher', 'skull crusher')) areas.add('elbow')
+
+  if (plyo || nameHas(name, 'jump', 'calf raise', 'lunge', 'sprint', 'skipping')) areas.add('ankle')
+
+  return JOINT_AREAS.filter(area => areas.has(area))
 }

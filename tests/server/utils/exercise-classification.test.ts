@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyMovementPattern, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
+import { classifyMovementPattern, classifyStressors, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
 
 describe('classifyMovementPattern', () => {
   it('classifies overhead/incline pressing as vertical push', () => {
@@ -140,5 +140,67 @@ describe('classifyTierDeterministic', () => {
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: null })).toBe(2)
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'bands' })).toBe(2)
     expect(classifyTierDeterministic({ mechanic: 'compound', equipment: 'other' })).toBe(2)
+  })
+})
+
+const ex = (name: string, overrides: Partial<Parameters<typeof classifyStressors>[0]> = {}) =>
+  ({ name, category: 'strength', equipment: null, movementPattern: null, tier: null, ...overrides })
+
+describe('classifyStressors', () => {
+  it('flags overhead pressing, dips, upright rows and kipping for the shoulder', () => {
+    expect(classifyStressors(ex('Standing Military Press', { movementPattern: 'vertical_push', equipment: 'barbell', tier: 1 }))).toContain('shoulder')
+    expect(classifyStressors(ex('Dips - Triceps Version', { movementPattern: 'elbow_extension' }))).toContain('shoulder')
+    expect(classifyStressors(ex('Upright Barbell Row', { movementPattern: 'horizontal_pull', equipment: 'barbell' }))).toContain('shoulder')
+    expect(classifyStressors(ex('Kipping Pull-Up', { movementPattern: 'vertical_pull' }))).toContain('shoulder')
+  })
+
+  it('does not flag a flat bench press for the shoulder', () => {
+    expect(classifyStressors(ex('Barbell Bench Press - Medium Grip', { movementPattern: 'horizontal_push', equipment: 'barbell', tier: 1 }))).not.toContain('shoulder')
+  })
+
+  it('flags heavy hinges, barbell squats and barbell rows for the lower back', () => {
+    expect(classifyStressors(ex('Barbell Deadlift', { movementPattern: 'hip_dominant', equipment: 'barbell', tier: 1 }))).toContain('lower_back')
+    expect(classifyStressors(ex('Barbell Full Squat', { movementPattern: 'knee_dominant', equipment: 'barbell', tier: 1 }))).toContain('lower_back')
+    expect(classifyStressors(ex('Bent Over Barbell Row', { movementPattern: 'horizontal_pull', equipment: 'barbell', tier: 1 }))).toContain('lower_back')
+    expect(classifyStressors(ex('Hyperextensions (Back Extensions)'))).toContain('lower_back')
+  })
+
+  it('does not flag a machine leg press or a tier-2 hinge for the lower back', () => {
+    expect(classifyStressors(ex('Leg Press', { movementPattern: 'knee_dominant', equipment: 'machine', tier: 2 }))).not.toContain('lower_back')
+    expect(classifyStressors(ex('Cable Pull Through', { movementPattern: 'hip_dominant', equipment: 'cable', tier: 2 }))).not.toContain('lower_back')
+  })
+
+  it('flags squatting, lunging, plyometrics and jumps for the knee, but not leg curls', () => {
+    expect(classifyStressors(ex('Leg Press', { movementPattern: 'knee_dominant', equipment: 'machine', tier: 2 }))).toContain('knee')
+    expect(classifyStressors(ex('Box Jump (Multiple Response)', { category: 'plyometrics' }))).toContain('knee')
+    expect(classifyStressors(ex('Pistol Squat'))).toContain('knee')
+    expect(classifyStressors(ex('Lying Leg Curls', { movementPattern: 'hip_dominant', equipment: 'machine', tier: 3 }))).not.toContain('knee')
+  })
+
+  it('flags push-ups, front squats, cleans, handstands and curls with a straight bar for the wrist', () => {
+    for (const name of ['Pushups', 'Front Barbell Squat', 'Power Clean', 'Handstand Push-Ups', 'Palms-Up Barbell Wrist Curl Over A Bench', 'Barbell Curl']) {
+      expect(classifyStressors(ex(name)), name).toContain('wrist')
+    }
+  })
+
+  it('flags triceps extensions, dips and close-grip work for the elbow', () => {
+    expect(classifyStressors(ex('EZ-Bar Skullcrusher', { movementPattern: 'elbow_extension' }))).toContain('elbow')
+    expect(classifyStressors(ex('Close-Grip Barbell Bench Press', { movementPattern: 'horizontal_push' }))).toContain('elbow')
+  })
+
+  it('flags plyometrics, calf raises, lunges and sprinting for the ankle', () => {
+    for (const name of ['Standing Calf Raises', 'Dumbbell Lunges', 'Sprint', 'Fast Skipping']) {
+      expect(classifyStressors(ex(name)), name).toContain('ankle')
+    }
+  })
+
+  it('avoids substring false positives', () => {
+    expect(classifyStressors(ex('Medicine Ball Chest Pass'))).toEqual([])
+    expect(classifyStressors(ex('Seated Cable Rows', { movementPattern: 'horizontal_pull', equipment: 'cable', tier: 2 }))).toEqual([])
+  })
+
+  it('returns areas in canonical order without duplicates', () => {
+    const areas = classifyStressors(ex('Dips - Chest Version', { movementPattern: 'horizontal_push' }))
+    expect(areas).toEqual(['shoulder', 'elbow'])
   })
 })
