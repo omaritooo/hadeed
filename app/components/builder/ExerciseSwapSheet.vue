@@ -11,7 +11,10 @@ const emit = defineEmits<{ select: [exercise: Exercise] }>();
 
 const exerciseId = toRef(props, "exerciseId");
 const equipmentTiers = toRef(props, "equipmentTiers");
-const { data: alternatives, isLoading, error } = useExerciseAlternatives(exerciseId, equipmentTiers);
+const { data: profile } = useProfile();
+// Alternatives that stress a limited joint are ranked last by the server, and badged below.
+const limitations = computed(() => profile.value?.profile?.limitations ?? []);
+const { data: alternatives, isLoading, error } = useExerciseAlternatives(exerciseId, equipmentTiers, limitations);
 
 const previewExercise = ref<Exercise | null>(null);
 
@@ -58,7 +61,10 @@ watch(open, (isOpen) => {
               <DumbbellIcon v-else class="size-5 text-muted-foreground" />
             </div>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-semibold text-foreground">{{ exercise.name }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <p class="truncate text-sm font-semibold text-foreground">{{ exercise.name }}</p>
+                <ExerciseLimitationBadge :stressors="exercise.stressors" />
+              </div>
               <p v-if="exercise.primaryMuscles[0]" class="text-xs text-muted-foreground">
                 {{ exercise.primaryMuscles[0] }}
               </p>

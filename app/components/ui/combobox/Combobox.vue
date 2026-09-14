@@ -97,7 +97,10 @@ const selectedLabel = computed(() => props.items.find((item) => item.value === m
             :disabled="item.disabled"
             class="data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-sm text-foreground outline-none select-none"
           >
-            <span class="truncate">{{ item.label }}</span>
+            <!-- Optional per-item content; the default is the bare label. -->
+            <slot name="item" :item="item">
+              <span class="truncate">{{ item.label }}</span>
+            </slot>
             <ComboboxItemIndicator>
               <CheckIcon class="text-primary size-4 shrink-0" />
             </ComboboxItemIndicator>

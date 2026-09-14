@@ -28,6 +28,10 @@ const exerciseCatalogCache = useExerciseCatalogCache();
 const exerciseName = (exerciseId: string): string =>
   exerciseNames.value[exerciseId] ?? exerciseCatalogCache.value.get(exerciseId)?.name ?? exerciseId;
 
+// Undefined until the row's Exercise is cached; the badge then simply doesn't show.
+const exerciseStressors = (exerciseId: string) => exerciseCatalogCache.value.get(exerciseId)?.stressors;
+const searchResultStressors = (exerciseId: unknown) => results.value?.find(exercise => exercise.id === exerciseId)?.stressors;
+
 const { data: profile } = useProfile();
 const userEquipmentTier = computed(() => profile.value?.profile?.equipment ?? null);
 
@@ -43,7 +47,8 @@ const fallbackEquipmentValues = computed(() => {
   return equipmentValuesForTier(tier).filter((value): value is string => value !== null);
 });
 const pendingExerciseId = computed(() => pendingSubstitution.value?.id ?? null);
-const { data: fallbackResults, isLoading: fallbacksLoading } = useExerciseFallbacks(pendingExerciseId, fallbackEquipmentValues);
+const limitations = computed(() => profile.value?.profile?.limitations ?? []);
+const { data: fallbackResults, isLoading: fallbacksLoading } = useExerciseFallbacks(pendingExerciseId, fallbackEquipmentValues, limitations);
 const topFallback = computed(() => fallbackResults.value?.[0] ?? null);
 
 const addExercise = (exerciseId: string, label: string, exercise?: Exercise) => {
@@ -144,7 +149,10 @@ const onSwapSelect = (exercise: Exercise) => {
       :key="exerciseRowIds[index]"
       class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2 border-b border-surface-strong pb-3"
     >
-      <span class="min-w-0 text-sm text-foreground">{{ exerciseName(exercise.exerciseId) }}</span>
+      <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="min-w-0 text-sm text-foreground">{{ exerciseName(exercise.exerciseId) }}</span>
+        <ExerciseLimitationBadge :stressors="exerciseStressors(exercise.exerciseId)" />
+      </div>
       <button
         aria-label="Swap exercise"
         :disabled="!!pendingSubstitution || fallbackEquipmentValues.length === 0"
@@ -186,7 +194,14 @@ const onSwapSelect = (exercise: Exercise) => {
       placeholder="Add an exercise"
       search-placeholder="Search exercises…"
       :empty-text="error ? 'Couldn\'t search exercises.' : isLoading ? 'Searching…' : 'No results found.'"
-    />
+    >
+      <template #item="{ item }">
+        <span class="flex min-w-0 items-center gap-2">
+          <span class="truncate">{{ item.label }}</span>
+          <ExerciseLimitationBadge :stressors="searchResultStressors(item.value)" />
+        </span>
+      </template>
+    </Combobox>
 
     <div
       v-if="pendingSubstitution"
@@ -195,7 +210,8 @@ const onSwapSelect = (exercise: Exercise) => {
       <p v-if="fallbacksLoading">Checking for a substitute for {{ pendingSubstitution.name }}…</p>
       <p v-else-if="topFallback">
         {{ pendingSubstitution.name }} needs more equipment than your profile has — try
-        <span class="font-medium">{{ topFallback.name }}</span> instead?
+        <span class="font-medium">{{ topFallback.name }}</span>
+        <ExerciseLimitationBadge :stressors="topFallback.stressors" class="mx-1 align-middle" /> instead?
       </p>
       <p v-else>{{ pendingSubstitution.name }} needs more equipment than your profile has, and no substitute was found.</p>
 

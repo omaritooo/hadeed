@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Equipment, SplitRecommendation } from "~~/shared/types/preset.types";
+import { TriangleAlertIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { equipmentSatisfies } from "~~/shared/lib/equipment";
@@ -41,6 +42,12 @@ const isEquipmentMismatch = (rec: SplitRecommendation): boolean => {
   return !equipmentSatisfies({ userTier, required: rec.preset.equipment });
 };
 
+// The recommend endpoint appends "N exercise(s) load(s) your <area>" when a preset works a limited
+// joint (preset-split.service.ts); it's shown apart from the other reasons, as a warning.
+const LIMITATION_REASON = /\bloads? your\b/;
+const limitationReasons = (rec: SplitRecommendation) => rec.reasons.filter(reason => LIMITATION_REASON.test(reason));
+const neutralReasons = (rec: SplitRecommendation) => rec.reasons.filter(reason => !LIMITATION_REASON.test(reason));
+
 watch(recommendations, (list) => {
   if (list && !list.some(rec => rec.preset.id === selectedPresetId.value)) {
     selectedPresetId.value = null;
@@ -76,7 +83,15 @@ watch(recommendations, (list) => {
       >
         {{ EQUIPMENT_LABELS[rec.preset.equipment] }}
       </UiBadge>
-      <p v-if="rec.reasons.length" class="text-xs text-muted-foreground">{{ rec.reasons.join(" · ") }}</p>
+      <p v-if="neutralReasons(rec).length" class="text-xs text-muted-foreground">{{ neutralReasons(rec).join(" · ") }}</p>
+      <p
+        v-for="reason in limitationReasons(rec)"
+        :key="reason"
+        class="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400"
+      >
+        <TriangleAlertIcon class="size-3.5 shrink-0" aria-hidden="true" />
+        {{ reason }}
+      </p>
     </UiCard>
 
     <Button size="lg" :disabled="selectedPresetId === null" @click="emit('continue')">Continue</Button>

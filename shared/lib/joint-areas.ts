@@ -19,3 +19,11 @@ export const isJointAreaList = (value: unknown): value is JointArea[] =>
 // Areas of this exercise that the user has flagged, in canonical order.
 export const conflictingAreas = (stressors: readonly JointArea[], limitations: readonly JointArea[]): JointArea[] =>
   JOINT_AREAS.filter(area => stressors.includes(area) && limitations.includes(area))
+
+// The first candidate that stresses none of the flagged areas, or undefined. `stressors` is optional
+// because an Exercise cached from before stressors existed has no such field; it counts as clean.
+export const firstCleanCandidate = <T extends { stressors?: readonly JointArea[] }>(
+  candidates: readonly T[],
+  limitations: readonly JointArea[],
+): T | undefined =>
+  candidates.find(candidate => conflictingAreas(candidate.stressors ?? [], limitations).length === 0)

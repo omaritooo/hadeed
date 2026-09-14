@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeftRightIcon } from "@lucide/vue";
+import { ArrowLeftRightIcon, ShuffleIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import type { Exercise } from "~~/shared/types/exercise.types";
 import type { PresetExerciseOverride } from "~~/shared/types/preset.types";
 import { equipmentValuesForTier } from "~~/shared/lib/equipment";
+import { conflictingAreas, firstCleanCandidate, type JointArea } from "~~/shared/lib/joint-areas";
 
 const props = defineProps<{ presetId: number }>();
 const emit = defineEmits<{ continue: [overrides: PresetExerciseOverride[]] }>();
@@ -18,6 +19,8 @@ interface ReviewExercise {
   exerciseId: string;
   name: string;
   position: number;
+  // Empty until exercisesById resolves (and for an Exercise cached from before stressors existed).
+  stressors: JointArea[];
 }
 interface ReviewDay {
   dayIndex: number;
@@ -49,6 +52,7 @@ watch(preset, (value) => {
       exerciseId: exercise.exerciseId,
       name: exercise.exerciseId,
       position: exercise.position,
+      stressors: [],
     })),
   }));
 }, { immediate: true });
@@ -58,12 +62,14 @@ watch(preset, (value) => {
 // matches rows still holding one of the preset's original exercise ids.
 watch(exercisesById, (exercises) => {
   if (!exercises) return;
-  const names = new Map(exercises.map(exercise => [exercise.id, exercise.name] as const));
+  const byId = new Map(exercises.map(exercise => [exercise.id, exercise] as const));
   for (const exercise of exercises) exerciseCatalogCache.value.set(exercise.id, exercise);
   for (const day of reviewDays.value) {
     for (const exercise of day.exercises) {
-      const resolvedName = names.get(exercise.exerciseId);
-      if (resolvedName) exercise.name = resolvedName;
+      const resolved = byId.get(exercise.exerciseId);
+      if (!resolved) continue;
+      exercise.name = resolved.name;
+      exercise.stressors = resolved.stressors ?? [];
     }
   }
 }, { immediate: true });
@@ -88,13 +94,51 @@ const openSwap = (dayIndex: number, position: number, exerciseId: string) => {
   swapSheetOpen.value = true;
 };
 
-const onSwapSelect = (exercise: Exercise) => {
-  const day = reviewDays.value.find(d => d.dayIndex === swapDayIndex.value);
-  const row = day?.exercises.find(e => e.position === swapPosition.value);
+const applySwap = (dayIndex: number | null, position: number | null, exercise: Exercise) => {
+  const day = reviewDays.value.find(d => d.dayIndex === dayIndex);
+  const row = day?.exercises.find(e => e.position === position);
   if (!row) return;
   row.exerciseId = exercise.id;
   row.name = exercise.name;
+  row.stressors = exercise.stressors ?? [];
   exerciseCatalogCache.value.set(exercise.id, exercise);
+};
+
+const onSwapSelect = (exercise: Exercise) => applySwap(swapDayIndex.value, swapPosition.value, exercise);
+
+// "Swap flagged": replaces every row that loads a limited joint with its closest equipment-compatible
+// fallback that doesn't, one request per flagged row (a preset has a handful at most). Rows with no
+// clean fallback are kept and named, rather than swapped for something that's also flagged.
+const limitations = computed(() => profile.value?.profile?.limitations ?? []);
+const flaggedRows = computed(() => reviewDays.value.flatMap(day =>
+  day.exercises
+    .filter(exercise => conflictingAreas(exercise.stressors, limitations.value).length > 0)
+    .map(exercise => ({ dayIndex: day.dayIndex, position: exercise.position, exerciseId: exercise.exerciseId, name: exercise.name }))));
+const swappingAll = ref(false);
+const unswappable = ref<string[]>([]);
+const swapAllError = ref(false);
+const { $api } = useNuxtApp();
+
+const swapAllFlagged = async () => {
+  swappingAll.value = true;
+  unswappable.value = [];
+  swapAllError.value = false;
+  // Snapshot: applySwap mutates reviewDays, which recomputes flaggedRows mid-loop.
+  const rows = [...flaggedRows.value];
+  try {
+    for (const row of rows) {
+      const candidates = await $api<Exercise[]>(`/api/exercises/${row.exerciseId}/fallbacks`, {
+        query: { equipmentTiers: equipmentTiers.value.join(","), avoid: limitations.value.join(",") },
+      });
+      const clean = firstCleanCandidate(candidates, limitations.value);
+      if (clean) applySwap(row.dayIndex, row.position, clean);
+      else unswappable.value.push(row.name);
+    }
+  } catch {
+    swapAllError.value = true;
+  } finally {
+    swappingAll.value = false;
+  }
 };
 
 const overrides = computed<PresetExerciseOverride[]>(() => {
@@ -120,6 +164,29 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
     <p v-else-if="error" class="text-sm text-destructive">Couldn't load preset. Please try again.</p>
 
     <template v-else>
+      <Button
+        v-if="flaggedRows.length"
+        variant="secondary"
+        class="w-full"
+        :disabled="swappingAll || equipmentTiers.length === 0"
+        @click="swapAllFlagged"
+      >
+        <ShuffleIcon class="size-4" aria-hidden="true" />
+        {{ swappingAll ? "Swapping…" : `Swap ${flaggedRows.length} flagged exercise${flaggedRows.length === 1 ? "" : "s"}` }}
+      </Button>
+      <p v-if="flaggedRows.length && equipmentTiers.length === 0" class="text-xs text-muted-foreground">
+        Set your equipment in your profile to find swaps.
+      </p>
+      <!-- Always rendered so screen readers announce the outcome when its text appears. -->
+      <div aria-live="polite" class="empty:hidden">
+        <p v-if="unswappable.length" class="text-xs text-muted-foreground">
+          No clean alternative for {{ unswappable.join(", ") }}. Kept as-is.
+        </p>
+        <p v-if="swapAllError" class="text-xs text-destructive">
+          Couldn't finish swapping. Any swaps already made are kept.
+        </p>
+      </div>
+
       <div v-for="day in reviewDays" :key="day.dayIndex" class="flex flex-col gap-y-2">
         <p class="font-heading text-lg text-foreground">{{ day.name }}</p>
         <div
@@ -127,11 +194,15 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
           :key="exercise.position"
           class="flex items-center gap-3 rounded-xl border border-surface-strong bg-card p-3"
         >
-          <span class="min-w-0 flex-1 truncate text-sm text-foreground">{{ exercise.name }}</span>
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <span class="min-w-0 truncate text-sm text-foreground">{{ exercise.name }}</span>
+            <ExerciseLimitationBadge :stressors="exercise.stressors" />
+          </div>
           <button
             type="button"
             aria-label="Swap exercise"
-            class="flex items-center gap-1 text-sm text-muted-foreground"
+            :disabled="swappingAll"
+            class="flex items-center gap-1 text-sm text-muted-foreground disabled:opacity-50"
             @click="openSwap(day.dayIndex, exercise.position, exercise.exerciseId)"
           >
             <ArrowLeftRightIcon class="size-4" /> Swap

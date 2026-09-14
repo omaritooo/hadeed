@@ -129,6 +129,7 @@ const equipmentByExerciseId = computed(() => {
   for (const exercise of sessionExerciseDetails.value ?? []) map.set(exercise.id, exercise.equipment);
   return map;
 });
+const stressorsByExerciseId = computed(() => new Map((sessionExerciseDetails.value ?? []).map(exercise => [exercise.id, exercise.stressors] as const)));
 
 const exerciseDisplayInfo = computed(() => {
   return (session.value?.exercises ?? []).map(exercise => ({
@@ -412,7 +413,10 @@ const doneWithSummary = () => navigateTo("/workouts");
     <UiCard v-for="exercise in exerciseDisplayInfo" :key="exercise.id" class="space-y-3">
       <div class="space-y-1 border-b border-surface-strong pb-3">
         <div class="flex items-center justify-between gap-2">
-          <p class="min-w-0 font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
+          <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <p class="min-w-0 font-heading text-lg text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
+            <ExerciseLimitationBadge :stressors="stressorsByExerciseId.get(exercise.exerciseId)" />
+          </div>
           <div class="flex shrink-0 items-center gap-2">
             <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">{{ exercise.setsProgressLabel }}</span>
             <button @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-4 text-muted-foreground" /></button>
@@ -536,6 +540,7 @@ const doneWithSummary = () => navigateTo("/workouts");
               <div class="flex min-w-0 items-center gap-2">
                 <span class="shrink-0 font-mono text-xs text-muted-foreground">{{ index + 1 }}.</span>
                 <p class="truncate text-sm font-medium text-foreground">{{ exercise.exerciseName ?? exercise.exerciseId }}</p>
+                <ExerciseLimitationBadge :stressors="stressorsByExerciseId.get(exercise.exerciseId)" />
                 <button class="shrink-0" @click="openInfo(exercise.exerciseId)"><InfoIcon class="size-3.5 text-muted-foreground" /></button>
               </div>
               <span class="shrink-0 font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">
