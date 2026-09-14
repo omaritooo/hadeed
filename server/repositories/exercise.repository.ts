@@ -165,7 +165,7 @@ export class ExerciseRepository extends BaseRepository<Exercise> {
     const placeholders = equipmentTiers.map(() => '?').join(', ')
     // Skip the stressor term entirely when nothing is avoided, since `IN ()` is invalid SQL.
     const avoidOrder = avoid.length > 0
-      ? `(SELECT COUNT(*) FROM exercise_stressors s WHERE s.exercise_id = e2.id AND s.area IN (${avoid.map(() => '?').join(', ')})) > 0, `
+      ? `EXISTS (SELECT 1 FROM exercise_stressors s WHERE s.exercise_id = e2.id AND s.area IN (${avoid.map(() => '?').join(', ')})), `
       : ''
     const result = await this.db.execute({
       sql: `SELECT e2.* FROM exercises e2

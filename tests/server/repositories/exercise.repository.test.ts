@@ -347,5 +347,26 @@ describe('ExerciseRepository', () => {
       expect(fallbacks.map(e => e.id)).toEqual(['t1'])
       expect(fallbacks[0]!.stressors).toEqual(['shoulder'])
     })
+
+    it('sorts the flagged group by tier distance, then name', async () => {
+      await seedTierFixture()
+      const chest = await new MuscleRepository(db).getOrCreate('chest')
+      // b1 ties t1 on tier, so name decides; a3 sorts first by name but is two tiers away.
+      await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('b1', 'Bbb Compound', 'cable', 'compound', 'horizontal_push', 1)` })
+      await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('a3', 'Aaa Accessory', 'cable', 'isolation', 'horizontal_push', 3)` })
+      for (const id of ['b1', 'a3']) {
+        await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: [id, chest.id, 'primary'] })
+        await db.execute({ sql: `INSERT INTO exercise_stressors (exercise_id, area, source) VALUES (?, 'shoulder', 'rule')`, args: [id] })
+      }
+
+      const ids = (await repo.findFallbacks('src', ['cable', 'body only'], ['shoulder'])).map(e => e.id)
+      expect(ids).toEqual(['t3', 't1', 'b1', 'a3'])
+    })
+
+    it('ranks a candidate last when it matches only one of several avoided areas', async () => {
+      await seedTierFixture()
+      const ids = (await repo.findFallbacks('src', ['cable', 'body only'], ['knee', 'shoulder'])).map(e => e.id)
+      expect(ids).toEqual(['t3', 't1'])
+    })
   })
 })

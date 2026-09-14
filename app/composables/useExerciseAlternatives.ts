@@ -2,6 +2,7 @@ import type { FetchError } from 'ofetch'
 import type { MaybeRefOrGetter } from 'vue'
 import type { Exercise } from '~~/shared/types/exercise.types'
 import type { JointArea } from '~~/shared/lib/joint-areas'
+import { JOINT_AREAS } from '~~/shared/lib/joint-areas'
 import { useQuery } from '@pinia/colada'
 import { toValue } from 'vue'
 
@@ -17,11 +18,13 @@ export const useExerciseAlternatives = (
   avoid: MaybeRefOrGetter<JointArea[]> = [],
 ) => {
   const { $api } = useNuxtApp()
+  // Canonical, de-duplicated order so ['shoulder', 'knee'] and ['knee', 'shoulder'] share a cache entry.
+  const avoidList = () => JOINT_AREAS.filter(area => toValue(avoid).includes(area))
 
   return useQuery<Exercise[], FetchError<{ statusMessage: string }>>({
-    key: () => queryKeys.exerciseAlternatives(toValue(exerciseId) ?? '', toValue(equipmentTiers), toValue(avoid)),
+    key: () => queryKeys.exerciseAlternatives(toValue(exerciseId) ?? '', toValue(equipmentTiers), avoidList()),
     query: () => $api<Exercise[]>(`/api/exercises/${toValue(exerciseId)}/alternatives`, {
-      query: { equipmentTiers: toValue(equipmentTiers).join(','), avoid: toValue(avoid).join(',') },
+      query: { equipmentTiers: toValue(equipmentTiers).join(','), avoid: avoidList().join(',') || undefined },
     }),
     enabled: () => !!toValue(exerciseId) && toValue(equipmentTiers).length > 0,
   })
