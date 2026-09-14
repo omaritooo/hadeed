@@ -521,8 +521,8 @@ const onLogout = async () => {
         <h2 class="font-heading text-lg uppercase text-foreground">Limitations</h2>
       </div>
       <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
-        <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Go easy on</p>
-        <ProfileLimitationChips v-model="limitationsDraft" />
+        <p id="profile-limitations-label" class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Go easy on</p>
+        <ProfileLimitationChips v-model="limitationsDraft" labelledby="profile-limitations-label" />
         <p v-if="limitationsError" class="text-xs text-destructive">
           {{ limitationsError.data?.statusMessage ?? "Couldn't save your limitations. Please try again." }}
         </p>

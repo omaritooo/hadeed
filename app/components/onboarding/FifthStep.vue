@@ -37,12 +37,14 @@ defineExpose({
       />
     </UiFieldFormField>
     <h2
+      id="onboarding-limitations-heading"
       class="flex gap-x-2 mt-4 pt-4 items-center font-mono text-muted-foreground text-2xl"
     >
       <ShieldAlertIcon aria-hidden="true" /> Anything to work around?
     </h2>
     <p class="mb-3 text-sm text-muted-foreground">Optional. Skip if nothing bothers you.</p>
     <ProfileLimitationChips
+      labelledby="onboarding-limitations-heading"
       :model-value="form.limitations ?? []"
       @update:model-value="(value) => form.limitations = value"
     />

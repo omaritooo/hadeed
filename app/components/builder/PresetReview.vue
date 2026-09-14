@@ -5,6 +5,7 @@ import type { Exercise } from "~~/shared/types/exercise.types";
 import type { PresetExerciseOverride } from "~~/shared/types/preset.types";
 import { equipmentValuesForTier } from "~~/shared/lib/equipment";
 import { conflictingAreas, firstCleanCandidate, type JointArea } from "~~/shared/lib/joint-areas";
+import { describeSwapFlaggedOutcome, swapFlaggedButtonLabel } from "~~/shared/lib/swap-flagged";
 
 const props = defineProps<{ presetId: number }>();
 const emit = defineEmits<{ continue: [overrides: PresetExerciseOverride[]] }>();
@@ -108,36 +109,85 @@ const onSwapSelect = (exercise: Exercise) => applySwap(swapDayIndex.value, swapP
 
 // "Swap flagged": replaces every row that loads a limited joint with its closest equipment-compatible
 // fallback that doesn't, one request per flagged row (a preset has a handful at most). Rows with no
-// clean fallback are kept and named, rather than swapped for something that's also flagged.
+// clean fallback are kept, and remembered for this visit so the button doesn't retry them.
 const limitations = computed(() => profile.value?.profile?.limitations ?? []);
+// Keyed by exercise id too, so a row later swapped by hand to another flagged exercise is tried again.
+const rowKey = (dayIndex: number, position: number, exerciseId: string) => `${dayIndex}:${position}:${exerciseId}`;
 const flaggedRows = computed(() => reviewDays.value.flatMap(day =>
   day.exercises
     .filter(exercise => conflictingAreas(exercise.stressors, limitations.value).length > 0)
-    .map(exercise => ({ dayIndex: day.dayIndex, position: exercise.position, exerciseId: exercise.exerciseId, name: exercise.name }))));
+    .map(exercise => ({
+      dayIndex: day.dayIndex,
+      position: exercise.position,
+      name: exercise.name,
+      exerciseId: exercise.exerciseId,
+      key: rowKey(day.dayIndex, exercise.position, exercise.exerciseId),
+    }))));
+const noAlternativeKeys = ref(new Set<string>());
+const pendingFlaggedRows = computed(() => flaggedRows.value.filter(row => !noAlternativeKeys.value.has(row.key)));
+const noAlternativeCount = computed(() => flaggedRows.value.length - pendingFlaggedRows.value.length);
 const swappingAll = ref(false);
-const unswappable = ref<string[]>([]);
-const swapAllError = ref(false);
+const swapAllStatus = ref("");
+// Stays rendered after a run clears every flag (as a disabled "No flagged exercises"), so its status line survives.
+const swapAllVisible = ref(false);
+watchEffect(() => {
+  if (flaggedRows.value.length) swapAllVisible.value = true;
+});
+const swapAllButtonLabel = computed(() =>
+  swappingAll.value ? "Swapping…" : swapFlaggedButtonLabel(pendingFlaggedRows.value.length, noAlternativeCount.value));
+const swapAllStatusRef = useTemplateRef<HTMLElement>("swapAllStatus");
 const { $api } = useNuxtApp();
+
+let unmounted = false;
+onBeforeUnmount(() => {
+  unmounted = true;
+});
 
 const swapAllFlagged = async () => {
   swappingAll.value = true;
-  unswappable.value = [];
-  swapAllError.value = false;
-  // Snapshot: applySwap mutates reviewDays, which recomputes flaggedRows mid-loop.
-  const rows = [...flaggedRows.value];
-  try {
-    for (const row of rows) {
-      const candidates = await $api<Exercise[]>(`/api/exercises/${row.exerciseId}/fallbacks`, {
+  swapAllStatus.value = "";
+  // Snapshot: applySwap mutates reviewDays, which recomputes the flagged lists mid-loop.
+  const rows = [...pendingFlaggedRows.value];
+  // Ids already in each day, including exercises swapped in earlier in this run, so two flagged rows
+  // in one day can't both become the same fallback.
+  const idsByDay = new Map(reviewDays.value.map(day => [day.dayIndex, new Set(day.exercises.map(e => e.exerciseId))] as const));
+  let swapped = 0;
+  let failed = 0;
+  const noAlternative: string[] = [];
+  const nextNoAlternativeKeys = new Set(noAlternativeKeys.value);
+
+  for (const row of rows) {
+    if (unmounted) return;
+    let candidates: Exercise[];
+    try {
+      candidates = await $api<Exercise[]>(`/api/exercises/${row.exerciseId}/fallbacks`, {
         query: { equipmentTiers: equipmentTiers.value.join(","), avoid: limitations.value.join(",") },
       });
-      const clean = firstCleanCandidate(candidates, limitations.value);
-      if (clean) applySwap(row.dayIndex, row.position, clean);
-      else unswappable.value.push(row.name);
+    } catch {
+      failed++;
+      continue;
     }
-  } catch {
-    swapAllError.value = true;
-  } finally {
-    swappingAll.value = false;
+    if (unmounted) return;
+    const dayIds = idsByDay.get(row.dayIndex) ?? new Set<string>();
+    const clean = firstCleanCandidate(candidates, limitations.value, dayIds);
+    if (clean) {
+      applySwap(row.dayIndex, row.position, clean);
+      dayIds.add(clean.id);
+      swapped++;
+    } else {
+      noAlternative.push(row.name);
+      nextNoAlternativeKeys.add(row.key);
+    }
+  }
+
+  noAlternativeKeys.value = nextNoAlternativeKeys;
+  swappingAll.value = false;
+  swapAllStatus.value = describeSwapFlaggedOutcome({ swapped, noAlternative, failed });
+  // The button is now disabled when nothing is left to try; a focused button that becomes disabled drops
+  // focus to <body>, so hand it to the status line instead.
+  if (pendingFlaggedRows.value.length === 0) {
+    await nextTick();
+    swapAllStatusRef.value?.focus();
   }
 };
 
@@ -164,26 +214,28 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
     <p v-else-if="error" class="text-sm text-destructive">Couldn't load preset. Please try again.</p>
 
     <template v-else>
-      <Button
-        v-if="flaggedRows.length"
-        variant="secondary"
-        class="w-full"
-        :disabled="swappingAll || equipmentTiers.length === 0"
-        @click="swapAllFlagged"
-      >
-        <ShuffleIcon class="size-4" aria-hidden="true" />
-        {{ swappingAll ? "Swapping…" : `Swap ${flaggedRows.length} flagged exercise${flaggedRows.length === 1 ? "" : "s"}` }}
-      </Button>
-      <p v-if="flaggedRows.length && equipmentTiers.length === 0" class="text-xs text-muted-foreground">
-        Set your equipment in your profile to find swaps.
-      </p>
-      <!-- Always rendered so screen readers announce the outcome when its text appears. -->
-      <div aria-live="polite" class="empty:hidden">
-        <p v-if="unswappable.length" class="text-xs text-muted-foreground">
-          No clean alternative for {{ unswappable.join(", ") }}. Kept as-is.
+      <div v-if="swapAllVisible" class="flex flex-col">
+        <Button
+          variant="secondary"
+          class="w-full"
+          :disabled="swappingAll || pendingFlaggedRows.length === 0 || equipmentTiers.length === 0"
+          @click="swapAllFlagged"
+        >
+          <ShuffleIcon class="size-4" aria-hidden="true" />
+          {{ swapAllButtonLabel }}
+        </Button>
+        <p v-if="pendingFlaggedRows.length && equipmentTiers.length === 0" class="mt-2 text-xs text-muted-foreground">
+          Set your equipment in your profile to find swaps.
         </p>
-        <p v-if="swapAllError" class="text-xs text-destructive">
-          Couldn't finish swapping. Any swaps already made are kept.
+        <!-- Always rendered (while the button is) so screen readers announce the outcome when it's set. -->
+        <p
+          ref="swapAllStatus"
+          aria-live="polite"
+          tabindex="-1"
+          class="text-xs text-muted-foreground outline-none"
+          :class="swapAllStatus && 'mt-2'"
+        >
+          {{ swapAllStatus }}
         </p>
       </div>
 
@@ -210,7 +262,7 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
         </div>
       </div>
 
-      <Button size="lg" @click="emit('continue', overrides)">Continue</Button>
+      <Button size="lg" :disabled="swappingAll" @click="emit('continue', overrides)">Continue</Button>
     </template>
 
     <BuilderExerciseSwapSheet

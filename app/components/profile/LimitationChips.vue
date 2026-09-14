@@ -2,6 +2,11 @@
 import { CheckIcon } from "@lucide/vue";
 import { JOINT_AREAS, JOINT_AREA_LABELS, type JointArea } from "~~/shared/lib/joint-areas";
 
+// The chips form one labelled group: pass `label`, or `labelledby` pointing at a visible heading.
+const props = withDefaults(defineProps<{ label?: string; labelledby?: string }>(), {
+  label: "Joints to go easy on",
+  labelledby: undefined,
+});
 const model = defineModel<JointArea[]>({ required: true });
 
 const toggle = (area: JointArea) => {
@@ -11,7 +16,12 @@ const toggle = (area: JointArea) => {
 
 <template>
   <div class="space-y-2">
-    <div class="flex flex-wrap gap-2">
+    <div
+      role="group"
+      :aria-labelledby="props.labelledby"
+      :aria-label="props.labelledby ? undefined : props.label"
+      class="flex flex-wrap gap-2"
+    >
       <button
         v-for="area in JOINT_AREAS"
         :key="area"

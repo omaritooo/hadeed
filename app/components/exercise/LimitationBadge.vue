@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { TriangleAlertIcon } from "@lucide/vue";
-import { conflictingAreas, JOINT_AREA_LABELS, type JointArea } from "~~/shared/lib/joint-areas";
+import { conflictingAreas, formatAreaList, JOINT_AREA_LABELS, type JointArea } from "~~/shared/lib/joint-areas";
 
 // Reads the profile itself, so call sites only pass the exercise's stressors. `undefined` covers an
 // Exercise cached from before stressors existed, and exercises whose details haven't loaded yet.
-const props = defineProps<{ stressors: readonly JointArea[] | undefined }>();
+// `compact` shows only the icon below `sm` (the screen-reader text is always there), for tight rows.
+const props = defineProps<{ stressors: readonly JointArea[] | undefined; compact?: boolean }>();
 
 const { data: profile } = useProfile();
 const conflicts = computed(() => conflictingAreas(props.stressors ?? [], profile.value?.profile?.limitations ?? []));
-const description = computed(() =>
-  `Commonly loads your ${conflicts.value.map(area => JOINT_AREA_LABELS[area].toLowerCase()).join(" and ")}`,
-);
+const description = computed(() => `Commonly loads your ${formatAreaList(conflicts.value)}`);
 </script>
 
 <template>
@@ -21,6 +20,6 @@ const description = computed(() =>
   >
     <TriangleAlertIcon class="size-3" aria-hidden="true" />
     <span class="sr-only">{{ description }}</span>
-    <span aria-hidden="true">{{ conflicts.map(area => JOINT_AREA_LABELS[area]).join(" · ") }}</span>
+    <span aria-hidden="true" :class="compact && 'hidden sm:inline'">{{ conflicts.map(area => JOINT_AREA_LABELS[area]).join(" · ") }}</span>
   </UiBadge>
 </template>

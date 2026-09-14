@@ -4,6 +4,7 @@ import { TriangleAlertIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { equipmentSatisfies } from "~~/shared/lib/equipment";
+import { isLimitationReason } from "~~/shared/lib/joint-areas";
 
 const selectedPresetId = defineModel<number | null>("selectedPresetId", { required: true });
 const emit = defineEmits<{ continue: [] }>();
@@ -42,11 +43,10 @@ const isEquipmentMismatch = (rec: SplitRecommendation): boolean => {
   return !equipmentSatisfies({ userTier, required: rec.preset.equipment });
 };
 
-// The recommend endpoint appends "N exercise(s) load(s) your <area>" when a preset works a limited
-// joint (preset-split.service.ts); it's shown apart from the other reasons, as a warning.
-const LIMITATION_REASON = /\bloads? your\b/;
-const limitationReasons = (rec: SplitRecommendation) => rec.reasons.filter(reason => LIMITATION_REASON.test(reason));
-const neutralReasons = (rec: SplitRecommendation) => rec.reasons.filter(reason => !LIMITATION_REASON.test(reason));
+// The recommend endpoint appends a reason when a preset works a limited joint; it's shown apart from
+// the other reasons, as a warning.
+const limitationReasons = (rec: SplitRecommendation) => rec.reasons.filter(isLimitationReason);
+const neutralReasons = (rec: SplitRecommendation) => rec.reasons.filter(reason => !isLimitationReason(reason));
 
 watch(recommendations, (list) => {
   if (list && !list.some(rec => rec.preset.id === selectedPresetId.value)) {
