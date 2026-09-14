@@ -156,6 +156,21 @@ describe('BlockRepository', () => {
     expect(row.target_reps).toBe(8)
   })
 
+  it('keeps an open-ended range open instead of filling the missing end from target_reps', async () => {
+    const block = await repo.createWithDays('user-1', {
+      programId: null, name: 'Open range', startDate: '2026-08-18', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{
+        name: 'Push', dayOfWeek: 1, location: 'gym',
+        exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetRepsMin: 8, targetRepsMax: null, targetRpe: 8 }],
+      }],
+    })
+
+    const exercise = (await repo.findWithDays(block.id))?.days[0]?.exercises[0]
+    expect(exercise?.targetRepsMin).toBe(8)
+    expect(exercise?.targetRepsMax).toBeNull()
+  })
+
   it('creates an implicit program when programId is not provided', async () => {
     const block = await repo.createWithDays('user-1', {
       programId: null,

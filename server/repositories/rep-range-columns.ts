@@ -1,7 +1,7 @@
 // target_reps is being replaced by target_reps_min / target_reps_max in expand/contract steps
 // (see server/database/migrations/rep-ranges.ts). Until the contract release, every insert
 // dual-writes target_reps as the range minimum, and every read falls back to target_reps for rows
-// an older app build wrote after the migration ran.
+// an older app build wrote after the migration ran (see server/database/backfill-rep-ranges.ts).
 
 export interface RepRangeInput {
   targetRepsMin?: number | null
@@ -19,8 +19,12 @@ export const repRangeArgs = (exercise: RepRangeInput): [number | null, number | 
 }
 
 export const repRangeFromRow = (row: Record<string, unknown>): { targetRepsMin: number | null, targetRepsMax: number | null, targetReps: number | null } => {
-  const targetRepsMin = (row.target_reps_min ?? row.target_reps ?? null) as number | null
-  const targetRepsMax = (row.target_reps_max ?? row.target_reps ?? null) as number | null
+  // Only a row with neither end set is a legacy row. One end set is an open-ended range the
+  // range-aware app wrote on purpose, and target_reps must not fill in the other end.
+  const legacyRow = row.target_reps_min == null && row.target_reps_max == null
+  const legacyTarget = (row.target_reps ?? null) as number | null
+  const targetRepsMin = legacyRow ? legacyTarget : (row.target_reps_min ?? null) as number | null
+  const targetRepsMax = legacyRow ? legacyTarget : (row.target_reps_max ?? null) as number | null
   // TODO(Task 15): remove legacy targetReps. Older app builds read this single target from block,
   // preset and session responses.
   return { targetRepsMin, targetRepsMax, targetReps: targetRepsMin }

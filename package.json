@@ -11,6 +11,7 @@
     "db:seed": "tsx --env-file=.env server/database/seed.ts",
     "db:seed:dummy": "tsx --env-file=.env server/database/seed-dummy.ts",
     "db:classify-exercises": "tsx --env-file=.env server/database/classify-exercises.ts",
+    "db:backfill-rep-ranges": "tsx --env-file=.env server/database/backfill-rep-ranges.ts",
     "test": "vitest run"
   },
   "dependencies": {

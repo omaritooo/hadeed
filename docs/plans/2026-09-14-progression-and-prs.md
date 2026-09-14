@@ -1987,8 +1987,14 @@ git commit -m "feat(session): show progression suggestions, pre-fill from them, 
 - Scripts table: add `db:backfill-prs`.
 
 **Step 5:** Commit: `git add README.md && git commit -m "docs: describe progression suggestions and PR types"`.
-**Step 6:** Deploy order for an existing database: `npm run db:seed` (runs `migrateRepRanges`
-and the new schema) → deploy app → `npm run db:backfill-prs`.
+**Step 6:** Deploy order for an existing database:
+1. `npm run db:seed` runs `migrateRepRanges` (expand only, `target_reps` kept) and the new schema.
+2. Verify: every table has `target_reps_min` / `target_reps_max`, preset rows are widened, and the
+   running (old) build still works.
+3. Deploy the app.
+4. `npm run db:backfill-rep-ranges` fills rows the old build wrote between step 1 and step 3. It is
+   idempotent, so re-run it if old clients kept writing for a while.
+5. `npm run db:backfill-prs`.
 
 ---
 
@@ -2000,8 +2006,16 @@ until the old build is no longer seen, not just until the new one is deployed.
 
 Tasks 1–2 shipped the *expand* half. `migrateRepRanges` adds and fills `target_reps_min` /
 `target_reps_max` but keeps `target_reps`. The repositories dual-write `target_reps` as the range
-minimum, read with a `target_reps_min ?? target_reps` fallback, and accept a legacy `targetReps`
-payload. This task removes all of that.
+minimum, fall back to `target_reps` on read when both ends are NULL, and accept a legacy `targetReps`
+payload. `backfillRepRanges` (`npm run db:backfill-rep-ranges`) fills rows that only have
+`target_reps`. This task removes all of that.
+
+The release runs in three separate steps, in this order:
+1. **Backfill:** `npm run db:backfill-rep-ranges` against the live database, so no row depends on the
+   read fallback.
+2. **Deploy the fallback-free build** (Step 3 below). It no longer reads or writes `target_reps`.
+3. **Drop migration:** `npm run db:seed` runs `migrateDropTargetReps` (Step 2). It re-runs the same
+   `backfillRepRanges` before dropping, as a safety net for rows written between steps 1 and 2.
 
 **Files:**
 - Create: `server/database/migrations/drop-target-reps.ts`, `tests/server/database/drop-target-reps-migration.test.ts`
@@ -2012,18 +2026,13 @@ and `target_reps_max`. Include rows with min/max set, and rows with only `target
 three tables, as old code would have written them after the expand. Expect:
 - the legacy rows backfilled, with presets widened
 - `target_reps` gone from every table
+- an open-ended range such as (8, NULL) is untouched
 - a re-run is a no-op
 
-**Step 2: Implement `migrateDropTargetReps`.** For each table that still has `target_reps`, run in one `db.migrate`:
-
-```sql
-UPDATE <table> SET target_reps_min = target_reps, target_reps_max = <max>
-  WHERE target_reps_min IS NULL AND target_reps IS NOT NULL
-ALTER TABLE <table> DROP COLUMN target_reps
-```
-
-`<max>` is `presetRepRangeMaxSql('target_reps')` for `preset_split_exercises` and `target_reps` for
-the other two tables.
+**Step 2: Implement `migrateDropTargetReps`.** First `await backfillRepRanges(db)` from
+`server/database/backfill-rep-ranges.ts`, the same function the CLI runs. It only touches rows with
+both ends NULL and `target_reps` set. Then, for each table that still has `target_reps`,
+`db.migrate([ALTER TABLE <table> DROP COLUMN target_reps])`.
 
 **Step 3: Stop the dual-write and drop the fallback.**
 - Remove `target_reps` from every insert and from `repRangeArgs`.
@@ -2044,5 +2053,10 @@ git add server tests
 git commit -m "refactor(db): contract the rep-range migration and drop target_reps"
 ```
 
-**Deploy order:** `npm run db:seed` (runs the drop migration) only *after* the app build without the
-dual-write is live. Otherwise a still-running build that reads `target_reps` breaks.
+**Deploy order:** `npm run db:backfill-rep-ranges` → deploy the fallback-free build →
+`npm run db:seed` (backfill again, then drop). Never run the drop before the fallback-free build is
+live, because a still-running build that reads or writes `target_reps` would break.
+
+Also remove the `db:backfill-rep-ranges` script and `backfill-rep-ranges.ts` in a release after the
+drop, once no database still has `target_reps`. Or keep the function if the drop migration still
+imports it.
