@@ -55,9 +55,9 @@ const formatTarget = (
   targetRepsMax: number | null,
   targetRpe: number | null,
 ) => {
-  if (targetSets === null && targetRepsMin === null && targetRepsMax === null && targetRpe === null) return null;
+  if (targetSets == null && targetRepsMin == null && targetRepsMax == null && targetRpe == null) return null;
   const setsReps = `${targetSets ?? "–"}×${formatRepRange(targetRepsMin, targetRepsMax)}`;
-  return targetRpe === null ? `Target: ${setsReps}` : `Target: ${setsReps} @ RPE ${targetRpe}`;
+  return targetRpe == null ? `Target: ${setsReps}` : `Target: ${setsReps} @ RPE ${targetRpe}`;
 };
 
 // The most recent *other* session for this exercise. History includes the in-progress session
