@@ -307,7 +307,7 @@ watch(logDrawerOpen, (open) => {
 </script>
 
 <template>
-  <main class="mx-auto max-w-xl space-y-6 p-6 pb-24">
+  <main class="mx-auto max-w-xl space-y-6 px-4 pt-6 pb-24 sm:px-6">
     <div class="flex items-center gap-2">
       <UtensilsIcon class="size-5 text-lime" />
       <h1 class="font-heading text-2xl uppercase text-foreground">Nutrition</h1>
@@ -356,7 +356,7 @@ watch(logDrawerOpen, (open) => {
         </div>
         <div v-if="nutrition?.target" class="grid grid-cols-2 gap-4">
           <div v-for="(label, key) in { calories: 'Calories', proteinG: 'Protein', carbsG: 'Carbs', fatG: 'Fat' }" :key="key" class="space-y-1.5">
-            <div class="flex items-baseline justify-between">
+            <div class="flex flex-wrap items-baseline justify-between gap-1">
               <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">{{ label }}</span>
               <UiBadge
                 class="rounded-full bg-popover px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[1px]"
@@ -399,7 +399,7 @@ watch(logDrawerOpen, (open) => {
             </div>
             <div class="min-w-0 flex-1 space-y-1">
               <div class="flex items-center justify-between gap-2">
-                <p class="truncate font-heading text-base text-foreground">{{ meal.name ?? "Meal" }}</p>
+                <p class="min-w-0 truncate font-heading text-base text-foreground">{{ meal.name ?? "Meal" }}</p>
                 <UiBadge class="shrink-0 rounded-full bg-popover px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[1px] text-muted-foreground">
                   {{ meal.items.length }} item{{ meal.items.length === 1 ? '' : 's' }} · {{ Math.round(meal.items.reduce((s, i) => s + i.calories, 0)) }}cal
                 </UiBadge>
@@ -498,35 +498,39 @@ watch(logDrawerOpen, (open) => {
                 <h2 class="font-heading text-base uppercase text-foreground">Build a Meal</h2>
               </div>
 
-              <div class="flex gap-2">
+              <!-- Picker on its own line, quantity + add below: side by side on a phone the
+                   quantity field had no room left for the number once a count unit like
+                   "can (~185g)" was shown, so those ingredients couldn't be added at all. -->
+              <div class="space-y-2">
                 <UiCombobox
                   v-model="draftIngredientId"
                   :items="ingredientOptions"
                   placeholder="Pick an ingredient"
                   search-placeholder="Search ingredients…"
                   empty-text="No ingredients found."
-                  class="flex-1"
                 />
-                <UiMetricInput
-                  v-model="draftQuantity"
-                  :unit="draftIngredient?.unitType === 'count' ? (draftIngredient?.unitLabel ?? 'x') : 'g'"
-                  class="w-28"
-                />
-                <Button
-                  size="lg"
-                  class="shrink-0 rounded-lg"
-                  aria-label="Add ingredient to meal"
-                  :disabled="draftIngredientId === null || !draftQuantity || draftQuantity <= 0"
-                  @click="addDraftItem"
-                >
-                  <PlusIcon class="size-5" />
-                </Button>
+                <div class="flex items-center gap-2">
+                  <UiMetricInput
+                    v-model="draftQuantity"
+                    :unit="draftIngredient?.unitType === 'count' ? (draftIngredient?.unitLabel ?? 'x') : 'g'"
+                    class="flex-1"
+                  />
+                  <Button
+                    size="lg"
+                    class="h-14 shrink-0 rounded-lg"
+                    aria-label="Add ingredient to meal"
+                    :disabled="draftIngredientId === null || !draftQuantity || draftQuantity <= 0"
+                    @click="addDraftItem"
+                  >
+                    <PlusIcon class="size-5" />
+                  </Button>
+                </div>
               </div>
 
               <TransitionGroup tag="div" name="row" class="space-y-2">
                 <div v-for="(item, index) in draftItems" :key="index" class="flex items-center justify-between gap-2 rounded-lg border border-surface-strong bg-popover px-3 py-2">
                   <span class="min-w-0 truncate text-sm text-foreground">
-                    {{ item.quantity }}{{ ingredients?.find((i) => i.id === item.ingredientId)?.unitType === 'weight_100g' ? 'g' : '' }}
+                    {{ item.quantity }}{{ ingredients?.find((i) => i.id === item.ingredientId)?.unitType === 'weight_100g' ? 'g' : ` × ${ingredients?.find((i) => i.id === item.ingredientId)?.unitLabel ?? ''}` }}
                     -- {{ ingredients?.find((i) => i.id === item.ingredientId)?.name }}
                   </span>
                   <button class="shrink-0 rounded-md p-1 transition-transform active:scale-90" aria-label="Remove item" @click="removeDraftItem(index)">
@@ -622,7 +626,7 @@ watch(logDrawerOpen, (open) => {
             <AppleIcon class="size-4.5 text-lime" />
           </div>
           <div class="min-w-0 flex-1 space-y-1">
-            <p class="font-heading text-base text-foreground">{{ ingredient.name }}</p>
+            <p class="break-words font-heading text-base text-foreground">{{ ingredient.name }}</p>
             <div class="flex flex-wrap items-center gap-1.5">
               <span class="font-mono text-[10px] text-muted-foreground">
                 {{ ingredient.calories }}cal / {{ ingredient.unitType === 'weight_100g' ? '100g' : `1 ${ingredient.unitLabel}` }}
@@ -679,7 +683,7 @@ watch(logDrawerOpen, (open) => {
             <BookmarkIcon class="size-4.5 text-cyan-pale" />
           </div>
           <div class="min-w-0 flex-1 space-y-1">
-            <p class="font-heading text-base text-foreground">{{ preset.name }}</p>
+            <p class="break-words font-heading text-base text-foreground">{{ preset.name }}</p>
             <UiBadge class="rounded-full bg-popover px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[1px] text-muted-foreground">
               {{ preset.items.length }} ingredient{{ preset.items.length === 1 ? '' : 's' }}
             </UiBadge>

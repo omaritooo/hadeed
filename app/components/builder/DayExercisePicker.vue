@@ -137,22 +137,14 @@ const onSwapSelect = (exercise: Exercise) => {
 
 <template>
   <div class="flex flex-col gap-y-2">
-    <div v-for="(exercise, index) in exercises" :key="exerciseRowIds[index]" class="flex items-center gap-2">
-      <span class="flex-1 text-sm text-foreground">{{ exerciseName(exercise.exerciseId) }}</span>
-      <Input
-        :model-value="exercise.targetSets ?? ''"
-        type="number"
-        placeholder="sets"
-        class="w-16"
-        @update:model-value="(v) => exercise.targetSets = v === '' ? null : Number(v)"
-      />
-      <Input
-        :model-value="exercise.targetReps ?? ''"
-        type="number"
-        placeholder="reps"
-        class="w-16"
-        @update:model-value="(v) => exercise.targetReps = v === '' ? null : Number(v)"
-      />
+    <!-- Name and actions on the first line, sets × reps on the second: squeezed into one line
+         on a phone, long exercise names wrapped to three lines beside unlabeled boxes. -->
+    <div
+      v-for="(exercise, index) in exercises"
+      :key="exerciseRowIds[index]"
+      class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2 border-b border-surface-strong pb-3"
+    >
+      <span class="min-w-0 text-sm text-foreground">{{ exerciseName(exercise.exerciseId) }}</span>
       <button
         aria-label="Swap exercise"
         :disabled="!!pendingSubstitution || fallbackEquipmentValues.length === 0"
@@ -163,6 +155,26 @@ const onSwapSelect = (exercise: Exercise) => {
         <ArrowLeftRightIcon class="size-4 text-muted-foreground" />
       </button>
       <button aria-label="Remove exercise" @click="removeExercise(index)"><TrashIcon class="size-4 text-muted-foreground" /></button>
+      <div class="col-span-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <Input
+          :model-value="exercise.targetSets ?? ''"
+          type="number"
+          placeholder="sets"
+          aria-label="Target sets"
+          class="h-9 w-16 py-0"
+          @update:model-value="(v) => exercise.targetSets = v === '' ? null : Number(v)"
+        />
+        sets ×
+        <Input
+          :model-value="exercise.targetReps ?? ''"
+          type="number"
+          placeholder="reps"
+          aria-label="Target reps"
+          class="h-9 w-16 py-0"
+          @update:model-value="(v) => exercise.targetReps = v === '' ? null : Number(v)"
+        />
+        reps
+      </div>
     </div>
 
     <Combobox

@@ -276,7 +276,7 @@ const onLogout = async () => {
 </script>
 
 <template>
-  <main class="mx-auto max-w-xl space-y-8 p-8">
+  <main class="mx-auto max-w-xl space-y-8 px-4 py-6 sm:p-8">
     <h1 class="font-heading text-2xl uppercase text-foreground">Profile</h1>
 
     <section class="space-y-3">
@@ -322,10 +322,10 @@ const onLogout = async () => {
         </Button>
         <p v-if="calculateTargetDisabledReason" class="text-xs text-muted-foreground">{{ calculateTargetDisabledReason }}</p>
         <div class="grid grid-cols-2 gap-3">
-          <UiMetricInput v-model="targetCalories" unit="cal" />
-          <UiMetricInput v-model="targetProtein" unit="g protein" />
-          <UiMetricInput v-model="targetCarbs" unit="g carbs" />
-          <UiMetricInput v-model="targetFat" unit="g fat" />
+          <UiMetricInput v-model="targetCalories" label="Calories" unit="cal" />
+          <UiMetricInput v-model="targetProtein" label="Protein" unit="g" />
+          <UiMetricInput v-model="targetCarbs" label="Carbs" unit="g" />
+          <UiMetricInput v-model="targetFat" label="Fat" unit="g" />
         </div>
         <Button variant="secondary" size="sm" :disabled="targetSaving" @click="onSaveTarget">Save target</Button>
       </div>
@@ -356,12 +356,13 @@ const onLogout = async () => {
               </button>
             </div>
           </TransitionGroup>
-          <div class="flex gap-2">
-            <UiInput v-model="newMeasurementKey" placeholder="e.g. waist" class="flex-1" />
-            <UiMetricInput v-model="newMeasurementValueCm" unit="cm" class="w-28" />
+          <!-- Name on its own line on narrow phones; value + add share the next. -->
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 min-[420px]:grid-cols-[minmax(0,1fr)_minmax(0,9rem)_auto]">
+            <UiInput v-model="newMeasurementKey" placeholder="e.g. waist" class="col-span-2 h-14 min-[420px]:col-span-1" />
+            <UiMetricInput v-model="newMeasurementValueCm" unit="cm" />
             <Button
               size="lg"
-              class="shrink-0 rounded-lg"
+              class="h-14 shrink-0 rounded-lg"
               aria-label="Add measurement"
               :disabled="!newMeasurementKey.trim() || !newMeasurementValueCm || newMeasurementValueCm <= 0"
               @click="addDraftMeasurement"
@@ -429,7 +430,7 @@ const onLogout = async () => {
             {{ card.icon }}
           </div>
           <div class="space-y-0.5">
-            <p class="text-sm font-semibold text-foreground">{{ card.name }}</p>
+            <p class="break-words pr-5 text-sm font-semibold text-foreground">{{ card.name }}</p>
             <p class="text-xs leading-4 text-muted-foreground">{{ card.description }}</p>
           </div>
           <div v-if="!card.unlocked && card.progress" class="mt-1 space-y-1">

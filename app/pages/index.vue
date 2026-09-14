@@ -297,7 +297,7 @@ const continueWorkout = async () => {
 
     <div class="flex gap-x-2 font-heading min-h-max h-max">
       <NuxtLink to="/profile" class="contents">
-        <UiCard class="w-1/2 flex flex-col gap-y-1">
+        <UiCard class="flex min-w-0 flex-1 flex-col gap-y-1">
           <span class="flex gap-x-2 items-center flex-row">
             <FlameIcon fill="currentColor" class="text-primary" />
             <h2 class="text-3xl">{{ stats?.streak.current ?? 0 }}</h2></span
@@ -310,10 +310,10 @@ const continueWorkout = async () => {
         </UiCard>
       </NuxtLink>
       <NuxtLink to="/profile" class="contents">
-        <UiCard class="w-1/2 flex flex-col gap-y-4">
+        <UiCard class="flex min-w-0 flex-1 flex-col gap-y-4">
           <span class="flex gap-x-2 items-center flex-row font-heading">
-            <StarIcon fill="currentColor" class="text-primary" />
-            <h2 class="text-3xl">Level {{ stats?.xp.level }}</h2></span
+            <StarIcon fill="currentColor" class="shrink-0 text-primary" />
+            <h2 class="whitespace-nowrap text-2xl min-[400px]:text-3xl">Level {{ stats?.xp.level }}</h2></span
           >
           <UiProgress :model-value="xpProgress" class="h-1.5 bg-muted" />
         </UiCard>
@@ -340,7 +340,7 @@ const continueWorkout = async () => {
     </UiCard>
 
     <article class="flex w-full gap-x-2">
-      <UiCard v-if="profile?.stats" class="space-y-3 w-1/2">
+      <UiCard v-if="profile?.stats" class="min-w-0 flex-1 space-y-3">
         <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
           >Body Metrics</span
         >
@@ -350,7 +350,7 @@ const continueWorkout = async () => {
           {{ Math.round(profile.stats.latestWeightKg ?? 0)
           }}<span class="font-sans text-base font-normal text-muted-foreground">kg</span>
         </p>
-        <div class="flex gap-x-4 font-mono text-xs text-muted-foreground">
+        <div class="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
           <span>BMI {{ profile.stats.bmi.toFixed(1) }}</span>
           <span
             >TDEE {{ profile.stats.tdee ? Math.round(profile.stats.tdee) : "—" }}</span
@@ -388,15 +388,15 @@ const continueWorkout = async () => {
           Log a weigh-in to see your trend
         </p>
       </UiCard>
-      <div class="w-1/2 flex-col flex gap-y-2">
+      <div class="flex min-w-0 flex-1 flex-col gap-y-2">
         <div v-if="weightGoal">
           <div>
             <UiCard class="space-y-2">
-              <span class="flex items-center gap-x-2 font-heading text-xl">
+              <span class="flex items-center gap-x-2 font-heading text-base min-[400px]:text-xl">
                 <component
                   :is="weightGoal.isBulking ? TrendingUpIcon : TrendingDownIcon"
                   :class="weightGoal.isBulking ? 'text-peach' : 'text-accent'"
-                  class="size-5"
+                  class="size-5 shrink-0"
                 />
                 Active Goal: {{ weightGoal.targetValue }}KG
               </span>
@@ -412,7 +412,7 @@ const continueWorkout = async () => {
           </div>
         </div>
         <UiCard v-if="stats?.weeklyProgress" class="space-y-3">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-x-2">
             <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
               >Weekly Vol</span
             >
@@ -430,7 +430,7 @@ const continueWorkout = async () => {
           </p>
         </UiCard>
         <UiCard class="space-y-3">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-x-2">
             <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground"
               >Hydration</span
             >
@@ -468,7 +468,7 @@ const continueWorkout = async () => {
               class="h-1.5 bg-muted"
               indicator-class="bg-cyan-pale"
             />
-            <div class="flex items-center gap-x-1.5">
+            <div class="flex flex-wrap items-center gap-1.5">
               <Button
                 v-for="preset in HYDRATION_PRESETS_ML"
                 :key="preset"
@@ -548,8 +548,9 @@ const continueWorkout = async () => {
           indicator-class="bg-lime"
         />
         <div class="grid grid-cols-3 gap-3">
-          <div v-for="macro in macroBreakdown" :key="macro.key" class="space-y-1">
-            <div class="flex items-baseline justify-between gap-1">
+          <div v-for="macro in macroBreakdown" :key="macro.key" class="min-w-0 space-y-1">
+            <!-- Label over value: side by side, three columns left no room on a phone. -->
+            <div class="flex flex-col">
               <span
                 class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground"
                 >{{ macro.label }}</span
@@ -615,11 +616,11 @@ const continueWorkout = async () => {
           v-for="achievement in stats.recentAchievements.slice(0, 3)"
           :key="achievement.key"
           to="/profile"
-          class="contents"
+          class="min-w-0 flex-1"
         >
-          <UiCard class="flex min-w-0 flex-1 flex-col items-center gap-y-1 text-center">
+          <UiCard class="flex h-full w-full flex-col items-center gap-y-1 px-2 text-center">
             <span class="text-2xl">{{ achievement.icon ?? "🏅" }}</span>
-            <span class="min-w-0 truncate text-xs text-foreground">{{ achievement.name }}</span>
+            <span class="max-w-full truncate text-xs text-foreground">{{ achievement.name }}</span>
           </UiCard>
         </NuxtLink>
       </div>

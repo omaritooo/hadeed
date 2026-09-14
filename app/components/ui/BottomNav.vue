@@ -30,7 +30,7 @@ const items = [
         :to="item.to"
         :class="
           cn(
-            'flex flex-col items-center gap-1 px-4 py-1.5 transition-colors',
+            'flex min-w-0 flex-1 flex-col items-center gap-1 py-1.5 transition-colors',
             route.path === item.to ? 'text-primary' : 'text-muted-foreground'
           )
         "
