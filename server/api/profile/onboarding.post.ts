@@ -6,13 +6,16 @@ import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repos
 import { UserRepository } from '~~/server/repositories/user.repository'
 import { TargetRepository } from '~~/server/repositories/target.repository'
 import { AuthSessionRepository } from '~~/server/repositories/auth-session.repository'
+import { UserLimitationRepository } from '~~/server/repositories/user-limitation.repository'
 import { ProfileService, type CompleteOnboardingInput } from '~~/server/services/profile.service'
+import { isJointArea, JOINT_AREAS } from '~~/shared/lib/joint-areas'
 import { setSessionCookie } from '~~/server/utils/session-cookie'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 
-interface OnboardingRequestBody extends Omit<CompleteOnboardingInput, 'height' | 'weight'> {
+interface OnboardingRequestBody extends Omit<CompleteOnboardingInput, 'height' | 'weight' | 'limitations'> {
   height: number
   weight: number
+  limitations?: unknown
 }
 
 const isUniqueConstraintError = (err: unknown): boolean => {
@@ -46,6 +49,7 @@ defineRouteMeta({
               equipment: { type: 'string', enum: ['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight', 'both'] },
               unitSystem: { type: 'string', enum: ['metric', 'imperial'] },
               timezone: { type: 'string' },
+              limitations: { type: 'array', items: { type: 'string', enum: [...JOINT_AREAS] }, description: 'Joints to go easy on; omit for none' },
             },
           },
         },
@@ -53,7 +57,7 @@ defineRouteMeta({
     },
     responses: {
       200: { description: 'Newly created profile' },
-      400: { description: 'email/password missing, or height/weight not positive numbers' },
+      400: { description: 'email/password missing, height/weight not positive numbers, or limitations not a list of known areas' },
       409: { description: 'An account with this email already exists' },
     },
   },
@@ -73,16 +77,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'An account with this email already exists' })
   }
 
-  const { height, weight, ...rest } = body
+  const { height, weight, limitations, ...rest } = body
   if (!Number.isFinite(height) || height <= 0 || !Number.isFinite(weight) || weight <= 0) {
     throw createError({ statusCode: 400, statusMessage: 'height and weight must be positive numbers' })
+  }
+  // Checked before the users row exists so a bad value can't half-create an account.
+  // ProfileService.setLimitations re-validates; a missing value means none.
+  if (limitations !== undefined && limitations !== null && (!Array.isArray(limitations) || !limitations.every(isJointArea))) {
+    throw createError({ statusCode: 400, statusMessage: 'limitations must be a list of known joint areas' })
   }
 
   const userId = randomUUID()
   const ctx: RequestContext = { userId, roles: [], permissions: [] }
-  const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), users, new TargetRepository(db))
+  const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), users, new TargetRepository(db), new UserLimitationRepository(db))
 
-  const input: CompleteOnboardingInput = { ...rest, height, weight }
+  const input: CompleteOnboardingInput = { ...rest, height, weight, limitations: Array.isArray(limitations) ? limitations : undefined }
   try {
     await service.completeOnboarding(input)
   } catch (err) {

@@ -5,6 +5,7 @@ import { ProfileRepository } from '~~/server/repositories/profile.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import { UserRepository } from '~~/server/repositories/user.repository'
 import { TargetRepository } from '~~/server/repositories/target.repository'
+import { UserLimitationRepository } from '~~/server/repositories/user-limitation.repository'
 import { ProfileService } from '~~/server/services/profile.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import { lbsToKg, round1 } from '~~/shared/lib/formulas'
@@ -17,7 +18,7 @@ describe('ProfileService', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db))
+    service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db), new UserLimitationRepository(db))
   })
 
   it('completes onboarding by saving the profile and the first weight entry', async () => {
@@ -166,7 +167,7 @@ describe('ProfileService', () => {
 
   it('creates the users row itself when the caller has no prior row (no signup flow exists yet)', async () => {
     const freshCtx: RequestContext = { userId: 'brand-new-user', roles: [], permissions: [] }
-    const freshService = new ProfileService(freshCtx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db))
+    const freshService = new ProfileService(freshCtx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db), new UserLimitationRepository(db))
 
     await freshService.completeOnboarding({ password: 'Sup3rSecret!', email: 'brand-new@example.com', displayName: 'Brand New', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
 
@@ -191,5 +192,31 @@ describe('ProfileService', () => {
 
     const userRow = await db.execute({ sql: 'SELECT password_hash FROM users WHERE id = ?', args: ['user-1'] })
     await expect(verifyPassword('FirstPassword!', userRow.rows[0]?.password_hash as string)).resolves.toBe(true)
+  })
+  it('rejects unknown limitation areas with a 400 and stores nothing', async () => {
+    await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
+
+    await expect(service.setLimitations(['knee', 'bogus' as never])).rejects.toMatchObject({ statusCode: 400 })
+    expect((await service.getProfile())?.limitations).toEqual([])
+  })
+
+  it('stores limitations and includes them when reading the profile back', async () => {
+    await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
+
+    expect(await service.setLimitations(['wrist', 'knee', 'knee'])).toEqual(['knee', 'wrist'])
+    expect((await service.getProfile())?.limitations).toEqual(['knee', 'wrist'])
+
+    expect(await service.setLimitations([])).toEqual([])
+    expect((await service.getProfile())?.limitations).toEqual([])
+  })
+
+  it('saves limitations passed to onboarding, and none when they are omitted', async () => {
+    await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75, limitations: ['lower_back'] })
+    expect((await service.getProfile())?.limitations).toEqual(['lower_back'])
+
+    const freshCtx: RequestContext = { userId: 'user-2', roles: [], permissions: [] }
+    const freshService = new ProfileService(freshCtx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db), new UserLimitationRepository(db))
+    await freshService.completeOnboarding({ password: 'Sup3rSecret!', email: 'b@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
+    expect((await freshService.getProfile())?.limitations).toEqual([])
   })
 })

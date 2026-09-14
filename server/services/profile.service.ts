@@ -1,13 +1,16 @@
+import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import type { UserRepository } from '~~/server/repositories/user.repository'
 import type { TargetRepository } from '~~/server/repositories/target.repository'
+import type { UserLimitationRepository } from '~~/server/repositories/user-limitation.repository'
 import { bmi, lbsToKg, round1, tdee } from '~~/shared/lib/formulas'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem } from '~~/shared/types/profile.types'
+import { isJointArea, type JointArea } from '~~/shared/lib/joint-areas'
 import { hashPassword } from '~~/server/utils/password'
 
 export interface CompleteOnboardingInput {
@@ -26,6 +29,7 @@ export interface CompleteOnboardingInput {
   equipment?: Equipment
   unitSystem?: UnitSystem
   timezone?: string
+  limitations?: JointArea[]
 }
 
 const ageFromDob = (dateOfBirth: string): number => {
@@ -41,6 +45,7 @@ export class ProfileService extends BaseService {
     private bodyMetrics: BodyMetricsRepository,
     private users: UserRepository,
     private targets: TargetRepository,
+    private limitations: UserLimitationRepository,
   ) {
     super(ctx)
   }
@@ -96,6 +101,7 @@ export class ProfileService extends BaseService {
         })
       }
     }
+    if (input.limitations?.length) await this.setLimitations(input.limitations)
   }
 
   async updateDisplayName(displayName: string): Promise<void> {
@@ -123,7 +129,18 @@ export class ProfileService extends BaseService {
     if (!profile) return null
     const displayName = await this.users.findDisplayName(this.ctx.userId)
     const targets = await this.targets.findActiveForUser(this.ctx.userId)
-    return { ...profile, displayName, targets }
+    const limitations = await this.limitations.findForUser(this.ctx.userId)
+    return { ...profile, displayName, targets, limitations }
+  }
+
+  // Replaces the user's whole limitation set; duplicates collapse, unknown areas are a 400.
+  async setLimitations(areas: unknown[]): Promise<JointArea[]> {
+    if (!Array.isArray(areas) || !areas.every(isJointArea)) {
+      throw createError({ statusCode: 400, statusMessage: 'Unknown limitation area' })
+    }
+    const unique = [...new Set(areas)]
+    await this.limitations.replace(this.ctx.userId, unique)
+    return this.limitations.findForUser(this.ctx.userId)
   }
 
   async getComputedStats(): Promise<{ bmi: number, tdee: number | null, latestWeightKg: number } | null> {

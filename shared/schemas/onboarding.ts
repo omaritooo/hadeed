@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { JOINT_AREAS } from '~~/shared/lib/joint-areas'
 
 const baseOnboardingSchema = z.object({
   fullName: z.string().min(1, 'Full name is required.'),
@@ -25,6 +26,10 @@ const baseOnboardingSchema = z.object({
   equipment: z.enum(['full_gym', 'home_barbell_dumbbell', 'home_dumbbell_only', 'bodyweight']),
   frequency: z.number().min(1).max(6),
   targetWeight: z.number().min(30).optional(),
+  // Joints to go easy on; missing means none. Optional rather than .default([])
+  // because z.infer is the output type, and a default would make it required in
+  // every step form's initial values.
+  limitations: z.array(z.enum(JOINT_AREAS)).optional(),
 })
 
 export const onboardingSchema = baseOnboardingSchema.refine(
@@ -39,5 +44,5 @@ export const stepSchemas = {
   2: baseOnboardingSchema.pick({experienceLevel: true, activityLevel: true}),
   3: baseOnboardingSchema.pick({primaryGoal: true}),
   4: baseOnboardingSchema.pick({ weight: true, height: true, targetWeight: true }),
-  5: baseOnboardingSchema.pick({equipment: true, frequency: true})
+  5: baseOnboardingSchema.pick({ equipment: true, frequency: true, limitations: true })
 } as const
