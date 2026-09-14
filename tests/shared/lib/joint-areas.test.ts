@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { conflictingAreas, isJointArea } from '~~/shared/lib/joint-areas'
+import { conflictingAreas, isJointArea, isJointAreaList } from '~~/shared/lib/joint-areas'
 
 describe('isJointArea', () => {
   it('accepts known areas and rejects everything else', () => {
@@ -7,6 +7,20 @@ describe('isJointArea', () => {
     expect(isJointArea('hip')).toBe(false)
     expect(isJointArea(42)).toBe(false)
     expect(isJointArea(null)).toBe(false)
+  })
+})
+
+describe('isJointAreaList', () => {
+  it('accepts arrays of known areas, including an empty one', () => {
+    expect(isJointAreaList(['knee', 'wrist'])).toBe(true)
+    expect(isJointAreaList([])).toBe(true)
+  })
+
+  it('rejects non-arrays and arrays with any unknown area', () => {
+    expect(isJointAreaList(['knee', 'hip'])).toBe(false)
+    expect(isJointAreaList('knee')).toBe(false)
+    expect(isJointAreaList(null)).toBe(false)
+    expect(isJointAreaList(undefined)).toBe(false)
   })
 })
 

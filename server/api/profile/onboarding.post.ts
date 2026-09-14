@@ -8,7 +8,7 @@ import { TargetRepository } from '~~/server/repositories/target.repository'
 import { AuthSessionRepository } from '~~/server/repositories/auth-session.repository'
 import { UserLimitationRepository } from '~~/server/repositories/user-limitation.repository'
 import { ProfileService, type CompleteOnboardingInput } from '~~/server/services/profile.service'
-import { isJointArea, JOINT_AREAS } from '~~/shared/lib/joint-areas'
+import { isJointAreaList, JOINT_AREAS } from '~~/shared/lib/joint-areas'
 import { setSessionCookie } from '~~/server/utils/session-cookie'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 
@@ -83,15 +83,15 @@ export default defineEventHandler(async (event) => {
   }
   // Checked before the users row exists so a bad value can't half-create an account.
   // ProfileService.setLimitations re-validates; a missing value means none.
-  if (limitations !== undefined && limitations !== null && (!Array.isArray(limitations) || !limitations.every(isJointArea))) {
-    throw createError({ statusCode: 400, statusMessage: 'limitations must be a list of known joint areas' })
+  if (limitations !== undefined && limitations !== null && !isJointAreaList(limitations)) {
+    throw createError({ statusCode: 400, statusMessage: 'limitations must be a list of: ' + JOINT_AREAS.join(', ') })
   }
 
   const userId = randomUUID()
   const ctx: RequestContext = { userId, roles: [], permissions: [] }
   const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), users, new TargetRepository(db), new UserLimitationRepository(db))
 
-  const input: CompleteOnboardingInput = { ...rest, height, weight, limitations: Array.isArray(limitations) ? limitations : undefined }
+  const input: CompleteOnboardingInput = { ...rest, height, weight, limitations: isJointAreaList(limitations) ? limitations : undefined }
   try {
     await service.completeOnboarding(input)
   } catch (err) {

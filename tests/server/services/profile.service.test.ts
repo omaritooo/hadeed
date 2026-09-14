@@ -193,11 +193,13 @@ describe('ProfileService', () => {
     const userRow = await db.execute({ sql: 'SELECT password_hash FROM users WHERE id = ?', args: ['user-1'] })
     await expect(verifyPassword('FirstPassword!', userRow.rows[0]?.password_hash as string)).resolves.toBe(true)
   })
-  it('rejects unknown limitation areas with a 400 and stores nothing', async () => {
-    await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
 
-    await expect(service.setLimitations(['knee', 'bogus' as never])).rejects.toMatchObject({ statusCode: 400 })
-    expect((await service.getProfile())?.limitations).toEqual([])
+  it('rejects unknown limitation areas with a 400 and leaves the stored set unchanged', async () => {
+    await service.completeOnboarding({ password: 'Sup3rSecret!', email: 'a@example.com', dateOfBirth: '1995-06-15', gender: 'male', height: 178, weight: 75 })
+    await service.setLimitations(['knee'])
+
+    await expect(service.setLimitations(['shoulder', 'bogus' as never])).rejects.toMatchObject({ statusCode: 400 })
+    expect((await service.getProfile())?.limitations).toEqual(['knee'])
   })
 
   it('stores limitations and includes them when reading the profile back', async () => {

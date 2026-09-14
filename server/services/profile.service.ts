@@ -10,7 +10,7 @@ import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActivityLevel, Gender } from '~~/shared/lib/formulas'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal, UnitSystem } from '~~/shared/types/profile.types'
-import { isJointArea, type JointArea } from '~~/shared/lib/joint-areas'
+import { isJointAreaList, JOINT_AREAS, type JointArea } from '~~/shared/lib/joint-areas'
 import { hashPassword } from '~~/server/utils/password'
 
 export interface CompleteOnboardingInput {
@@ -134,9 +134,9 @@ export class ProfileService extends BaseService {
   }
 
   // Replaces the user's whole limitation set; duplicates collapse, unknown areas are a 400.
-  async setLimitations(areas: unknown[]): Promise<JointArea[]> {
-    if (!Array.isArray(areas) || !areas.every(isJointArea)) {
-      throw createError({ statusCode: 400, statusMessage: 'Unknown limitation area' })
+  async setLimitations(areas: unknown): Promise<JointArea[]> {
+    if (!isJointAreaList(areas)) {
+      throw createError({ statusCode: 400, statusMessage: 'limitations must be a list of: ' + JOINT_AREAS.join(', ') })
     }
     const unique = [...new Set(areas)]
     await this.limitations.replace(this.ctx.userId, unique)

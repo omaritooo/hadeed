@@ -1,4 +1,4 @@
-import { createError, readBody } from 'h3'
+import { readBody } from 'h3'
 import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
@@ -40,13 +40,9 @@ defineRouteMeta({
 export default defineEventHandler(async (event) => {
   const ctx = await getRequestContext(event)
   const body = (await readBody(event) ?? {}) as LimitationsRequestBody
-  const areas = body.limitations ?? []
-
-  if (!Array.isArray(areas)) {
-    throw createError({ statusCode: 400, statusMessage: 'limitations must be a list of: ' + JOINT_AREAS.join(', ') })
-  }
 
   const db = useDb()
   const service = new ProfileService(ctx, new ProfileRepository(db), new BodyMetricsRepository(db), new UserRepository(db), new TargetRepository(db), new UserLimitationRepository(db))
-  return { limitations: await service.setLimitations(areas) }
+  // setLimitations rejects anything that isn't a list of known areas with a 400.
+  return { limitations: await service.setLimitations(body.limitations ?? []) }
 })

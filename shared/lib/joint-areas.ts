@@ -13,6 +13,9 @@ export const JOINT_AREA_LABELS: Record<JointArea, string> = {
 export const isJointArea = (value: unknown): value is JointArea =>
   typeof value === 'string' && (JOINT_AREAS as readonly string[]).includes(value)
 
+export const isJointAreaList = (value: unknown): value is JointArea[] =>
+  Array.isArray(value) && value.every(isJointArea)
+
 // Areas of this exercise that the user has flagged, in canonical order.
 export const conflictingAreas = (stressors: readonly JointArea[], limitations: readonly JointArea[]): JointArea[] =>
   JOINT_AREAS.filter(area => stressors.includes(area) && limitations.includes(area))

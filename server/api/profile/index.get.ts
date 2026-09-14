@@ -10,7 +10,7 @@ import { ProfileService } from '~~/server/services/profile.service'
 defineRouteMeta({
   openAPI: {
     summary: 'Get current user profile',
-    description: 'Returns the profile plus computed stats (e.g. targets) for the authenticated user.',
+    description: 'Returns the profile (including displayName, targets and limitations) plus computed stats (bmi, tdee, latestWeightKg).',
     responses: {
       200: { description: 'Profile and computed stats' },
     },
