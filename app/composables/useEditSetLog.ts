@@ -23,7 +23,7 @@ export const useEditSetLog = () => {
     }),
     // Corrected weight/reps also feed volumeKgInRange's weekly sum on home, even though
     // (unlike useLogSet) an edit never re-triggers PR/XP gamification.
-    onSuccess: (_result, { sessionId }) => Promise.all([
+    onSuccess: (_result, { sessionId }) => Promise.allSettled([
       queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
       queryCache.invalidateQueries({ key: queryKeys.home() }),
     ]),

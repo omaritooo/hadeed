@@ -24,7 +24,7 @@ export const useLogSet = () => {
     // A logged set changes this session's log, the workouts summary, and — since
     // volumeKgInRange sums all sessions this week (in-progress included) and a PR
     // can award XP/streak credit synchronously — home's weekly volume and XP bar too.
-    onSuccess: (_result, { sessionId }) => Promise.all([
+    onSuccess: (_result, { sessionId }) => Promise.allSettled([
       queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
       queryCache.invalidateQueries({ key: queryKeys.workouts() }),
       queryCache.invalidateQueries({ key: queryKeys.home() }),

@@ -15,7 +15,7 @@ export const useDeleteSetLog = () => {
       method: 'DELETE',
     }),
     // A deleted set also affects volumeKgInRange's weekly sum on home.
-    onSuccess: (_result, { sessionId }) => Promise.all([
+    onSuccess: (_result, { sessionId }) => Promise.allSettled([
       queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
       queryCache.invalidateQueries({ key: queryKeys.home() }),
     ]),

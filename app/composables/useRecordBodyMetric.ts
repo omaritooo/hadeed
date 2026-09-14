@@ -16,7 +16,7 @@ export const useRecordBodyMetric = () => {
     // sparkline, and the recent-entries list rendered by useBodyMetrics.
     onSuccess: () => {
       queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
-      return Promise.all([
+      return Promise.allSettled([
         queryCache.invalidateQueries({ key: queryKeys.profile() }),
         queryCache.invalidateQueries({ key: queryKeys.home() }),
         queryCache.invalidateQueries({ key: queryKeys.bodyMetrics() }),

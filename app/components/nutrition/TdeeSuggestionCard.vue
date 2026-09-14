@@ -31,7 +31,7 @@ const currentTargetLabel = computed(() => {
 
 const busy = computed(() => setTarget.isLoading.value || dismiss.isLoading.value);
 
-// Hide the card as soon as an accept succeeds. The estimate refetch after setting a target is
+// Hide the card as soon as the user accepts (it comes back with the error line if the save fails). The estimate refetch after setting a target is
 // fire-and-forget, so without this the stale suggestion stays on screen for a moment and a tap
 // on "Not now" in that window would silently snooze future suggestions for two weeks. Holds the
 // accepted calories so a later, genuinely different suggestion can bring the card back.
@@ -43,11 +43,14 @@ watch(() => ready.value?.suggestedTarget.calories, (calories) => {
 const accept = async () => {
   if (!ready.value) return;
   const { suggestedTarget } = ready.value;
+  // Set before awaiting: an estimate refetch that lands mid-request with a different suggestion
+  // must be able to see (and clear) this value, rather than being overwritten by it afterwards.
+  acceptedCalories.value = suggestedTarget.calories;
   try {
     await setTarget.mutateAsync(suggestedTarget);
-    acceptedCalories.value = suggestedTarget.calories;
   } catch {
-    // Swallow: the error line below the buttons tells the user, and the card stays up to retry.
+    // The card reappears with the error line below the buttons so the user can retry.
+    acceptedCalories.value = null;
   }
 };
 </script>
