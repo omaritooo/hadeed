@@ -15,7 +15,7 @@ const EQUIPMENT_OPTIONS: Equipment[] = ['full_gym', 'home_barbell_dumbbell', 'ho
 defineRouteMeta({
   openAPI: {
     summary: 'Recommend preset splits',
-    description: 'Scores and ranks published preset splits against the given training profile.',
+    description: 'Scores and ranks published preset splits against the given training profile. Presets whose tier-1 exercises load the user\'s saved joint limitations are softly penalised.',
     parameters: [
       {
         name: 'daysPerWeek',

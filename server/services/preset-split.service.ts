@@ -5,6 +5,12 @@ import type { PresetSplit, RecommendationInput, SplitRecommendation } from '~~/s
 import { equipmentSatisfies } from '~~/shared/lib/equipment'
 import { JOINT_AREA_LABELS } from '~~/shared/lib/joint-areas'
 
+// The cap keeps this a soft re-rank: a squat/deadlift-heavy preset shouldn't sink below a poor
+// frequency match just because it has several main lifts that load a limited joint.
+const MAX_LIMITATION_PENALTY = 2
+
+const areaList = new Intl.ListFormat('en', { type: 'conjunction' })
+
 const frequencyScore = (daysPerWeek: number, min: number, max: number): number => {
   if (daysPerWeek >= min && daysPerWeek <= max) return 3
   const distance = daysPerWeek < min ? min - daysPerWeek : daysPerWeek - max
@@ -55,10 +61,10 @@ export class PresetSplitService extends BaseService {
         if (!conflict) return { preset, score, reasons }
         // A soft penalty only: the frequency filter below ignores it, so a conflict re-ranks a
         // preset but never hides it.
-        const areaLabel = conflict.areas.map(area => JOINT_AREA_LABELS[area].toLowerCase()).join(' and ')
+        const areaLabel = areaList.format(conflict.areas.map(area => JOINT_AREA_LABELS[area].toLowerCase()))
         return {
           preset,
-          score: score - conflict.count,
+          score: score - Math.min(conflict.count, MAX_LIMITATION_PENALTY),
           reasons: [...reasons, `${conflict.count} exercise${conflict.count === 1 ? ' loads' : 's load'} your ${areaLabel}`],
         }
       })

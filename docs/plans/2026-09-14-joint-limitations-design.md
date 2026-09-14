@@ -98,8 +98,9 @@ existing word-boundary `nameHas`:
 - `GET /api/exercises/:id/alternatives` and `/fallbacks` accept `avoid=shoulder,knee`;
   results order non-flagged first, then by the existing tier distance.
 - `PresetSplitService.scorePreset` subtracts 1 per tier-1 exercise that conflicts with a
-  limitation, adding a reason ("3 exercises load your shoulder"). A soft signal, not a
-  filter.
+  limitation, capped at 2 (`MAX_LIMITATION_PENALTY`), adding a reason that reports the true
+  count ("3 exercises load your shoulder"). A soft signal, not a filter: the cap keeps a
+  squat/deadlift-heavy preset from sinking below a poor frequency match.
 
 Flagging in the UI is the client-side intersection of `exercise.stressors` and
 `profile.limitations`.
