@@ -23,6 +23,12 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
   from the profile, and a macro target is suggested from TDEE and goal: a ~17.5% deficit
   for fat loss, a ~12.5% surplus for muscle gain, TDEE itself otherwise, split 30/40/30
   protein/carbs/fat.
+- **Adaptive TDEE**: once there are 10+ full days of logged meals and weigh-ins on 4+ days
+  spanning 10+ days, maintenance is estimated from real data. That is average intake minus
+  the least-squares weight trend × 7,700 kcal/kg, over the 28 finished days before today.
+  With thin data it is blended toward the formula TDEE and bounded. When the implied target
+  differs from the current one by 150+ cal, the Nutrition tab offers a one-tap update, which
+  can be snoozed for 14 days.
 - **Metric and imperial** — a `unitSystem` preference on the profile; cm/kg and in/lbs are
   converted at the API boundary, and stored canonically in metric.
 - **Editable preferences** — goal, experience level, equipment tier, display name,
