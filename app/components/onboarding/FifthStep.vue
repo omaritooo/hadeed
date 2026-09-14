@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ActivityIcon, ShieldAlertIcon } from "@lucide/vue";
 import { equipmentOptions } from "@/lib/onboarding-options";
 import { useOnboardingStore } from "~/store/onboarding";
 import { stepSchemas } from "~~/shared/schemas/onboarding";
@@ -7,6 +8,8 @@ const store = useOnboardingStore();
 const { form, errors, validateAll } = useZodForm(stepSchemas[5], {
   frequency: store.form.frequency ?? 2,
   equipment: store.form.equipment ?? "full_gym",
+  // Copied: store.form is reactive, and useZodForm structuredClones its initial values, which throws on a proxy.
+  limitations: [...(store.form.limitations ?? [])],
 });
 
 defineExpose({
@@ -33,5 +36,15 @@ defineExpose({
         :options="equipmentOptions"
       />
     </UiFieldFormField>
+    <h2
+      class="flex gap-x-2 mt-4 pt-4 items-center font-mono text-muted-foreground text-2xl"
+    >
+      <ShieldAlertIcon aria-hidden="true" /> Anything to work around?
+    </h2>
+    <p class="mb-3 text-sm text-muted-foreground">Optional. Skip if nothing bothers you.</p>
+    <ProfileLimitationChips
+      :model-value="form.limitations ?? []"
+      @update:model-value="(value) => form.limitations = value"
+    />
   </div>
 </template>

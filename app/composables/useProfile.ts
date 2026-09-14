@@ -1,9 +1,10 @@
 import type { FetchError } from "ofetch";
 import type { UserProfile, UserTarget } from "~~/shared/types/profile.types";
+import type { JointArea } from "~~/shared/lib/joint-areas";
 import { useQuery } from "@pinia/colada";
 
 export interface ProfileResponse {
-  profile: (UserProfile & { targets: UserTarget[] }) | null;
+  profile: (UserProfile & { targets: UserTarget[]; limitations: JointArea[] }) | null;
   stats: { bmi: number; tdee: number | null; latestWeightKg: number | null } | null;
 }
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { BellIcon, CalculatorIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, PlusIcon, ScaleIcon, TrashIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
+import { BellIcon, CalculatorIcon, DumbbellIcon, FlameIcon, LockIcon, LogOutIcon, PlusIcon, ScaleIcon, ShieldAlertIcon, TrashIcon, TrendingUpIcon, TrophyIcon, UtensilsIcon, WeightIcon } from "@lucide/vue";
 import type { Component } from "vue";
 import type { Equipment } from "~~/shared/types/preset.types";
 import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
 import type { ExperienceLevel, Goal, UnitSystem } from "~~/shared/types/profile.types";
+import type { JointArea } from "~~/shared/lib/joint-areas";
 import { suggestNutritionTarget } from "~~/shared/lib/nutrition-targets";
 import { describeTdeeEstimateForProfile, describeTdeeMissing } from "~~/shared/lib/tdee-estimate-copy";
 import { Button } from "@/components/ui/button";
@@ -252,6 +253,7 @@ const selectedEquipment = ref<Equipment>("full_gym");
 const selectedGoal = ref<Goal>("muscle_gain");
 const selectedExperience = ref<ExperienceLevel>("beginner");
 const selectedUnitSystem = ref<UnitSystem>("metric");
+const limitationsDraft = ref<JointArea[]>([]);
 let seededPreferencesFromProfile = false;
 watch(profileData, (data) => {
   if (seededPreferencesFromProfile || !data?.profile) return;
@@ -259,6 +261,8 @@ watch(profileData, (data) => {
   if (data.profile.primaryGoal) selectedGoal.value = data.profile.primaryGoal;
   if (data.profile.experienceLevel) selectedExperience.value = data.profile.experienceLevel;
   selectedUnitSystem.value = data.profile.unitSystem;
+  // `?? []`: a profile cached from before limitations existed has no such field.
+  limitationsDraft.value = [...(data.profile.limitations ?? [])];
   seededPreferencesFromProfile = true;
 }, { immediate: true });
 
@@ -274,6 +278,21 @@ const onSavePreferences = async () => {
     });
   } catch {
     // Swallow: on failure the fields stay as the user left them.
+  }
+};
+
+const { mutateAsync: saveLimitations, isLoading: savingLimitations, error: limitationsError } = useSetLimitations();
+const savedLimitations = computed(() => profileData.value?.profile?.limitations ?? []);
+const limitationsChanged = computed(() =>
+  limitationsDraft.value.length !== savedLimitations.value.length
+  || limitationsDraft.value.some(area => !savedLimitations.value.includes(area)),
+);
+
+const onSaveLimitations = async () => {
+  try {
+    await saveLimitations(limitationsDraft.value);
+  } catch {
+    // Swallow: the error line below shows, and the chips stay as the user left them.
   }
 };
 
@@ -492,6 +511,28 @@ const onLogout = async () => {
           @click="onSavePreferences"
         >
           Save Preferences
+        </Button>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center gap-2">
+        <ShieldAlertIcon class="size-4.5 text-amber-500" aria-hidden="true" />
+        <h2 class="font-heading text-lg uppercase text-foreground">Limitations</h2>
+      </div>
+      <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-4">
+        <p class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Go easy on</p>
+        <ProfileLimitationChips v-model="limitationsDraft" />
+        <p v-if="limitationsError" class="text-xs text-destructive">
+          {{ limitationsError.data?.statusMessage ?? "Couldn't save your limitations. Please try again." }}
+        </p>
+        <Button
+          size="lg"
+          class="w-full rounded-full uppercase"
+          :disabled="savingLimitations || !limitationsChanged"
+          @click="onSaveLimitations"
+        >
+          Save Limitations
         </Button>
       </div>
     </section>

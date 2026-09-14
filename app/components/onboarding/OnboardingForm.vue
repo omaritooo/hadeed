@@ -177,6 +177,7 @@ const handleContinue = async () => {
         primaryGoal: data.primaryGoal,
         trainingDaysPerWeek: data.frequency,
         equipment: data.equipment,
+        limitations: data.limitations ?? [],
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
       draftPersistenceEnabled = false;
