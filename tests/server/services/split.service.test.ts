@@ -85,7 +85,7 @@ describe('SplitService.createFromPreset', () => {
       goal: 'muscle_gain', experienceLevel: 'intermediate', equipment: 'full_gym', isPublished: true,
       days: [{
         name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [],
-        exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 }],
+        exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8 }],
       }],
     })
     const presetWithDays = await presets.findWithDays(preset.id)
@@ -98,9 +98,9 @@ describe('SplitService.createFromPreset', () => {
     expect(cloned?.days[0]?.exercises[0]?.exerciseId).toBe('bench-press')
     expect(cloned?.userId).toBe('user-1')
 
-    await db.execute({ sql: 'UPDATE preset_split_exercises SET target_reps = 999 WHERE preset_split_day_id = (SELECT id FROM preset_split_days WHERE preset_split_id = ?)', args: [preset.id] })
+    await db.execute({ sql: 'UPDATE preset_split_exercises SET target_reps_min = 999, target_reps_max = 999 WHERE preset_split_day_id = (SELECT id FROM preset_split_days WHERE preset_split_id = ?)', args: [preset.id] })
     const stillCloned = await splitService.getOwnedBlock(block.id)
-    expect(stillCloned?.days[0]?.exercises[0]?.targetReps).toBe(8)
+    expect(stillCloned?.days[0]?.exercises[0]?.targetRepsMin).toBe(8)
   })
 
   it('carries circuit format, rounds, and rest_seconds over from the preset', async () => {
@@ -110,7 +110,7 @@ describe('SplitService.createFromPreset', () => {
       days: [{
         name: 'Circuit A', dayIndex: 0, location: 'home', targetMuscleIds: [],
         format: 'circuit', rounds: 4,
-        exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8, restSeconds: 20 }],
+        exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8, restSeconds: 20 }],
       }],
     })
     const presetWithDays = await presets.findWithDays(preset.id)
@@ -140,8 +140,8 @@ describe('SplitService.createFromPreset', () => {
       days: [{
         name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [],
         exercises: [
-          { exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 },
-          { exerciseId: 'squat', position: 1, targetSets: 3, targetReps: 10, targetRpe: 7 },
+          { exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8 },
+          { exerciseId: 'squat', position: 1, targetSets: 3, targetRepsMin: 10, targetRepsMax: 10, targetRpe: 7 },
         ],
       }],
     })

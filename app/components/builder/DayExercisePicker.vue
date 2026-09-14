@@ -54,7 +54,7 @@ const topFallback = computed(() => fallbackResults.value?.[0] ?? null);
 const addExercise = (exerciseId: string, label: string, exercise?: Exercise) => {
   exercises.value = [
     ...exercises.value,
-    { exerciseId, position: exercises.value.length, setType: "weight_reps", targetSets: 3, targetReps: 10, targetRpe: null },
+    { exerciseId, position: exercises.value.length, setType: "weight_reps", targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
   ];
   exerciseRowIds.value = [...exerciseRowIds.value, crypto.randomUUID()];
   exerciseNames.value[exerciseId] = label;
@@ -129,10 +129,17 @@ const openSwapSheet = (index: number) => {
   swapSheetOpen.value = true;
 };
 
+// One reps box for now: it writes a zero-width range until the builder gets a min–max pair.
+const setTargetReps = (exercise: CreateSplitExerciseInput, value: string | number) => {
+  const reps = value === "" ? null : Number(value);
+  exercise.targetRepsMin = reps;
+  exercise.targetRepsMax = reps;
+};
+
 const onSwapSelect = (exercise: Exercise) => {
   const index = swapRowIndex.value;
   if (index === null) return;
-  // Replace exerciseId in place — targetSets/targetReps/position on the row are untouched.
+  // Replace exerciseId in place — targetSets/targetRepsMin/targetRepsMax/position on the row are untouched.
   exercises.value = exercises.value.map((item, i) => (i === index ? { ...item, exerciseId: exercise.id } : item));
   exerciseNames.value[exercise.id] = exercise.name;
   exerciseCatalogCache.value.set(exercise.id, exercise);
@@ -174,12 +181,12 @@ const onSwapSelect = (exercise: Exercise) => {
         />
         sets ×
         <Input
-          :model-value="exercise.targetReps ?? ''"
+          :model-value="exercise.targetRepsMin ?? ''"
           type="number"
           placeholder="reps"
           aria-label="Target reps"
           class="h-9 w-16 py-0"
-          @update:model-value="(v) => exercise.targetReps = v === '' ? null : Number(v)"
+          @update:model-value="(v) => setTargetReps(exercise, v)"
         />
         reps
       </div>

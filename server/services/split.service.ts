@@ -68,7 +68,8 @@ export class SplitService extends BaseService {
             position: ex.position,
             setType: 'weight_reps' as const,
             targetSets: ex.targetSets,
-            targetReps: ex.targetReps,
+            targetRepsMin: ex.targetRepsMin,
+            targetRepsMax: ex.targetRepsMax,
             targetRpe: ex.targetRpe,
             restSeconds: ex.restSeconds,
           }

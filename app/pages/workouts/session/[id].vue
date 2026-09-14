@@ -49,9 +49,14 @@ watch(
   { immediate: true },
 );
 
-const formatTarget = (targetSets: number | null, targetReps: number | null, targetRpe: number | null) => {
-  if (targetSets === null && targetReps === null && targetRpe === null) return null;
-  const setsReps = `${targetSets ?? "–"}×${targetReps ?? "–"}`;
+const formatTarget = (
+  targetSets: number | null,
+  targetRepsMin: number | null,
+  targetRepsMax: number | null,
+  targetRpe: number | null,
+) => {
+  if (targetSets === null && targetRepsMin === null && targetRepsMax === null && targetRpe === null) return null;
+  const setsReps = `${targetSets ?? "–"}×${formatRepRange(targetRepsMin, targetRepsMax)}`;
   return targetRpe === null ? `Target: ${setsReps}` : `Target: ${setsReps} @ RPE ${targetRpe}`;
 };
 
@@ -134,7 +139,7 @@ const stressorsByExerciseId = computed(() => new Map((sessionExerciseDetails.val
 const exerciseDisplayInfo = computed(() => {
   return (session.value?.exercises ?? []).map(exercise => ({
     ...exercise,
-    targetLabel: formatTarget(exercise.targetSets, exercise.targetReps, exercise.targetRpe),
+    targetLabel: formatTarget(exercise.targetSets, exercise.targetRepsMin, exercise.targetRepsMax, exercise.targetRpe),
     lastPerformanceLabel: formatLastPerformance(exercise.exerciseId),
     nextSetHint: nextSetHint(exercise),
     setsProgressLabel: formatSetsProgress(exercise.sets.length, exercise.targetSets),

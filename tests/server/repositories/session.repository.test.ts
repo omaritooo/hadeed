@@ -18,8 +18,8 @@ async function seedUserAndBlock(db: Client) {
     sql: `INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`,
   })
   await db.execute({
-    sql: `INSERT INTO split_exercises (id, split_day_id, exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-          VALUES (1, 1, 'bench-press', 0, 'weight_reps', 3, 8, 7)`,
+    sql: `INSERT INTO split_exercises (id, split_day_id, exercise_id, position, set_type, target_sets, target_reps_min, target_reps_max, target_rpe)
+          VALUES (1, 1, 'bench-press', 0, 'weight_reps', 3, 8, 8, 7)`,
   })
 }
 
@@ -44,7 +44,8 @@ describe('SessionRepository.startSession', () => {
         position: 0,
         setType: 'weight_reps',
         targetSets: 3,
-        targetReps: 8,
+        targetRepsMin: 8,
+        targetRepsMax: 8,
         targetRpe: 7,
       }],
     })
@@ -86,7 +87,8 @@ describe('SessionRepository.startSession', () => {
         position: 0,
         setType: 'weight_reps',
         targetSets: 3,
-        targetReps: 8,
+        targetRepsMin: 8,
+        targetRepsMax: 8,
         targetRpe: 7,
       }],
     })
@@ -118,7 +120,8 @@ describe('SessionRepository logging', () => {
         position: 0,
         setType: 'weight_reps',
         targetSets: 3,
-        targetReps: 8,
+        targetRepsMin: 8,
+        targetRepsMax: 8,
         targetRpe: 7,
       }],
     })
@@ -166,12 +169,12 @@ describe('SessionRepository idempotent replay', () => {
     const first = await repo.startSession('user-1', {
       id: 'session-1',
       splitDayId: 1,
-      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 7 }],
     })
     const replay = await repo.startSession('user-1', {
       id: 'session-1',
       splitDayId: 1,
-      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 7 }],
     })
 
     expect(replay.id).toBe(first.id)
@@ -277,7 +280,7 @@ describe('SessionRepository idempotent replay', () => {
     await repo.startSession('user-1', {
       id: 'session-1',
       splitDayId: null,
-      exercises: [{ id: 'exlog-injected', exerciseId: 'plank', splitExerciseId: null, position: 1, setType: 'time', targetSets: null, targetReps: null, targetRpe: null }],
+      exercises: [{ id: 'exlog-injected', exerciseId: 'plank', splitExerciseId: null, position: 1, setType: 'time', targetSets: null, targetRepsMin: null, targetRepsMax: null, targetRpe: null }],
     })
 
     const withLogs = await repo.findWithLogs('session-1')
@@ -288,7 +291,7 @@ describe('SessionRepository idempotent replay', () => {
     const call = () => repo.startSession('user-1', {
       id: 'race-session',
       splitDayId: 1,
-      exercises: [{ id: 'race-exlog', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+      exercises: [{ id: 'race-exlog', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 7 }],
     })
 
     const [first, second] = await Promise.all([call(), call()])

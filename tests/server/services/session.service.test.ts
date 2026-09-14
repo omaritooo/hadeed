@@ -77,14 +77,14 @@ describe('SessionService', () => {
     const day = await db.execute({ sql: 'SELECT id FROM split_days LIMIT 1' })
     const splitDayId = day.rows[0]!.id as number
     await db.execute({
-      sql: `INSERT INTO split_exercises (id, split_day_id, exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-            VALUES (1, ?, 'bench-press', 0, 'weight_reps', 3, 8, 7)`,
+      sql: `INSERT INTO split_exercises (id, split_day_id, exercise_id, position, set_type, target_sets, target_reps_min, target_reps_max, target_rpe)
+            VALUES (1, ?, 'bench-press', 0, 'weight_reps', 3, 8, 8, 7)`,
       args: [splitDayId],
     })
     await sessions.startSession('user-1', {
       id: 'session-1',
       splitDayId,
-      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 8, targetRpe: 7 }],
+      exercises: [{ id: 'exlog-1', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 7 }],
     })
     await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
 

@@ -24,7 +24,8 @@ export interface ExerciseLog {
   position: number
   setType: SetType
   targetSets: number | null
-  targetReps: number | null
+  targetRepsMin: number | null
+  targetRepsMax: number | null
   targetRpe: number | null
   restSeconds: number | null
 }

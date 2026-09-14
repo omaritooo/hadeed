@@ -62,7 +62,8 @@ const startWorkout = async () => {
         position: exercise.position,
         setType: exercise.setType,
         targetSets: exercise.targetSets,
-        targetReps: exercise.targetReps,
+        targetRepsMin: exercise.targetRepsMin,
+        targetRepsMax: exercise.targetRepsMax,
         targetRpe: exercise.targetRpe,
         restSeconds: exercise.restSeconds,
       })),
@@ -127,7 +128,7 @@ const resumeWorkout = async () => {
               </UiBadge>
             </div>
             <p class="text-xs text-muted-foreground">
-              <span v-if="exercise.targetSets">{{ exercise.targetSets }}×{{ exercise.targetReps }}</span>
+              <span v-if="exercise.targetSets">{{ exercise.targetSets }}×{{ formatRepRange(exercise.targetRepsMin, exercise.targetRepsMax) }}</span>
               <template v-if="exercise.lastPerformed">
                 · Last: {{ formatWeight(exercise.lastPerformed.weightKg) }} × {{ exercise.lastPerformed.reps }}
                 ({{ formatHistoryDate(exercise.lastPerformed.date) }})

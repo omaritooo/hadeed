@@ -33,7 +33,8 @@ export interface PresetSplitExercise {
   exerciseId: string
   position: number
   targetSets: number | null
-  targetReps: number | null
+  targetRepsMin: number | null
+  targetRepsMax: number | null
   targetRpe: number | null
   restSeconds: number | null
 }

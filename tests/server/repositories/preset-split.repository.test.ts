@@ -35,7 +35,7 @@ describe('PresetSplitRepository', () => {
           dayIndex: 0,
           location: 'gym',
           targetMuscleIds: [chest.id],
-          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 }],
+          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8 }],
         },
       ],
     })
@@ -66,7 +66,7 @@ describe('PresetSplitRepository', () => {
           format: 'circuit',
           rounds: 4,
           targetMuscleIds: [chest.id],
-          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8, restSeconds: 30 }],
+          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8, restSeconds: 30 }],
         },
       ],
     })
@@ -95,7 +95,7 @@ describe('PresetSplitRepository', () => {
           dayIndex: 0,
           location: 'gym',
           targetMuscleIds: [chest.id],
-          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetReps: 8, targetRpe: 8 }],
+          exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8 }],
         },
       ],
     })

@@ -30,7 +30,7 @@ describe('BlockRepository', () => {
           name: 'Push',
           dayOfWeek: 1,
           location: 'gym',
-          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetReps: 8, targetRpe: 8 }],
+          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8 }],
         },
       ],
     })
@@ -56,7 +56,7 @@ describe('BlockRepository', () => {
           location: 'gym',
           format: 'circuit',
           rounds: 4,
-          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetReps: 8, targetRpe: 8, restSeconds: 30 }],
+          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8, restSeconds: 30 }],
         },
       ],
     })
@@ -80,7 +80,7 @@ describe('BlockRepository', () => {
           name: 'Push',
           dayOfWeek: 1,
           location: 'gym',
-          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetReps: 8, targetRpe: 8 }],
+          exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetRepsMin: 8, targetRepsMax: 8, targetRpe: 8 }],
         },
       ],
     })

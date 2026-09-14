@@ -51,7 +51,7 @@ describe('HomeService', () => {
       restDayMacroTarget: null,
       days: [
         { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [
-          { exerciseId: 'squat', position: 0, setType: 'weight_reps', targetSets: 3, targetReps: 5, targetRpe: 8 },
+          { exerciseId: 'squat', position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 5, targetRepsMax: 5, targetRpe: 8 },
         ] },
       ],
     })

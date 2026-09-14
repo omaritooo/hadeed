@@ -48,7 +48,8 @@ interface SplitExerciseSpec {
   name: string
   setType: 'weight_reps' | 'bodyweight_reps'
   targetSets: number
-  targetReps: number
+  targetRepsMin: number
+  targetRepsMax: number
   targetRpe: number
 }
 
@@ -83,10 +84,10 @@ interface TestUserSpec {
   leaveInProgressToday: boolean
 }
 
-const wr = (name: string, targetSets: number, targetReps: number, targetRpe: number): SplitExerciseSpec =>
-  ({ name, setType: 'weight_reps', targetSets, targetReps, targetRpe })
-const bw = (name: string, targetSets: number, targetReps: number, targetRpe: number): SplitExerciseSpec =>
-  ({ name, setType: 'bodyweight_reps', targetSets, targetReps, targetRpe })
+const wr = (name: string, targetSets: number, repTarget: number, targetRpe: number): SplitExerciseSpec =>
+  ({ name, setType: 'weight_reps', targetSets, targetRepsMin: repTarget, targetRepsMax: repTarget, targetRpe })
+const bw = (name: string, targetSets: number, repTarget: number, targetRpe: number): SplitExerciseSpec =>
+  ({ name, setType: 'bodyweight_reps', targetSets, targetRepsMin: repTarget, targetRepsMax: repTarget, targetRpe })
 
 const TEST_USERS: TestUserSpec[] = [
   {
@@ -389,7 +390,8 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
       position,
       setType: ex.setType,
       targetSets: ex.targetSets,
-      targetReps: ex.targetReps,
+      targetRepsMin: ex.targetRepsMin,
+      targetRepsMax: ex.targetRepsMax,
       targetRpe: ex.targetRpe,
     })))
     return { name: day.name, dayOfWeek: 0, location: day.location, exercises }
@@ -435,11 +437,11 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
     for (const [exPosition, splitExercise] of exercisesForSession.entries()) {
       const exerciseLogId = randomUUID()
       await db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_rpe)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps_min, target_reps_max, target_rpe)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           exerciseLogId, sessionId, splitExercise.exerciseId, splitExercise.id, exPosition,
-          splitExercise.setType, splitExercise.targetSets, splitExercise.targetReps, splitExercise.targetRpe,
+          splitExercise.setType, splitExercise.targetSets, splitExercise.targetRepsMin, splitExercise.targetRepsMax, splitExercise.targetRpe,
         ],
       })
 
@@ -453,7 +455,7 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
         const weightKg = splitExercise.setType === 'weight_reps' && base !== undefined
           ? progressedWeight(base, sessionIndex, sessionDates.length)
           : null
-        const reps = (splitExercise.targetReps ?? 8) - (Math.random() < 0.2 ? 1 : 0)
+        const reps = (splitExercise.targetRepsMin ?? 8) - (Math.random() < 0.2 ? 1 : 0)
         const rpe = round1((splitExercise.targetRpe ?? 7) + (Math.random() - 0.5))
         const setLogId = randomUUID()
         await db.execute({
