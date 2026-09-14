@@ -76,11 +76,18 @@ existing word-boundary `nameHas`:
 - Known rule misses, fixed by overrides rather than rules: chest-supported barbell rows
   (Lying Cambered Barbell Row, Incline Bench Pull, Seal Row) wrongly get `lower_back`; Frog Hops
   is a jump drill filed under `stretching` and needs `knee`, `ankle`.
-- The classify script deletes and rewrites `source = 'rule'` rows; `manual` rows are never
-  touched.
-- `exercise_stressor_overrides.json` (`{ "<exerciseId>": { "add": [...], "remove": [...] } }`)
-  is applied after the rules: `add` writes `manual` rows, `remove` deletes rule rows.
-- The script prints per-area counts so over-tagging is visible before shipping.
+- `exercise_stressor_overrides.json` (`{ "overrides": { "<exerciseId>": { "add": [...], "remove": [...] } } }`)
+  is validated before any DB work. The run fails on a missing `overrides` object, an unknown
+  area, or an area listed in both `add` and `remove` for the same exercise.
+- Each classify run rebuilds `exercise_stressors` in a single `db.batch(..., 'write')`
+  transaction: delete every row, insert the `rule` rows, then apply the overrides (`remove`
+  deletes that area's row, and `add` upserts it as `manual`). The file is the only source of
+  `manual` rows, so deleting an entry or moving an area from `add` to `remove` takes effect on
+  the next run. A crash partway through leaves the previous tags intact.
+- Override ids that aren't in `exercises` are skipped with a warning. Foreign keys are enforced,
+  so they would otherwise fail the whole batch.
+- The script checks that the table exists up front (run `db:seed` first), and prints rule-derived
+  per-area counts so over-tagging is visible before shipping.
 
 ## API
 

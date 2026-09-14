@@ -218,11 +218,11 @@ git commit -m "feat(exercises): classify which joints an exercise commonly loads
 
 ---
 
-### Task 3: `exercise_stressors` table, write-through and overrides
+### Task 3: `exercise_stressors` table, per-run rebuild and overrides
 
 **Files:**
 - Modify: `server/database/schema.sql`
-- Create: `server/database/stressors.ts` (pure-ish writer used by the script and tests)
+- Create: `server/database/stressors.ts` (validation plus pure statement builders, used by the script and tests)
 - Create: `exercise_stressor_overrides.json`
 - Modify: `server/database/classify-exercises.ts`
 - Create: `tests/server/database/stressors.test.ts`
@@ -231,8 +231,8 @@ git commit -m "feat(exercises): classify which joints an exercise commonly loads
 
 ```sql
 -- Joints an exercise commonly loads (see classifyStressors). 'rule' rows are rewritten on every
--- db:classify-exercises run; 'manual' rows come from exercise_stressor_overrides.json and
--- survive reclassification.
+-- db:classify-exercises run, while 'manual' rows come from exercise_stressor_overrides.json and
+-- survive reclassification. (No semicolons in comments: the schema is split on them.)
 CREATE TABLE IF NOT EXISTS exercise_stressors (
   exercise_id TEXT NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
   area        TEXT NOT NULL CHECK (area IN ('knee','shoulder','lower_back','wrist','elbow','ankle')),
@@ -248,78 +248,44 @@ CREATE TABLE IF NOT EXISTS user_limitations (
 );
 ```
 
-**Step 2: Write the failing test**
+Also add a one-line warning to the header comment of `schema.sql`: no semicolons inside
+comments, because `seed.ts` and `createTestDb` split the file on `;`.
 
-```ts
-// tests/server/database/stressors.test.ts
-import { describe, expect, it } from 'vitest'
-import { createTestDb } from '~~/server/utils/test/create-test-db'
-import { applyStressorOverrides, writeRuleStressors } from '~~/server/database/stressors'
+**Step 2: Write the failing tests** in `tests/server/database/stressors.test.ts`. Each test runs
+`stressorRewriteStatements(...)` through `db.batch(..., 'write')` on `createTestDb()`:
 
-describe('stressor write-through', () => {
-  it('replaces rule rows, keeps manual rows, and applies overrides', async () => {
-    const db = await createTestDb()
-    await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('ohp', 'Overhead Press', '[]'), ('landmine', 'Landmine Press', '[]')`)
-    await db.execute(`INSERT INTO exercise_stressors (exercise_id, area, source) VALUES ('ohp', 'knee', 'rule'), ('landmine', 'wrist', 'manual')`)
-
-    await writeRuleStressors(db, 'ohp', ['shoulder'])
-    await writeRuleStressors(db, 'landmine', ['shoulder'])
-    await applyStressorOverrides(db, { landmine: { remove: ['shoulder'] }, ohp: { add: ['elbow'] } })
-
-    const rows = (await db.execute('SELECT exercise_id, area, source FROM exercise_stressors ORDER BY exercise_id, area')).rows
-    expect(rows.map(r => `${r.exercise_id}:${r.area}:${r.source}`)).toEqual([
-      'landmine:wrist:manual',
-      'ohp:elbow:manual',
-      'ohp:shoulder:rule',
-    ])
-  })
-})
-```
+- Rule rows plus an `add` and a `remove` give the expected rows and sources.
+- Repeated runs: rules `[lower_back]` with `remove lower_back` leave nothing, and a second run
+  with the same inputs still leaves nothing.
+- Stale manual rows: run 1 has `add ankle`, run 2 has no overrides, and the ankle row is gone.
+- An `add` of an area the rules also produce ends up `manual`, and goes back to `rule` once the
+  `add` is dropped.
+- An unknown exercise id is skipped with one `console.warn`, and the other overrides still apply.
+  (Foreign keys are enforced on libSQL, so an `add` for an unknown id would fail the batch.)
+- `validateStressorOverrides` throws for a missing `overrides` key, an area that fails
+  `isJointArea`, and an area in both `add` and `remove`, and accepts the shipped file.
 
 **Step 3: Run to verify failure**
 
 Run: `npx vitest run tests/server/database/stressors.test.ts`
-Expected: FAIL, module not found.
+Expected: FAIL, missing exports.
 
-**Step 4: Implement**
+**Step 4: Implement** `server/database/stressors.ts`:
 
-```ts
-// server/database/stressors.ts
-import type { Client } from '@libsql/client'
-import type { JointArea } from '~~/shared/lib/joint-areas'
+- `type StressorOverrides = Record<string, { add?: JointArea[], remove?: JointArea[] }>`
+- `validateStressorOverrides(raw: unknown): StressorOverrides` throws a clear Error for a
+  missing or non-object `overrides`, a non-array `add`/`remove`, an unknown area, or an
+  add/remove overlap.
+- `stressorRewriteStatements({ ruleStressors, overrides, knownExerciseIds }): InStatement[]`
+  returns, in order:
+  1. `DELETE FROM exercise_stressors`. Every run rebuilds the table, so the overrides file is the
+     only source of `manual` rows. Deleting an `add` entry, or moving an area from `add` to
+     `remove`, takes effect on the next run.
+  2. A `rule` INSERT for every area in `ruleStressors`.
+  3. For each override whose id is in `knownExerciseIds`: `remove` deletes that area's row, and
+     `add` upserts it with `source = 'manual'`. Unknown ids are skipped with a `console.warn`.
 
-export type StressorOverrides = Record<string, { add?: JointArea[], remove?: JointArea[] }>
-
-export const writeRuleStressors = async (db: Client, exerciseId: string, areas: JointArea[]): Promise<void> => {
-  await db.execute({ sql: `DELETE FROM exercise_stressors WHERE exercise_id = ? AND source = 'rule'`, args: [exerciseId] })
-  for (const area of areas) {
-    await db.execute({
-      sql: `INSERT INTO exercise_stressors (exercise_id, area, source) VALUES (?, ?, 'rule') ON CONFLICT (exercise_id, area) DO NOTHING`,
-      args: [exerciseId, area],
-    })
-  }
-}
-
-// `add` pins an area as manual (surviving future rule runs); `remove` deletes a wrong rule row.
-// A removed area comes back on the next classify run unless it stays listed here, which is
-// the point: the overrides file is the permanent record of corrections.
-export const applyStressorOverrides = async (db: Client, overrides: StressorOverrides): Promise<void> => {
-  for (const [exerciseId, { add = [], remove = [] }] of Object.entries(overrides)) {
-    for (const area of remove) {
-      await db.execute({ sql: `DELETE FROM exercise_stressors WHERE exercise_id = ? AND area = ? AND source = 'rule'`, args: [exerciseId, area] })
-    }
-    for (const area of add) {
-      await db.execute({
-        sql: `INSERT INTO exercise_stressors (exercise_id, area, source) VALUES (?, ?, 'manual')
-              ON CONFLICT (exercise_id, area) DO UPDATE SET source = 'manual'`,
-        args: [exerciseId, area],
-      })
-    }
-  }
-}
-```
-
-`exercise_stressor_overrides.json` at the repo root, starting empty but documented:
+`exercise_stressor_overrides.json` at the repo root:
 
 ```json
 {
@@ -335,33 +301,21 @@ export const applyStressorOverrides = async (db: Client, overrides: StressorOver
 - `Frog_Hops`: `{ "add": ["knee", "ankle"] }`. A jump drill filed under `stretching`, which
   gets no rule tags.
 
-In `classify-exercises.ts` `main`, after the existing `UPDATE exercises SET movement_pattern…`:
+In `classify-exercises.ts` `main`:
 
-```ts
-    const stressors = classifyStressors({
-      name: exercise.name,
-      category: exercise.category,
-      equipment: exercise.equipment,
-      movementPattern,
-      tier,
-    })
-    await writeRuleStressors(db, row.id as string, stressors)
-    for (const area of stressors) stressorCounts.set(area, (stressorCounts.get(area) ?? 0) + 1)
-```
-
-with `const stressorCounts = new Map<string, number>()` declared with the other counters.
-`classifyStressors` must be called after `tier` is resolved (after the
-`AMBIGUOUS_TIER_OVERRIDES` fallback), since its `hip_dominant` lower-back rule reads the tier.
-After the loop:
-
-```ts
-  const { overrides } = JSON.parse(readFileSync(resolve(__dirname, '../../exercise_stressor_overrides.json'), 'utf-8')) as { overrides: StressorOverrides }
-  await applyStressorOverrides(db, overrides)
-  console.log('Stressor tags per area (rule-derived, before overrides):')
-  for (const [area, count] of [...stressorCounts].sort()) console.log(`  ${area}: ${count}`)
-```
-
-(Add the `readFileSync`/`resolve`/`__dirname` imports as in `seed.ts`.)
+- At the top, before any DB writes, read the overrides file and pass it through
+  `validateStressorOverrides`. Then check that the table exists with
+  `SELECT 1 FROM exercise_stressors LIMIT 0`. If it doesn't, exit with
+  "exercise_stressors table missing — run npm run db:seed first".
+- In the loop, after `tier` is fully resolved (after the `AMBIGUOUS_TIER_OVERRIDES` / default-2
+  fallback, since the `hip_dominant` lower-back rule reads the tier), call
+  `classifyStressors({ name, category, equipment, movementPattern, tier })`. Store the result in
+  a `ruleStressors` map and add it to `stressorCounts`. Leave the per-exercise
+  `UPDATE exercises SET movement_pattern…` as it is.
+- After the loop, build `knownExerciseIds` from the rows already loaded, then run
+  `await db.batch(stressorRewriteStatements({ ruleStressors, overrides, knownExerciseIds }), 'write')`.
+  That's one transaction and one round trip, so a crash leaves the previous tags intact.
+- Print the per-area counts, labelled as rule-derived only (overrides aren't counted).
 
 **Step 5: Run to verify pass**
 

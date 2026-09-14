@@ -1,6 +1,7 @@
 -- Exercise catalog schema (seeded from free-exercise-db).
 -- Normalized on muscles so muscle-targeting / split-generation queries
 -- (e.g. "push exercises hitting chest or triceps, dumbbell only") are plain joins.
+-- WARNING: never put a semicolon inside a comment. Loaders split this file on semicolons.
 
 CREATE TABLE IF NOT EXISTS exercises (
   id            TEXT PRIMARY KEY,   -- stable slug, e.g. "3_4_Sit-Up"

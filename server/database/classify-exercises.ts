@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { createClient } from '@libsql/client'
 import { classifyMovementPattern, classifyStressors, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
-import { applyStressorOverrides, writeRuleStressors, type StressorOverrides } from './stressors'
+import type { JointArea } from '~~/shared/lib/joint-areas'
+import { stressorRewriteStatements, validateStressorOverrides } from './stressors'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -85,8 +86,15 @@ const AMBIGUOUS_TIER_OVERRIDES: Record<string, 1 | 2> = {
 }
 
 async function main() {
-  // Parsed up front so a malformed overrides file fails before any rows are rewritten.
-  const { overrides } = JSON.parse(readFileSync(resolve(__dirname, '../../exercise_stressor_overrides.json'), 'utf-8')) as { overrides: StressorOverrides }
+  // Validated up front so a malformed overrides file fails before any rows are rewritten.
+  const overrides = validateStressorOverrides(JSON.parse(readFileSync(resolve(__dirname, '../../exercise_stressor_overrides.json'), 'utf-8')))
+  try {
+    await db.execute('SELECT 1 FROM exercise_stressors LIMIT 0')
+  } catch {
+    console.error('exercise_stressors table missing — run npm run db:seed first')
+    process.exit(1)
+  }
+
   const result = await db.execute('SELECT * FROM exercises')
   const rows = result.rows as unknown as Record<string, unknown>[]
 
@@ -95,6 +103,7 @@ async function main() {
   let defaultedAmbiguous = 0
   let changed = 0
   const stressorCounts = new Map<string, number>()
+  const ruleStressors = new Map<string, JointArea[]>()
   const samples: { id: string, name: string, tier: number | null, pattern: string | null }[] = []
 
   for (const row of rows) {
@@ -144,7 +153,7 @@ async function main() {
       movementPattern,
       tier,
     })
-    await writeRuleStressors(db, row.id as string, stressors)
+    ruleStressors.set(row.id as string, stressors)
     for (const area of stressors) stressorCounts.set(area, (stressorCounts.get(area) ?? 0) + 1)
 
     if (samples.length < 30 && Math.random() < 0.05) {
@@ -157,8 +166,11 @@ async function main() {
   console.log('Spot-check sample:')
   console.table(samples)
 
-  await applyStressorOverrides(db, overrides)
-  console.log('Stressor tags per area (rule-derived, before overrides):')
+  // One transaction: the table is rebuilt from rules plus the overrides file, so a crash leaves
+  // the previous tags intact rather than a half-written mix.
+  const knownExerciseIds = new Set(rows.map(row => row.id as string))
+  await db.batch(stressorRewriteStatements({ ruleStressors, overrides, knownExerciseIds }), 'write')
+  console.log('Stressor tags per area (rule-derived only, overrides not counted):')
   for (const [area, count] of [...stressorCounts].sort()) console.log(`  ${area}: ${count}`)
 }
 
