@@ -8,7 +8,7 @@ export const useDeleteMealLog = () => {
   return useMutation<{ success: boolean }, number, FetchError<{ statusMessage: string }>>({
     mutation: id => $api<{ success: boolean }>(`/api/nutrition/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
       return queryCache.invalidateQueries({ key: queryKeys.nutrition() })
     },
   })

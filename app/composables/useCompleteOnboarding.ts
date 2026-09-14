@@ -15,7 +15,7 @@ export const useCompleteOnboarding = () => {
       body: input,
     }),
     onSuccess: () => {
-      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
       return queryCache.invalidateQueries({ key: queryKeys.profile() })
     },
   })

@@ -17,7 +17,7 @@ export const useEditMeal = () => {
       body: { items },
     }),
     onSuccess: () => {
-      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
       return queryCache.invalidateQueries({ key: queryKeys.nutrition() })
     },
   })

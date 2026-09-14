@@ -15,7 +15,7 @@ export const useRecordBodyMetric = () => {
     // A new weigh-in changes profile.stats (bmi/tdee/latestWeightKg), home's weightTrend
     // sparkline, and the recent-entries list rendered by useBodyMetrics.
     onSuccess: () => {
-      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
       return Promise.all([
         queryCache.invalidateQueries({ key: queryKeys.profile() }),
         queryCache.invalidateQueries({ key: queryKeys.home() }),

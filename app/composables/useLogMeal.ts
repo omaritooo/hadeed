@@ -20,7 +20,7 @@ export const useLogMeal = () => {
     }),
     onSuccess: () => {
       // The estimate refreshes in the background; a failure there must not fail the meal save.
-      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
       return queryCache.invalidateQueries({ key: queryKeys.nutrition() })
     },
   })
