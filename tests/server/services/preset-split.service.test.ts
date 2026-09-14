@@ -5,6 +5,7 @@ import { PresetSplitRepository } from '~~/server/repositories/preset-split.repos
 import { PresetSplitService } from '~~/server/services/preset-split.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { JointArea } from '~~/shared/lib/joint-areas'
+import { isLimitationReason } from '~~/shared/lib/joint-areas'
 
 describe('PresetSplitService.recommend', () => {
   let db: Client
@@ -142,6 +143,9 @@ describe('PresetSplitService.recommend', () => {
 
     expect(fullBodyAfter.score).toBe(fullBodyBefore.score - 1)
     expect(fullBodyAfter.reasons.join(' ')).toMatch(/1 exercise loads your shoulder/)
+    // The client styles this reason as a warning by matching it; keep the two in step.
+    expect(fullBodyAfter.reasons.filter(isLimitationReason)).toEqual(['1 exercise loads your shoulder'])
+    expect(fullBodyBefore.reasons.some(isLimitationReason)).toBe(false)
     // Presets without conflicts are untouched.
     const homeBefore = before.find(r => r.preset.name === 'Minimalist Home')!
     const homeAfter = after.find(r => r.preset.name === 'Minimalist Home')!
