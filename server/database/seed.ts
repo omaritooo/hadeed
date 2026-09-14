@@ -8,6 +8,7 @@ import { AchievementRepository } from '~~/server/repositories/achievement.reposi
 import { migrateUserProfilesEquipmentTiers, migratePresetSplitsEquipmentTiers } from './migrations/equipment-tiers'
 import { migrateUserProfilesGoalTiers } from './migrations/goal-tiers'
 import { migrateRepRanges } from './migrations/rep-ranges'
+import { presetRepRange } from './preset-rep-range'
 import { upsertExercises, replaceExerciseAliases, type RawExercise, type RawExerciseAlias } from './seed-exercises'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -22,15 +23,9 @@ if (!url || !authToken) {
 
 const db = createClient({ url, authToken })
 
-// Preset prescriptions are authored as a single rep target and widened into a range here, so
-// double progression has room to work: low-rep strength work gets a 2-rep window, moderate
-// hypertrophy work 2, higher-rep isolation work 3, and conditioning-style high reps 5.
-const reps = (target: number | null): { targetRepsMin: number | null, targetRepsMax: number | null } => {
-  if (target === null) return { targetRepsMin: null, targetRepsMax: null }
-  if (target <= 10) return { targetRepsMin: target, targetRepsMax: target + 2 }
-  if (target <= 15) return { targetRepsMin: target, targetRepsMax: target + 3 }
-  return { targetRepsMin: target, targetRepsMax: target + 5 }
-}
+// Presets are authored with a single rep target. reps() widens it into a range: +2 up to 10 reps,
+// +3 from 11 to 15, +5 above 15. See preset-rep-range.ts, which the rep-ranges migration shares.
+const reps = presetRepRange
 
 interface RawPresetFood {
   name: string
