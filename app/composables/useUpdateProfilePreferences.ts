@@ -19,6 +19,9 @@ export const useUpdateProfilePreferences = () => {
       method: 'POST',
       body: input,
     }),
-    onSuccess: () => queryCache.invalidateQueries({ key: queryKeys.profile() }),
+    onSuccess: () => {
+      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      return queryCache.invalidateQueries({ key: queryKeys.profile() })
+    },
   })
 }

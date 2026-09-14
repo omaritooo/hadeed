@@ -14,11 +14,13 @@ export const useRecordBodyMetric = () => {
     }),
     // A new weigh-in changes profile.stats (bmi/tdee/latestWeightKg), home's weightTrend
     // sparkline, and the recent-entries list rendered by useBodyMetrics.
-    onSuccess: () => Promise.all([
-      queryCache.invalidateQueries({ key: queryKeys.profile() }),
-      queryCache.invalidateQueries({ key: queryKeys.home() }),
-      queryCache.invalidateQueries({ key: queryKeys.bodyMetrics() }),
-      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }),
-    ]),
+    onSuccess: () => {
+      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      return Promise.all([
+        queryCache.invalidateQueries({ key: queryKeys.profile() }),
+        queryCache.invalidateQueries({ key: queryKeys.home() }),
+        queryCache.invalidateQueries({ key: queryKeys.bodyMetrics() }),
+      ])
+    },
   })
 }

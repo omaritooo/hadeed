@@ -18,9 +18,10 @@ export const useLogMeal = () => {
       method: 'POST',
       body: input,
     }),
-    onSuccess: () => Promise.all([
-      queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
-      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }),
-    ]),
+    onSuccess: () => {
+      // The estimate refreshes in the background; a failure there must not fail the meal save.
+      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      return queryCache.invalidateQueries({ key: queryKeys.nutrition() })
+    },
   })
 }

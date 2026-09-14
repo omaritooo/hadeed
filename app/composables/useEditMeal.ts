@@ -16,9 +16,9 @@ export const useEditMeal = () => {
       method: 'PATCH',
       body: { items },
     }),
-    onSuccess: () => Promise.all([
-      queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
-      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }),
-    ]),
+    onSuccess: () => {
+      void queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      return queryCache.invalidateQueries({ key: queryKeys.nutrition() })
+    },
   })
 }
