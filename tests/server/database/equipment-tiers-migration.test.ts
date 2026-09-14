@@ -95,8 +95,7 @@ const createOldSchemaDb = async (): Promise<Client> => {
       exercise_id TEXT NOT NULL REFERENCES exercises(id),
       position INTEGER NOT NULL,
       target_sets INTEGER,
-      target_reps_min INTEGER,
-      target_reps_max INTEGER,
+      target_reps INTEGER,
       target_rpe REAL
     )
   `)
@@ -162,8 +161,8 @@ describe('equipment tier migrations', () => {
       VALUES (10, 1), (11, 2), (12, 1), (12, 2)
     `)
     await db.execute(`
-      INSERT INTO preset_split_exercises (preset_split_day_id, exercise_id, position, target_sets, target_reps_min, target_reps_max, target_rpe)
-      VALUES (10, 'bench', 0, 4, 8, 8, 8), (11, 'row', 0, 3, 10, 10, 7), (12, 'bench', 0, 3, 12, 12, 7)
+      INSERT INTO preset_split_exercises (preset_split_day_id, exercise_id, position, target_sets, target_reps, target_rpe)
+      VALUES (10, 'bench', 0, 4, 8, 8), (11, 'row', 0, 3, 10, 7), (12, 'bench', 0, 3, 12, 7)
     `)
 
     // Sanity check on the fixture itself before migrating.

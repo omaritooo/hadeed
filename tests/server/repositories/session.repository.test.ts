@@ -74,6 +74,22 @@ describe('SessionRepository.startSession', () => {
     expect(session.rounds).toBe(1)
   })
 
+  it('dual-writes target_reps as the range minimum and reads a row that only has target_reps set', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-5',
+      splitDayId: 1,
+      exercises: [{ id: 'exlog-5', exerciseId: 'bench-press', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: 7 }],
+    })
+
+    const row = (await db.execute({ sql: 'SELECT target_reps, target_reps_min, target_reps_max FROM exercise_logs WHERE id = ?', args: ['exlog-5'] })).rows[0]!
+    expect([row.target_reps, row.target_reps_min, row.target_reps_max]).toEqual([8, 8, 10])
+
+    await db.execute({ sql: 'UPDATE exercise_logs SET target_reps = 6, target_reps_min = NULL, target_reps_max = NULL WHERE id = ?', args: ['exlog-5'] })
+    const exercise = (await repo.findWithLogs('session-5'))?.exercises[0]
+    expect(exercise?.targetRepsMin).toBe(6)
+    expect(exercise?.targetRepsMax).toBe(6)
+  })
+
   it('snapshots format/rounds from the originating circuit split day', async () => {
     const session = await repo.startSession('user-1', {
       id: 'session-4',
@@ -148,6 +164,10 @@ describe('SessionRepository logging', () => {
     })
     expect(exerciseLog.splitExerciseId).toBeNull()
     expect(exerciseLog.targetSets).toBeNull()
+    expect(exerciseLog.targetRepsMin).toBeNull()
+    expect(exerciseLog.targetRepsMax).toBeNull()
+    const row = (await db.execute({ sql: 'SELECT target_reps FROM exercise_logs WHERE id = ?', args: ['exlog-2'] })).rows[0]!
+    expect(row.target_reps).toBeNull()
 
     const withLogs = await repo.findWithLogs('session-1')
     expect(withLogs?.exercises).toHaveLength(2)

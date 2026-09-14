@@ -20,9 +20,12 @@ export const presetRepRange = (target: number | null): PresetRepRange => {
   return { targetRepsMin: target, targetRepsMax: target + HIGH_REP_WINDOW }
 }
 
-// SQL equivalent of presetRepRange(column).targetRepsMax. `column` is interpolated, so pass only a
-// trusted column name, never user input.
-export const PRESET_REP_RANGE_SQL = (column: string): string =>
+// Column names the SQL form may be built over. The name is interpolated into SQL, so it's a closed
+// set rather than an arbitrary string.
+export type PresetRepRangeColumn = 'target_reps'
+
+// SQL equivalent of presetRepRange(column).targetRepsMax.
+export const presetRepRangeMaxSql = (column: PresetRepRangeColumn): string =>
   `CASE WHEN ${column} IS NULL THEN NULL`
   + ` WHEN ${column} <= ${LOW_REP_CEILING} THEN ${column} + ${LOW_REP_WINDOW}`
   + ` WHEN ${column} <= ${MID_REP_CEILING} THEN ${column} + ${MID_REP_WINDOW}`

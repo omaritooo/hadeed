@@ -1989,3 +1989,59 @@ git commit -m "feat(session): show progression suggestions, pre-fill from them, 
 **Step 5:** Commit: `git add README.md && git commit -m "docs: describe progression suggestions and PR types"`.
 **Step 6:** Deploy order for an existing database: `npm run db:seed` (runs `migrateRepRanges`
 and the new schema) → deploy app → `npm run db:backfill-prs`.
+
+---
+
+### Task 15: Contract rep-range migration (later release)
+
+**Ship this only after every client has updated** to a build that sends and reads
+`targetRepsMin` / `targetRepsMax`. PWA clients can run a stale bundle for a long time, so wait
+until the old build is no longer seen, not just until the new one is deployed.
+
+Tasks 1–2 shipped the *expand* half. `migrateRepRanges` adds and fills `target_reps_min` /
+`target_reps_max` but keeps `target_reps`. The repositories dual-write `target_reps` as the range
+minimum, read with a `target_reps_min ?? target_reps` fallback, and accept a legacy `targetReps`
+payload. This task removes all of that.
+
+**Files:**
+- Create: `server/database/migrations/drop-target-reps.ts`, `tests/server/database/drop-target-reps-migration.test.ts`
+- Modify: `server/database/seed.ts` (run the new migration after `migrateRepRanges`), `server/database/schema.sql`, `server/repositories/rep-range-columns.ts` and its callers in `block`, `preset-split` and `session` repositories, `server/database/seed-dummy.ts`, repository tests
+
+**Step 1: Write the failing migration test.** Build a database with `target_reps`, `target_reps_min`
+and `target_reps_max`. Include rows with min/max set, and rows with only `target_reps` set in all
+three tables, as old code would have written them after the expand. Expect:
+- the legacy rows backfilled, with presets widened
+- `target_reps` gone from every table
+- a re-run is a no-op
+
+**Step 2: Implement `migrateDropTargetReps`.** For each table that still has `target_reps`, run in one `db.migrate`:
+
+```sql
+UPDATE <table> SET target_reps_min = target_reps, target_reps_max = <max>
+  WHERE target_reps_min IS NULL AND target_reps IS NOT NULL
+ALTER TABLE <table> DROP COLUMN target_reps
+```
+
+`<max>` is `presetRepRangeMaxSql('target_reps')` for `preset_split_exercises` and `target_reps` for
+the other two tables.
+
+**Step 3: Stop the dual-write and drop the fallback.**
+- Remove `target_reps` from every insert and from `repRangeArgs`.
+- `repRangeFromRow` reads only `target_reps_min` / `target_reps_max`.
+- Remove the legacy `targetReps` payload normalization.
+- Delete the dual-write and fallback repository tests, and the legacy-payload tests.
+
+**Step 4: Drop `target_reps` from `schema.sql`** in all three tables, including the deprecated comment.
+
+**Step 5: Verify.** `grep -rn "target_reps\b\|targetReps\b" app server shared tests` finds only the two
+migrations and their tests. `npx vitest run`, `npx nuxi typecheck` and eslint on the changed files all pass.
+
+**Step 6: Commit**
+
+```bash
+git add server tests
+git commit -m "refactor(db): contract the rep-range migration and drop target_reps"
+```
+
+**Deploy order:** `npm run db:seed` (runs the drop migration) only *after* the app build without the
+dual-write is live. Otherwise a still-running build that reads `target_reps` breaks.

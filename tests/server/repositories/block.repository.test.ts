@@ -110,6 +110,36 @@ describe('BlockRepository', () => {
     expect(full?.days[1]?.isRestDay).toBe(true)
   })
 
+  it('dual-writes target_reps as the range minimum so older app builds still read a prescription', async () => {
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'Range', startDate: '2026-08-18', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{
+        name: 'Push', dayOfWeek: 1, location: 'gym',
+        exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetRepsMin: 8, targetRepsMax: 10, targetRpe: 8 }],
+      }],
+    })
+
+    const row = (await db.execute('SELECT target_reps, target_reps_min, target_reps_max FROM split_exercises')).rows[0]!
+    expect([row.target_reps, row.target_reps_min, row.target_reps_max]).toEqual([8, 8, 10])
+  })
+
+  it('reads a row that only has target_reps set, as written by an older app build', async () => {
+    const block = await repo.createWithDays('user-1', {
+      programId: null, name: 'Legacy', startDate: '2026-08-18', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{
+        name: 'Push', dayOfWeek: 1, location: 'gym',
+        exercises: [{ exerciseId: 'bench-press', position: 0, setType: 'weight_reps', targetSets: 4, targetRepsMin: 8, targetRepsMax: 10, targetRpe: 8 }],
+      }],
+    })
+    await db.execute('UPDATE split_exercises SET target_reps = 6, target_reps_min = NULL, target_reps_max = NULL')
+
+    const exercise = (await repo.findWithDays(block.id))?.days[0]?.exercises[0]
+    expect(exercise?.targetRepsMin).toBe(6)
+    expect(exercise?.targetRepsMax).toBe(6)
+  })
+
   it('creates an implicit program when programId is not provided', async () => {
     const block = await repo.createWithDays('user-1', {
       programId: null,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createClient } from '@libsql/client'
-import { PRESET_REP_RANGE_SQL, presetRepRange } from '~~/server/database/preset-rep-range'
+import { presetRepRange, presetRepRangeMaxSql } from '~~/server/database/preset-rep-range'
 
 describe('presetRepRange', () => {
   it('widens a single target by the tier thresholds', () => {
@@ -18,7 +18,7 @@ describe('presetRepRange', () => {
     const targets = [...Array.from({ length: 30 }, (_, i) => i + 1), null]
     await db.batch(targets.map(target => ({ sql: 'INSERT INTO targets (target_reps) VALUES (?)', args: [target] })))
 
-    const result = await db.execute(`SELECT target_reps, ${PRESET_REP_RANGE_SQL('target_reps')} AS max FROM targets`)
+    const result = await db.execute(`SELECT target_reps, ${presetRepRangeMaxSql('target_reps')} AS max FROM targets`)
     expect(result.rows).toHaveLength(targets.length)
     for (const row of result.rows) {
       const target = row.target_reps as number | null

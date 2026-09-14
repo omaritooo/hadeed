@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS split_exercises (
   position      INTEGER NOT NULL,
   set_type      TEXT NOT NULL CHECK (set_type IN ('weight_reps','bodyweight_reps','time')),
   target_sets   INTEGER,
+  target_reps     INTEGER, -- deprecated, dual-written as target_reps_min until the contract migration drops it
   target_reps_min INTEGER,
   target_reps_max INTEGER,
   target_rpe    REAL
@@ -245,6 +246,7 @@ CREATE TABLE IF NOT EXISTS preset_split_exercises (
   exercise_id          TEXT NOT NULL REFERENCES exercises(id),
   position             INTEGER NOT NULL,
   target_sets          INTEGER,
+  target_reps          INTEGER, -- deprecated, dual-written as target_reps_min until the contract migration drops it
   target_reps_min      INTEGER,
   target_reps_max      INTEGER,
   target_rpe           REAL
@@ -329,6 +331,7 @@ CREATE TABLE IF NOT EXISTS exercise_logs (
   position           INTEGER NOT NULL,
   set_type           TEXT NOT NULL CHECK (set_type IN ('weight_reps','bodyweight_reps','time')),
   target_sets        INTEGER,
+  target_reps        INTEGER, -- deprecated, dual-written as target_reps_min until the contract migration drops it
   target_reps_min    INTEGER,
   target_reps_max    INTEGER,
   target_rpe         REAL

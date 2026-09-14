@@ -1,4 +1,5 @@
 import type { Client, InArgs } from '@libsql/client'
+import { repRangeArgs, repRangeFromRow } from '~~/server/repositories/rep-range-columns'
 import type { SetType, SplitFormat } from '~~/shared/types/split.types'
 import type {
   ExerciseHistoryEntry,
@@ -100,8 +101,7 @@ export class SessionRepository {
       position: row.position as number,
       setType: row.set_type as SetType,
       targetSets: row.target_sets as number | null,
-      targetRepsMin: row.target_reps_min as number | null,
-      targetRepsMax: row.target_reps_max as number | null,
+      ...repRangeFromRow(row),
       targetRpe: row.target_rpe as number | null,
       restSeconds: row.rest_seconds as number | null,
     }
@@ -151,21 +151,20 @@ export class SessionRepository {
 
     try {
       const inserted = await this.db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps_min, target_reps_max, target_rpe, rest_seconds)
-              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds)
+              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
               WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
               RETURNING id`,
         args: [
           exercise.id,
           session.id,
           exercise.exerciseId,
-          exercise.splitExerciseId,
+          exercise.splitExerciseId ?? null,
           exercise.position,
           exercise.setType,
-          exercise.targetSets,
-          exercise.targetRepsMin,
-          exercise.targetRepsMax,
-          exercise.targetRpe,
+          exercise.targetSets ?? null,
+          ...repRangeArgs(exercise),
+          exercise.targetRpe ?? null,
           exercise.restSeconds ?? null,
           session.id,
         ],
@@ -281,8 +280,8 @@ export class SessionRepository {
     return this.insertIdempotent({
       selectSql: 'SELECT * FROM exercise_logs WHERE id = ?',
       selectArgs: [input.id],
-      insertSql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps_min, target_reps_max, target_rpe, rest_seconds)
-                  SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, NULL, NULL
+      insertSql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds)
+                  SELECT ?, ?, ?, NULL, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL
                   WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
                   RETURNING *`,
       insertArgs: [input.id, input.sessionId, input.exerciseId, input.position, input.setType, input.sessionId],

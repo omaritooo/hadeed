@@ -437,11 +437,11 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
     for (const [exPosition, splitExercise] of exercisesForSession.entries()) {
       const exerciseLogId = randomUUID()
       await db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps_min, target_reps_max, target_rpe)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           exerciseLogId, sessionId, splitExercise.exerciseId, splitExercise.id, exPosition,
-          splitExercise.setType, splitExercise.targetSets, splitExercise.targetRepsMin, splitExercise.targetRepsMax, splitExercise.targetRpe,
+          splitExercise.setType, splitExercise.targetSets, splitExercise.targetRepsMin, splitExercise.targetRepsMin, splitExercise.targetRepsMax, splitExercise.targetRpe,
         ],
       })
 

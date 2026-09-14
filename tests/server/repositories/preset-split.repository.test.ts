@@ -119,4 +119,23 @@ describe('PresetSplitRepository', () => {
     const published = await repo.findPublished()
     expect(published.map(p => p.name)).toEqual(['Live'])
   })
+
+  it('dual-writes target_reps as the range minimum and reads a row that only has target_reps set', async () => {
+    const preset = await repo.createWithDays({
+      name: 'Range', description: null, frequencyMinDays: 3, frequencyMaxDays: 3,
+      goal: null, experienceLevel: null, equipment: 'both', isPublished: true,
+      days: [{
+        name: 'Push', dayIndex: 0, location: 'gym', targetMuscleIds: [],
+        exercises: [{ exerciseId: 'bench-press', position: 0, targetSets: 4, targetRepsMin: 8, targetRepsMax: 10, targetRpe: 8 }],
+      }],
+    })
+
+    const row = (await db.execute('SELECT target_reps, target_reps_min, target_reps_max FROM preset_split_exercises')).rows[0]!
+    expect([row.target_reps, row.target_reps_min, row.target_reps_max]).toEqual([8, 8, 10])
+
+    await db.execute('UPDATE preset_split_exercises SET target_reps = 6, target_reps_min = NULL, target_reps_max = NULL')
+    const exercise = (await repo.findWithDays(preset.id))?.days[0]?.exercises[0]
+    expect(exercise?.targetRepsMin).toBe(6)
+    expect(exercise?.targetRepsMax).toBe(6)
+  })
 })
