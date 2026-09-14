@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import { createClient } from '@libsql/client'
-import { classifyMovementPattern, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
+import { classifyMovementPattern, classifyStressors, classifyTierDeterministic } from '~~/server/utils/exercise-classification'
+import { applyStressorOverrides, writeRuleStressors, type StressorOverrides } from './stressors'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const url = process.env.TURSO_DATABASE_URL
 const authToken = process.env.TURSO_AUTH_TOKEN
@@ -79,6 +85,8 @@ const AMBIGUOUS_TIER_OVERRIDES: Record<string, 1 | 2> = {
 }
 
 async function main() {
+  // Parsed up front so a malformed overrides file fails before any rows are rewritten.
+  const { overrides } = JSON.parse(readFileSync(resolve(__dirname, '../../exercise_stressor_overrides.json'), 'utf-8')) as { overrides: StressorOverrides }
   const result = await db.execute('SELECT * FROM exercises')
   const rows = result.rows as unknown as Record<string, unknown>[]
 
@@ -86,6 +94,7 @@ async function main() {
   let overrideClassified = 0
   let defaultedAmbiguous = 0
   let changed = 0
+  const stressorCounts = new Map<string, number>()
   const samples: { id: string, name: string, tier: number | null, pattern: string | null }[] = []
 
   for (const row of rows) {
@@ -127,6 +136,17 @@ async function main() {
       args: [movementPattern, tier, row.id as string],
     })
 
+    // After tier is resolved: the hip_dominant lower-back rule reads it.
+    const stressors = classifyStressors({
+      name: exercise.name,
+      category: exercise.category,
+      equipment: exercise.equipment,
+      movementPattern,
+      tier,
+    })
+    await writeRuleStressors(db, row.id as string, stressors)
+    for (const area of stressors) stressorCounts.set(area, (stressorCounts.get(area) ?? 0) + 1)
+
     if (samples.length < 30 && Math.random() < 0.05) {
       samples.push({ id: row.id as string, name: exercise.name, tier, pattern: movementPattern })
     }
@@ -136,6 +156,10 @@ async function main() {
   console.log(`${changed} row(s) had a different tier and/or movement_pattern than what was already stored (0 is expected on a true no-op re-run; a non-zero count on an "unrelated" re-run may indicate this script just overwrote a manual fix — check before trusting it).`)
   console.log('Spot-check sample:')
   console.table(samples)
+
+  await applyStressorOverrides(db, overrides)
+  console.log('Stressor tags per area (rule-derived, before overrides):')
+  for (const [area, count] of [...stressorCounts].sort()) console.log(`  ${area}: ${count}`)
 }
 
 main()

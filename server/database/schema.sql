@@ -456,3 +456,20 @@ CREATE INDEX IF NOT EXISTS idx_meal_logs_user          ON meal_logs(user_id, log
 CREATE INDEX IF NOT EXISTS idx_meal_log_items_meal     ON meal_log_items(meal_log_id);
 CREATE INDEX IF NOT EXISTS idx_preset_meals_user       ON preset_meals(user_id);
 CREATE INDEX IF NOT EXISTS idx_preset_meal_items_meal  ON preset_meal_items(preset_meal_id);
+
+-- Joints an exercise commonly loads (see classifyStressors). 'rule' rows are rewritten on every
+-- db:classify-exercises run, while 'manual' rows come from exercise_stressor_overrides.json and
+-- survive reclassification. (No semicolons in comments: the schema is split on them.)
+CREATE TABLE IF NOT EXISTS exercise_stressors (
+  exercise_id TEXT NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+  area        TEXT NOT NULL CHECK (area IN ('knee','shoulder','lower_back','wrist','elbow','ankle')),
+  source      TEXT NOT NULL CHECK (source IN ('rule','manual')),
+  PRIMARY KEY (exercise_id, area)
+);
+CREATE INDEX IF NOT EXISTS idx_exercise_stressors_area ON exercise_stressors(area);
+
+CREATE TABLE IF NOT EXISTS user_limitations (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  area    TEXT NOT NULL CHECK (area IN ('knee','shoulder','lower_back','wrist','elbow','ankle')),
+  PRIMARY KEY (user_id, area)
+);

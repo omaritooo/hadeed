@@ -1,0 +1,9 @@
+{
+  "_comment": "Corrections to classifyStressors, keyed by exercises.id. 'add' pins an area; 'remove' drops a wrong rule-derived area. Applied after rules by npm run db:classify-exercises. Ids not found in the database are skipped with a warning.",
+  "overrides": {
+    "Lying_Cambered_Barbell_Row": { "remove": ["lower_back"] },
+    "Incline_Bench_Pull": { "remove": ["lower_back"] },
+    "Seal_Row": { "remove": ["lower_back"] },
+    "Frog_Hops": { "add": ["knee", "ankle"] }
+  }
+}
