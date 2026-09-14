@@ -349,6 +349,10 @@ watch(logDrawerOpen, (open) => {
         </button>
       </div>
 
+      <!-- Below the day switcher, not above it: the card only shows on today, so above it
+           the arrows would jump out from under the user's thumb when they step back a day. -->
+      <NutritionTdeeSuggestionCard v-if="isViewingToday" />
+
       <div class="space-y-4 rounded-xl border border-surface-strong bg-card p-5">
         <div class="flex items-center gap-2">
           <FlameIcon class="size-4.5 text-peach" />

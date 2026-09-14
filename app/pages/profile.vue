@@ -5,6 +5,7 @@ import type { Equipment } from "~~/shared/types/preset.types";
 import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
 import type { ExperienceLevel, Goal, UnitSystem } from "~~/shared/types/profile.types";
 import { suggestNutritionTarget } from "~~/shared/lib/nutrition-targets";
+import { describeTdeeMissing } from "~~/shared/lib/tdee-estimate-copy";
 import { Button } from "@/components/ui/button";
 import { equipmentOptions, experienceOptions, goalOptions } from "@/lib/onboarding-options";
 
@@ -61,6 +62,16 @@ const canCalculateTarget = computed(() => tdee.value !== null && primaryGoal.val
 const calculateTargetDisabledReason = computed(() => {
   if (tdee.value === null) return "Add more profile details (weight, height, age, activity level) to calculate your TDEE first.";
   if (primaryGoal.value === null) return "Set a primary goal in onboarding to calculate a suggested target.";
+  return null;
+});
+
+// The data-driven estimate (last 28 days of meals + weigh-ins) is shown beside the button for
+// context only; "Calculate for me" deliberately stays on the formula TDEE above.
+const { data: tdeeEstimate } = useTdeeEstimate();
+const tdeeEstimateLine = computed(() => {
+  const value = tdeeEstimate.value;
+  if (value?.status === "ready") return `Your logs put maintenance at about ${value.estimate.toLocaleString()} cal.`;
+  if (value?.status === "insufficient") return describeTdeeMissing(value.missing);
   return null;
 });
 
@@ -321,6 +332,7 @@ const onLogout = async () => {
           Calculate for me
         </Button>
         <p v-if="calculateTargetDisabledReason" class="text-xs text-muted-foreground">{{ calculateTargetDisabledReason }}</p>
+        <p v-if="tdeeEstimateLine" class="text-xs text-muted-foreground [font-variant-numeric:tabular-nums]">{{ tdeeEstimateLine }}</p>
         <div class="grid grid-cols-2 gap-3">
           <UiMetricInput v-model="targetCalories" label="Calories" unit="cal" />
           <UiMetricInput v-model="targetProtein" label="Protein" unit="g" />
