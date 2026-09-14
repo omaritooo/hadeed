@@ -137,5 +137,6 @@ describe('PresetSplitRepository', () => {
     const exercise = (await repo.findWithDays(preset.id))?.days[0]?.exercises[0]
     expect(exercise?.targetRepsMin).toBe(6)
     expect(exercise?.targetRepsMax).toBe(6)
+    expect(exercise?.targetReps).toBe(6)
   })
 })

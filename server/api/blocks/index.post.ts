@@ -20,7 +20,7 @@ defineRouteMeta({
               endDate: { type: 'string', format: 'date', nullable: true },
               trainingDayMacroTarget: { type: 'object', nullable: true, description: 'MacroTarget' },
               restDayMacroTarget: { type: 'object', nullable: true, description: 'MacroTarget' },
-              days: { type: 'array', items: { type: 'object', description: 'CreateSplitDayInput' } },
+              days: { type: 'array', items: { type: 'object', description: 'CreateSplitDayInput. Each exercise takes targetRepsMin / targetRepsMax, and a deprecated targetReps is accepted for older app builds and used as both when they are absent.' } },
             },
           },
         },

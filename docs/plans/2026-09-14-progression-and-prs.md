@@ -2005,7 +2005,7 @@ payload. This task removes all of that.
 
 **Files:**
 - Create: `server/database/migrations/drop-target-reps.ts`, `tests/server/database/drop-target-reps-migration.test.ts`
-- Modify: `server/database/seed.ts` (run the new migration after `migrateRepRanges`), `server/database/schema.sql`, `server/repositories/rep-range-columns.ts` and its callers in `block`, `preset-split` and `session` repositories, `server/database/seed-dummy.ts`, repository tests
+- Modify: `server/database/seed.ts` (run the new migration after `migrateRepRanges`), `server/database/schema.sql`, `server/repositories/rep-range-columns.ts` and its callers in `block`, `preset-split` and `session` repositories, `server/services/workouts.service.ts`, `server/api/sessions/index.post.ts` (OpenAPI), `shared/types/*.types.ts`, `server/database/seed-dummy.ts`, repository and service tests
 
 **Step 1: Write the failing migration test.** Build a database with `target_reps`, `target_reps_min`
 and `target_reps_max`. Include rows with min/max set, and rows with only `target_reps` set in all
@@ -2029,6 +2029,7 @@ the other two tables.
 - Remove `target_reps` from every insert and from `repRangeArgs`.
 - `repRangeFromRow` reads only `target_reps_min` / `target_reps_max`.
 - Remove the legacy `targetReps` payload normalization.
+- Remove the legacy `targetReps` response field: the `// TODO(Task 15)` sites in `rep-range-columns.ts` and `workouts.service.ts`, and the `@deprecated targetReps?` fields on `SplitExercise`, `PresetSplitExercise`, `TodaysWorkoutExercise` and `ExerciseLog`.
 - Delete the dual-write and fallback repository tests, and the legacy-payload tests.
 
 **Step 4: Drop `target_reps` from `schema.sql`** in all three tables, including the deprecated comment.

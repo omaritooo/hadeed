@@ -9,6 +9,8 @@ export interface TodaysWorkoutExercise {
   targetSets: number | null
   targetRepsMin: number | null
   targetRepsMax: number | null
+  /** @deprecated Equals targetRepsMin. Sent only for older app builds and removed in Task 15. Read targetRepsMin / targetRepsMax. */
+  targetReps?: number | null
   targetRpe: number | null
   restSeconds: number | null
   thumbnailUrl: string | null

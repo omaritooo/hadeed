@@ -88,6 +88,7 @@ describe('SessionRepository.startSession', () => {
     const exercise = (await repo.findWithLogs('session-5'))?.exercises[0]
     expect(exercise?.targetRepsMin).toBe(6)
     expect(exercise?.targetRepsMax).toBe(6)
+    expect(exercise?.targetReps).toBe(6)
   })
 
   it('stores the prescription from a legacy payload that sends targetReps and omits nullable fields', async () => {

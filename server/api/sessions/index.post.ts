@@ -33,6 +33,7 @@ defineRouteMeta({
                     targetSets: { type: 'number', nullable: true },
                     targetRepsMin: { type: 'number', nullable: true },
                     targetRepsMax: { type: 'number', nullable: true },
+                    targetReps: { type: 'number', nullable: true, deprecated: true, description: 'Accepted for older app builds only. Used as both targetRepsMin and targetRepsMax when those are absent.' },
                     targetRpe: { type: 'number', nullable: true },
                     restSeconds: { type: 'number', nullable: true },
                   },

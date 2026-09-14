@@ -18,7 +18,10 @@ export const repRangeArgs = (exercise: RepRangeInput): [number | null, number | 
   return [min, min, max]
 }
 
-export const repRangeFromRow = (row: Record<string, unknown>): { targetRepsMin: number | null, targetRepsMax: number | null } => ({
-  targetRepsMin: (row.target_reps_min ?? row.target_reps ?? null) as number | null,
-  targetRepsMax: (row.target_reps_max ?? row.target_reps ?? null) as number | null,
-})
+export const repRangeFromRow = (row: Record<string, unknown>): { targetRepsMin: number | null, targetRepsMax: number | null, targetReps: number | null } => {
+  const targetRepsMin = (row.target_reps_min ?? row.target_reps ?? null) as number | null
+  const targetRepsMax = (row.target_reps_max ?? row.target_reps ?? null) as number | null
+  // TODO(Task 15): remove legacy targetReps. Older app builds read this single target from block,
+  // preset and session responses.
+  return { targetRepsMin, targetRepsMax, targetReps: targetRepsMin }
+}

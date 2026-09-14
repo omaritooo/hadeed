@@ -164,6 +164,8 @@ export class WorkoutsService extends BaseService {
           targetSets: exercise.targetSets,
           targetRepsMin: exercise.targetRepsMin,
           targetRepsMax: exercise.targetRepsMax,
+          // TODO(Task 15): remove legacy targetReps. Older app builds read it from the summary.
+          targetReps: exercise.targetRepsMin,
           targetRpe: exercise.targetRpe,
           restSeconds: exercise.restSeconds,
           thumbnailUrl: details?.images[0] ?? null,

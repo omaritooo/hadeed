@@ -60,6 +60,10 @@ describe('WorkoutsService', () => {
       exerciseId: 'squat',
       setType: 'weight_reps',
       targetSets: 3,
+      targetRepsMin: 5,
+      targetRepsMax: 5,
+      // Older app builds still read the single target until Task 15.
+      targetReps: 5,
     })
   })
 
