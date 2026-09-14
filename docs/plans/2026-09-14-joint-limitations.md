@@ -746,7 +746,7 @@ drafts, and a Save button calling `useSetLimitations().mutateAsync(limitationsDr
   limitations) as the new third argument to `useExerciseAlternatives`.
 - `PresetReview.vue`:
   - Keep `exercisesById` resolution and store `stressors` on each `ReviewExercise`
-    (`stressors: JointArea[]`, patched in the same watch that patches names).
+    (`stressors: JointArea[]`, patched in the same watch that patches names, defaulting to `[]`: an `Exercise` cached from before this deploy has no `stressors` field).
   - Show the badge per row.
   - Above the day list:
 
@@ -762,7 +762,7 @@ drafts, and a Save button calling `useSetLimitations().mutateAsync(limitationsDr
 ```ts
 const limitations = computed(() => profile.value?.profile?.limitations ?? []);
 const flaggedRows = computed(() => reviewDays.value.flatMap(day =>
-  day.exercises.filter(e => conflictingAreas(e.stressors, limitations.value).length > 0).map(e => ({ day, exercise: e }))));
+  day.exercises.filter(e => conflictingAreas(e.stressors ?? [], limitations.value).length > 0).map(e => ({ day, exercise: e }))));
 const swappingAll = ref(false);
 const unswappable = ref<string[]>([]);
 const { $api } = useNuxtApp();
@@ -775,7 +775,7 @@ const swapAllFlagged = async () => {
       const candidates = await $api<Exercise[]>(`/api/exercises/${exercise.exerciseId}/fallbacks`, {
         query: { equipmentTiers: equipmentTiers.value.join(","), avoid: limitations.value.join(",") },
       });
-      const clean = candidates.find(c => conflictingAreas(c.stressors, limitations.value).length === 0);
+      const clean = candidates.find(c => conflictingAreas(c.stressors ?? [], limitations.value).length === 0);
       if (!clean) {
         unswappable.value.push(exercise.name);
         continue;
