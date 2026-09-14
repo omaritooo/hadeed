@@ -97,7 +97,7 @@ existing word-boundary `nameHas`:
   the set.
 - `GET /api/exercises/:id/alternatives` and `/fallbacks` accept `avoid=shoulder,knee`;
   results order non-flagged first, then by the existing tier distance.
-- `PresetSplitService.scorePreset` subtracts 1 per tier-1 exercise that conflicts with a
+- `PresetSplitService.recommend` subtracts 1 per tier-1 exercise that conflicts with a
   limitation, capped at 2 (`MAX_LIMITATION_PENALTY`), adding a reason that reports the true
   count ("3 exercises load your shoulder"). A soft signal, not a filter: the cap keeps a
   squat/deadlift-heavy preset from sinking below a poor frequency match.
