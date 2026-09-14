@@ -18,6 +18,9 @@ export const useLogMeal = () => {
       method: 'POST',
       body: input,
     }),
-    onSuccess: () => queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
+    onSuccess: () => Promise.all([
+      queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }),
+    ]),
   })
 }

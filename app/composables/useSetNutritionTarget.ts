@@ -14,6 +14,7 @@ export const useSetNutritionTarget = () => {
     onSuccess: () => {
       queryCache.invalidateQueries({ key: queryKeys.nutrition() })
       queryCache.invalidateQueries({ key: queryKeys.profile() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
     },
   })
 }

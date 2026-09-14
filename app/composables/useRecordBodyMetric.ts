@@ -18,6 +18,7 @@ export const useRecordBodyMetric = () => {
       queryCache.invalidateQueries({ key: queryKeys.profile() }),
       queryCache.invalidateQueries({ key: queryKeys.home() }),
       queryCache.invalidateQueries({ key: queryKeys.bodyMetrics() }),
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }),
     ]),
   })
 }

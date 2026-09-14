@@ -10,6 +10,9 @@ export const useLogPresetMeal = () => {
     mutation: presetMealId => $api<MealLog>(`/api/nutrition/presets/${presetMealId}/log`, {
       method: 'POST',
     }),
-    onSuccess: () => queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
+    onSuccess: () => Promise.all([
+      queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }),
+    ]),
   })
 }

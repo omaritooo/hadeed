@@ -19,6 +19,7 @@ export const queryKeys = {
   // prefix -- invalidateQueries' default prefix match then still reaches whichever day's
   // query is currently cached (today's default key included), with no changes needed there.
   nutrition: (date?: string) => (date ? ['nutrition', date] as const : ['nutrition'] as const),
+  tdeeEstimate: () => ['tdee-estimate'] as const,
   ingredients: () => ['ingredients'] as const,
   presetMeals: () => ['preset-meals'] as const,
   workouts: () => ['workouts'] as const,
