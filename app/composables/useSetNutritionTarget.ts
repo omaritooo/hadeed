@@ -11,10 +11,14 @@ export const useSetNutritionTarget = () => {
       method: 'POST',
       body: { target },
     }),
+    // Returning the promise keeps the mutation loading until nutrition/profile have refetched,
+    // so buttons don't re-enable over stale data. The estimate refetch is fire-and-forget.
     onSuccess: () => {
-      queryCache.invalidateQueries({ key: queryKeys.nutrition() })
-      queryCache.invalidateQueries({ key: queryKeys.profile() })
-      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() })
+      queryCache.invalidateQueries({ key: queryKeys.tdeeEstimate() }).catch(() => {})
+      return Promise.all([
+        queryCache.invalidateQueries({ key: queryKeys.nutrition() }),
+        queryCache.invalidateQueries({ key: queryKeys.profile() }),
+      ])
     },
   })
 }

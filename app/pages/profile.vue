@@ -5,7 +5,7 @@ import type { Equipment } from "~~/shared/types/preset.types";
 import type { AchievementCriteriaType } from "~~/shared/types/gamification.types";
 import type { ExperienceLevel, Goal, UnitSystem } from "~~/shared/types/profile.types";
 import { suggestNutritionTarget } from "~~/shared/lib/nutrition-targets";
-import { describeTdeeMissing } from "~~/shared/lib/tdee-estimate-copy";
+import { describeTdeeEstimateForProfile, describeTdeeMissing } from "~~/shared/lib/tdee-estimate-copy";
 import { Button } from "@/components/ui/button";
 import { equipmentOptions, experienceOptions, goalOptions } from "@/lib/onboarding-options";
 
@@ -66,13 +66,16 @@ const calculateTargetDisabledReason = computed(() => {
 });
 
 // The data-driven estimate (last 28 days of meals + weigh-ins) is shown beside the button for
-// context only; "Calculate for me" deliberately stays on the formula TDEE above.
+// context only; "Calculate for me" deliberately stays on the formula (profile) TDEE above, and
+// the line says so whenever the button is usable, so two different numbers don't look like a bug.
 const { data: tdeeEstimate } = useTdeeEstimate();
 const tdeeEstimateLine = computed(() => {
   const value = tdeeEstimate.value;
-  if (value?.status === "ready") return `Your logs put maintenance at about ${value.estimate.toLocaleString()} cal.`;
-  if (value?.status === "insufficient") return describeTdeeMissing(value.missing);
-  return null;
+  const detail = value?.status === "ready"
+    ? describeTdeeEstimateForProfile(value)
+    : value?.status === "insufficient" ? describeTdeeMissing(value.missing) : null;
+  if (!detail) return null;
+  return canCalculateTarget.value ? `Calculate for me uses your profile estimate. ${detail}` : detail;
 });
 
 const onCalculateTarget = () => {
