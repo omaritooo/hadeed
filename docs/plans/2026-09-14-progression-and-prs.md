@@ -14,14 +14,21 @@
 
 ## Before you start
 
-- **Baseline:** `npx vitest run` → 40 files, 367 passed, 1 todo. Confirm that before Task 1.
-- **In-flight work.** At the time of writing, another session had uncommitted changes to
-  `app/pages/workouts/session/[id].vue`, a new `app/components/session/SetFields.vue`,
-  `server/repositories/session.repository.ts` (`findExerciseHistory` now returns every
-  working set per session), `shared/types/session.types.ts`, `UiNumberStepper` and
-  `DayExercisePicker.vue`. **Land or rebase onto that work first.** UI tasks below are
-  written against the `SetFields` version of the session page. If `git status` shows those
-  files still dirty and not yours, stop and ask.
+- **Baseline:** run `npx vitest run` and record the counts before Task 1 (the counts in this
+  plan are from when it was written; later plans have added tests since).
+- **Work landed since this plan was written.** Read these fresh before editing:
+  - `509f62d`: the session page (`app/pages/workouts/session/[id].vue`) now uses
+    `SessionSetFields`, and `findExerciseHistory` returns every working set per session.
+    The page **seeds each set's draft from the matching working set last session**
+    (`previousSessionSets`, `suggestedSetValues`, the `seededDrafts` `watchEffect`, and
+    `logNextSet`'s next-set suggestion), and shows a per-set "last time" hint.
+  - `b397d8c`: `DayExercisePicker.vue` rows are a grid, with sets × reps as plain `Input`s on
+    their own line.
+  - `515e3e6`: mutation composables return `Promise.allSettled` of awaited invalidations
+    from `onSuccess`, never `Promise.all`.
+  - The adaptive-TDEE and joint-limitations plans have landed. `SessionService` and its
+    routes are unchanged by them, but `ProfileService` now takes a `UserLimitationRepository`,
+    and `Exercise` has `stressors`.
 - **Typecheck:** `npx nuxi typecheck`. **Tests:** `npx vitest run <path>`.
 - Commit on `main` (no worktree). Every commit message ends with
   `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
@@ -1726,27 +1733,32 @@ git commit -m "feat(prs): add a backfill script for personal_records"
 
 No unit tests (repo convention: Vue components aren't unit-tested).
 
-**Step 1: Replace the reps input** with two `UiNumberStepper`s side by side, labelled
-"Reps" with an en dash between. Match the existing markup around the current
-`exercise.targetRepsMin` binding:
+**Step 1: Replace the reps input** with a min–max pair, keeping the current row layout (a
+grid with "N sets × M reps" as plain `Input`s on their own line, from `b397d8c`). Change
+the single reps `Input` to two `Input`s joined by an en dash, like this:
 
 ```vue
-<div class="flex items-center gap-1">
-  <UiNumberStepper
-    :model-value="exercise.targetRepsMin ?? ''"
-    :step="1"
-    placeholder="min"
-    @update:model-value="(v) => setRepsMin(exercise, v)"
-  />
-  <span class="text-muted-foreground">–</span>
-  <UiNumberStepper
-    :model-value="exercise.targetRepsMax ?? ''"
-    :step="1"
-    placeholder="max"
-    @update:model-value="(v) => setRepsMax(exercise, v)"
-  />
-</div>
+<Input
+  :model-value="exercise.targetRepsMin ?? ''"
+  type="number"
+  placeholder="min"
+  aria-label="Minimum reps"
+  class="h-9 w-14 py-0"
+  @update:model-value="(v) => setRepsMin(exercise, v)"
+/>
+–
+<Input
+  :model-value="exercise.targetRepsMax ?? ''"
+  type="number"
+  placeholder="max"
+  aria-label="Maximum reps"
+  class="h-9 w-14 py-0"
+  @update:model-value="(v) => setRepsMax(exercise, v)"
+/>
+reps
 ```
+
+Check it still fits at about 360px alongside the sets input.
 
 with, in `<script setup>`:
 
@@ -1892,27 +1904,24 @@ In `app/pages/workouts/session/[id].vue`:
 
 with `const expandedReason = reactive<Record<string, boolean>>({})`.
 
-- **Pre-fill.** Extend `draftFor` so a new draft for an exercise with no logged sets starts
-  from the suggestion:
+- **Pre-fill: integrate with the existing last-session seeding, don't replace it.** The
+  page already fills each working set's draft from the same set last session
+  (`suggestedSetValues`, used by the `seededDrafts` `watchEffect` and by `logNextSet`). The
+  progression suggestion changes what that fill should be:
+  - `increase` / `reduce` with a `weightKg`: for every working set, use the suggested weight
+    (not last session's), with reps from the suggestion's `repsMin`. Last session's per-set
+    weights no longer apply once the load changes. This includes ramping patterns: pre-fill
+    the suggested working weight, and let the lifter adjust.
+  - `hold`: keep today's behaviour (last session's matching set, or the set just logged).
+  - `first_time` or no suggestion: keep today's behaviour.
+  - Bodyweight `increase` (`weightKg` null): keep the weight behaviour, use the suggestion's
+    `repsMin` for reps.
 
-```ts
-const draftFor = (exerciseLogId: string) => {
-  if (!drafts[exerciseLogId]) {
-    const exercise = session.value?.exercises.find(e => e.id === exerciseLogId)
-    const suggestion = exercise && exercise.sets.length === 0 ? exercise.suggestion : null
-    drafts[exerciseLogId] = {
-      weightKg: suggestion?.weightKg != null ? String(round1(suggestion.weightKg)) : '',
-      reps: suggestion ? String(suggestion.repsMin) : '',
-      rpe: '',
-      isWarmup: false,
-    }
-  }
-  return drafts[exerciseLogId]
-}
-```
-
-(Adapt to the `SetFields` draft shape if it differs after the in-flight refactor. Weight is
-stored and entered in kg on this page today.)
+  Implement this by giving `suggestedSetValues` the exercise's `suggestion` and applying
+  those rules. Put the rule selection in a pure helper in `shared/lib/progression.ts` (e.g.
+  `prefillForSet({ suggestion, previousSet, justLogged })`) with unit tests, and keep the
+  Vue side a thin call. The per-set "Set N last time" hint stays as it is.
+  Weight is stored and entered in kg on this page.
 
 - **"Next time" card** in the completion summary: compute client-side from the
   just-finished session with `suggestProgression`, keeping only `increase` results:
