@@ -135,7 +135,7 @@ watchEffect(() => {
 });
 const swapAllButtonLabel = computed(() =>
   swappingAll.value ? "Swapping…" : swapFlaggedButtonLabel(pendingFlaggedRows.value.length, noAlternativeCount.value));
-const swapAllStatusRef = useTemplateRef<HTMLElement>("swapAllStatus");
+const swapAllStatusEl = useTemplateRef<HTMLElement>("swapAllStatusEl");
 const { $api } = useNuxtApp();
 
 let unmounted = false;
@@ -144,6 +144,8 @@ onBeforeUnmount(() => {
 });
 
 const swapAllFlagged = async () => {
+  // The button is only aria-disabled while running (so it keeps focus), so clicks still arrive here.
+  if (swappingAll.value) return;
   swappingAll.value = true;
   swapAllStatus.value = "";
   // Snapshot: applySwap mutates reviewDays, which recomputes the flagged lists mid-loop.
@@ -187,7 +189,7 @@ const swapAllFlagged = async () => {
   // focus to <body>, so hand it to the status line instead.
   if (pendingFlaggedRows.value.length === 0) {
     await nextTick();
-    swapAllStatusRef.value?.focus();
+    swapAllStatusEl.value?.focus();
   }
 };
 
@@ -217,8 +219,9 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
       <div v-if="swapAllVisible" class="flex flex-col">
         <Button
           variant="secondary"
-          class="w-full"
-          :disabled="swappingAll || pendingFlaggedRows.length === 0 || equipmentTiers.length === 0"
+          class="w-full aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          :aria-disabled="swappingAll"
+          :disabled="!swappingAll && (pendingFlaggedRows.length === 0 || equipmentTiers.length === 0)"
           @click="swapAllFlagged"
         >
           <ShuffleIcon class="size-4" aria-hidden="true" />
@@ -229,7 +232,7 @@ const overrides = computed<PresetExerciseOverride[]>(() => {
         </p>
         <!-- Always rendered (while the button is) so screen readers announce the outcome when it's set. -->
         <p
-          ref="swapAllStatus"
+          ref="swapAllStatusEl"
           aria-live="polite"
           tabindex="-1"
           class="text-xs text-muted-foreground outline-none"
