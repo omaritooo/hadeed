@@ -49,6 +49,12 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
 - **Exercise swapping** — any picked exercise can be swapped for an alternative sharing its
   movement pattern and primary muscle, ranked by tier proximity. A separate fallback flow
   handles equipment mismatches automatically.
+- **Joint limitations**: a user can mark knee, shoulder, lower back, wrist, elbow or ankle
+  (at onboarding or on Profile). Exercises that commonly load those joints get a warning
+  badge. Nothing is hidden. Swaps rank clean alternatives first, preset review can swap all
+  flagged lifts at once, and recommendations softly penalise presets whose main lifts load a
+  limited joint (capped at 2 points). Tags come from rules in
+  `server/utils/exercise-classification.ts`, corrected by `exercise_stressor_overrides.json`.
 
 ### Exercise catalog
 
@@ -255,7 +261,7 @@ cp .env.example .env
 
 ```bash
 npm run db:seed               # migrations + schema + exercises + preset foods + roles
-npm run db:classify-exercises # tag movement patterns and tiers
+npm run db:classify-exercises # tag movement patterns, tiers and joint stressors
 npm run db:seed:dummy         # optional: a demo user with history
 ```
 
@@ -278,7 +284,7 @@ npm run dev                   # http://localhost:3000
 | `npm test` | Run the Vitest suite once |
 | `npm run db:seed` | Apply migrations + schema, seed catalog data and roles |
 | `npm run db:seed:dummy` | Seed a demo user with sessions, meals, and metrics |
-| `npm run db:classify-exercises` | Backfill movement patterns and tiers |
+| `npm run db:classify-exercises` | Backfill movement patterns and tiers, and rebuild joint stressor tags (run after `db:seed`) |
 
 ---
 
