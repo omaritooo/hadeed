@@ -1,3 +1,5 @@
+import type { JointArea } from '~~/shared/lib/joint-areas'
+
 export type MuscleRole = 'primary' | 'secondary'
 
 export interface Muscle {
@@ -19,6 +21,8 @@ export interface Exercise {
   images: string[]
   tier: 1 | 2 | 3 | null
   movementPattern: string | null
+  // Joint areas this exercise loads, in canonical JOINT_AREAS order
+  stressors: JointArea[]
 }
 
 export interface ExerciseMuscle {

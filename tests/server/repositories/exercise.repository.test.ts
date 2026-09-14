@@ -301,4 +301,51 @@ describe('ExerciseRepository', () => {
     const fallbacks = await repo.findFallbacks('no-primary', ['dumbbell'])
     expect(fallbacks).toEqual([])
   })
+
+  it('attaches stressor areas to exercises in canonical order', async () => {
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('bb-bench', 'Barbell Bench Press', 'barbell', 'compound', 'horizontal_push', 1)` })
+    await db.execute(`INSERT INTO exercise_stressors (exercise_id, area, source) VALUES ('bb-bench', 'elbow', 'rule')`)
+    await db.execute(`INSERT INTO exercise_stressors (exercise_id, area, source) VALUES ('bb-bench', 'shoulder', 'rule')`)
+
+    expect((await repo.findById('bb-bench'))!.stressors).toEqual(['shoulder', 'elbow'])
+  })
+
+  it('returns empty stressors for an exercise with none', async () => {
+    await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('pushup', 'Push-Up', 'body only', 'compound', 'horizontal_push', 1)` })
+    expect((await repo.findById('pushup'))!.stressors).toEqual([])
+  })
+
+  describe('findFallbacks with avoid', () => {
+    const seedTierFixture = async () => {
+      const muscles = new MuscleRepository(db)
+      const chest = await muscles.getOrCreate('chest')
+      await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('src', 'Source', 'barbell', 'compound', 'horizontal_push', 1)` })
+      await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('t3', 'Zzz Isolation', 'cable', 'isolation', 'horizontal_push', 3)` })
+      await db.execute({ sql: `INSERT INTO exercises (id, name, equipment, mechanic, movement_pattern, tier) VALUES ('t1', 'Aaa Compound', 'body only', 'compound', 'horizontal_push', 1)` })
+      for (const id of ['src', 't3', 't1']) {
+        await db.execute({ sql: 'INSERT INTO exercise_muscles (exercise_id, muscle_id, role) VALUES (?, ?, ?)', args: [id, chest.id, 'primary'] })
+      }
+      // t1 would normally sort first (closest tier); flag it for the shoulder.
+      await db.execute(`INSERT INTO exercise_stressors (exercise_id, area, source) VALUES ('t1', 'shoulder', 'rule')`)
+    }
+
+    it('orders fallbacks that avoid the given areas first', async () => {
+      await seedTierFixture()
+      const ids = (await repo.findFallbacks('src', ['cable', 'body only'], ['shoulder'])).map(e => e.id)
+      expect(ids).toEqual(['t3', 't1'])
+    })
+
+    it('keeps tier-proximity order when avoid is empty or does not match', async () => {
+      await seedTierFixture()
+      expect((await repo.findFallbacks('src', ['cable', 'body only'])).map(e => e.id)).toEqual(['t1', 't3'])
+      expect((await repo.findFallbacks('src', ['cable', 'body only'], ['knee'])).map(e => e.id)).toEqual(['t1', 't3'])
+    })
+
+    it('still returns flagged candidates rather than filtering them out', async () => {
+      await seedTierFixture()
+      const fallbacks = await repo.findFallbacks('src', ['body only'], ['shoulder'])
+      expect(fallbacks.map(e => e.id)).toEqual(['t1'])
+      expect(fallbacks[0]!.stressors).toEqual(['shoulder'])
+    })
+  })
 })

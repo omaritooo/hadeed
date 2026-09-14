@@ -2,6 +2,7 @@ import { getQuery, getRouterParam } from 'h3'
 import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
+import { isJointArea } from '~~/shared/lib/joint-areas'
 
 // Deliberately duplicates ./fallbacks.get.ts's handler body rather than sharing one: this route
 // serves the Swap Sheet's manual "swap for any reason" flow, fallbacks.get.ts serves the exercise
@@ -24,6 +25,14 @@ defineRouteMeta({
         schema: { type: 'string' },
         description: 'Comma-separated list of acceptable exercises.equipment values (e.g. "body only,dumbbell")',
       },
+      {
+        name: 'avoid',
+        in: 'query',
+        required: false,
+        schema: { type: 'string' },
+        description: 'Comma-separated joint areas (e.g. "knee,shoulder"). Candidates that stress any of them '
+          + 'are ranked after the rest, not removed. Unknown areas are ignored.',
+      },
     ],
     responses: {
       200: { description: 'Matching alternative exercises, closest tier first' },
@@ -37,6 +46,8 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const raw = typeof query.equipmentTiers === 'string' ? query.equipmentTiers : ''
   const equipmentTiers = raw.split(',').map(value => value.trim()).filter(value => value !== '')
+  const rawAvoid = typeof query.avoid === 'string' ? query.avoid : ''
+  const avoid = rawAvoid.split(',').map(value => value.trim()).filter(isJointArea)
 
-  return new ExerciseRepository(useDb()).findFallbacks(id, equipmentTiers)
+  return new ExerciseRepository(useDb()).findFallbacks(id, equipmentTiers, avoid)
 })

@@ -1,3 +1,4 @@
+import type { JointArea } from '~~/shared/lib/joint-areas'
 import type { RecommendationInput } from '~~/shared/types/preset.types'
 
 export const queryKeys = {
@@ -8,8 +9,8 @@ export const queryKeys = {
   exerciseHistory: (id: string) => ['exercise-history', id] as const,
   exerciseSearch: (query: string) => ['exercise-search', query] as const,
   exercisesByIds: (ids: string[]) => ['exercises-by-ids', ids] as const,
-  exerciseFallbacks: (id: string, equipmentTiers: string[]) => ['exercise-fallbacks', id, equipmentTiers] as const,
-  exerciseAlternatives: (id: string, equipmentTiers: string[]) => ['exercise-alternatives', id, equipmentTiers] as const,
+  exerciseFallbacks: (id: string, equipmentTiers: string[], avoid: JointArea[] = []) => ['exercise-fallbacks', id, equipmentTiers, avoid] as const,
+  exerciseAlternatives: (id: string, equipmentTiers: string[], avoid: JointArea[] = []) => ['exercise-alternatives', id, equipmentTiers, avoid] as const,
   presetSplits: () => ['preset-splits'] as const,
   presetSplitsRecommend: (input: RecommendationInput) => ['preset-splits', 'recommend', input] as const,
   presetSplitDetails: (id: number) => ['preset-splits', id] as const,

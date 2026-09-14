@@ -1,6 +1,7 @@
 import type { FetchError } from 'ofetch'
 import type { MaybeRefOrGetter } from 'vue'
 import type { Exercise } from '~~/shared/types/exercise.types'
+import type { JointArea } from '~~/shared/lib/joint-areas'
 import { useQuery } from '@pinia/colada'
 import { toValue } from 'vue'
 
@@ -11,13 +12,15 @@ import { toValue } from 'vue'
 export const useExerciseFallbacks = (
   exerciseId: MaybeRefOrGetter<string | null>,
   equipmentTiers: MaybeRefOrGetter<string[]>,
+  // Joint areas to rank last; candidates stressing them are still returned.
+  avoid: MaybeRefOrGetter<JointArea[]> = [],
 ) => {
   const { $api } = useNuxtApp()
 
   return useQuery<Exercise[], FetchError<{ statusMessage: string }>>({
-    key: () => queryKeys.exerciseFallbacks(toValue(exerciseId) ?? '', toValue(equipmentTiers)),
+    key: () => queryKeys.exerciseFallbacks(toValue(exerciseId) ?? '', toValue(equipmentTiers), toValue(avoid)),
     query: () => $api<Exercise[]>(`/api/exercises/${toValue(exerciseId)}/fallbacks`, {
-      query: { equipmentTiers: toValue(equipmentTiers).join(',') },
+      query: { equipmentTiers: toValue(equipmentTiers).join(','), avoid: toValue(avoid).join(',') },
     }),
     enabled: () => !!toValue(exerciseId) && toValue(equipmentTiers).length > 0,
   })
