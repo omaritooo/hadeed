@@ -1,5 +1,6 @@
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 import type { DayLocation, SplitFormat } from '~~/shared/types/split.types'
+import type { JointArea } from '~~/shared/lib/joint-areas'
 
 export type Equipment = 'full_gym' | 'home_barbell_dumbbell' | 'home_dumbbell_only' | 'bodyweight' | 'both'
 
@@ -54,4 +55,6 @@ export interface RecommendationInput {
   experienceLevel: ExperienceLevel | null
   goal: Goal | null
   equipment: Equipment | null
+  // Joint areas the user has flagged. Absent or empty means no penalty and no stressor lookup.
+  limitations?: JointArea[]
 }

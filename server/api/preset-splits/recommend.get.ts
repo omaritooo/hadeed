@@ -4,6 +4,7 @@ import { getRequestContext } from '~~/server/utils/get-request-context'
 import { PresetSplitRepository } from '~~/server/repositories/preset-split.repository'
 import { PresetSplitService } from '~~/server/services/preset-split.service'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
+import { UserLimitationRepository } from '~~/server/repositories/user-limitation.repository'
 import type { Equipment } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 
@@ -93,7 +94,10 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const db = useDb()
 
-  const profile = await new ProfileRepository(db).findByUserId(ctx.userId)
+  const [profile, limitations] = await Promise.all([
+    new ProfileRepository(db).findByUserId(ctx.userId),
+    new UserLimitationRepository(db).findForUser(ctx.userId),
+  ])
 
   const rawDaysPerWeek = query.daysPerWeek !== undefined ? Number(query.daysPerWeek) : profile?.trainingDaysPerWeek
   if (rawDaysPerWeek === null || rawDaysPerWeek === undefined || !Number.isFinite(rawDaysPerWeek) || rawDaysPerWeek <= 0) {
@@ -106,5 +110,6 @@ export default defineEventHandler(async (event) => {
     experienceLevel: parseEnum(query.experienceLevel, EXPERIENCE_LEVELS, 'experienceLevel') ?? profile?.experienceLevel ?? null,
     goal: parseEnum(query.goal, GOALS, 'goal') ?? profile?.primaryGoal ?? null,
     equipment: parseEnum(query.equipment, EQUIPMENT_OPTIONS, 'equipment') ?? profile?.equipment ?? null,
+    limitations,
   })
 })

@@ -37,6 +37,22 @@ describe('PresetSplitService.recommend', () => {
     })
   })
 
+  // The fixture presets have no days, so give a preset a day holding one exercise tagged as a
+  // stressor of `area`. Called twice with the same exercise, it lands on two days.
+  const addStressedExercise = async (presetName: string, exerciseId: string, tier: 1 | 2 | 3, area: string) => {
+    await db.execute({ sql: 'INSERT OR IGNORE INTO exercises (id, name, tier) VALUES (?, ?, ?)', args: [exerciseId, exerciseId, tier] })
+    await db.execute({ sql: `INSERT OR IGNORE INTO exercise_stressors (exercise_id, area, source) VALUES (?, ?, 'rule')`, args: [exerciseId, area] })
+    const preset = (await db.execute({ sql: 'SELECT id FROM preset_splits WHERE name = ?', args: [presetName] })).rows[0]!
+    const day = (await db.execute({
+      sql: `INSERT INTO preset_split_days (preset_split_id, name, day_index, location) VALUES (?, 'Day', 0, 'gym') RETURNING id`,
+      args: [preset.id],
+    })).rows[0]!
+    await db.execute({
+      sql: 'INSERT INTO preset_split_exercises (preset_split_day_id, exercise_id, position) VALUES (?, ?, 0)',
+      args: [day.id, exerciseId],
+    })
+  }
+
   it('ranks an exact frequency + goal + experience + equipment match highest', async () => {
     const results = await service.recommend({
       daysPerWeek: 6, experienceLevel: 'intermediate', goal: 'muscle_gain', equipment: 'full_gym',
@@ -110,5 +126,45 @@ describe('PresetSplitService.recommend', () => {
       daysPerWeek: 5, experienceLevel: null, goal: null, equipment: null,
     })
     expect(results.some(r => r.preset.name === 'Upper/Lower')).toBe(true)
+  })
+  it('penalises presets by tier-1 exercises that load a limited area, with a reason', async () => {
+    // Same tier-1 lift on two days counts once.
+    await addStressedExercise('Full Body', 'Overhead_Press', 1, 'shoulder')
+    await addStressedExercise('Full Body', 'Overhead_Press', 1, 'shoulder')
+
+    const input = { daysPerWeek: 3, experienceLevel: null, goal: null, equipment: null }
+    const before = await service.recommend(input)
+    const after = await service.recommend({ ...input, limitations: ['shoulder'] })
+    const fullBodyBefore = before.find(r => r.preset.name === 'Full Body')!
+    const fullBodyAfter = after.find(r => r.preset.name === 'Full Body')!
+
+    expect(fullBodyAfter.score).toBe(fullBodyBefore.score - 1)
+    expect(fullBodyAfter.reasons.join(' ')).toMatch(/1 exercise loads your shoulder/)
+    // Presets without conflicts are untouched.
+    const homeBefore = before.find(r => r.preset.name === 'Minimalist Home')!
+    const homeAfter = after.find(r => r.preset.name === 'Minimalist Home')!
+    expect(homeAfter).toEqual(homeBefore)
+  })
+
+  it('names every limited area and pluralises when several tier-1 exercises conflict', async () => {
+    await addStressedExercise('Full Body', 'Overhead_Press', 1, 'shoulder')
+    await addStressedExercise('Full Body', 'Back_Squat', 1, 'knee')
+
+    const results = await service.recommend({
+      daysPerWeek: 3, experienceLevel: null, goal: null, equipment: null, limitations: ['knee', 'shoulder'],
+    })
+    const fullBody = results.find(r => r.preset.name === 'Full Body')!
+    expect(fullBody.score).toBe(3 - 2)
+    expect(fullBody.reasons.join(' ')).toMatch(/2 exercises load your knee and shoulder/)
+  })
+
+  it('does not penalise a preset whose conflicting exercise is not tier 1', async () => {
+    await addStressedExercise('Full Body', 'Lateral_Raise', 2, 'shoulder')
+
+    const input = { daysPerWeek: 3, experienceLevel: null, goal: null, equipment: null }
+    const before = (await service.recommend(input)).find(r => r.preset.name === 'Full Body')!
+    const after = (await service.recommend({ ...input, limitations: ['shoulder'] })).find(r => r.preset.name === 'Full Body')!
+
+    expect(after).toEqual(before)
   })
 })

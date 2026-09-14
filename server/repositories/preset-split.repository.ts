@@ -2,6 +2,7 @@ import type { Client } from '@libsql/client'
 import type { Equipment, PresetSplit, PresetSplitDay, PresetSplitExercise } from '~~/shared/types/preset.types'
 import type { ExperienceLevel, Goal } from '~~/shared/types/profile.types'
 import type { DayLocation, SplitFormat } from '~~/shared/types/split.types'
+import { JOINT_AREAS, type JointArea } from '~~/shared/lib/joint-areas'
 
 export interface CreatePresetExerciseInput {
   exerciseId: string
@@ -99,6 +100,29 @@ export class PresetSplitRepository {
   async findPublished(): Promise<PresetSplit[]> {
     const result = await this.db.execute('SELECT * FROM preset_splits WHERE is_published = 1')
     return result.rows.map(row => this.mapPreset(row as unknown as Record<string, unknown>))
+  }
+
+  // Per published preset: how many distinct tier-1 exercises load at least one of `areas`, and
+  // which areas. Main lifts only, since accessories are cheap to swap and shouldn't sink a preset.
+  async countStressedTier1Exercises(areas: readonly JointArea[]): Promise<Map<number, { count: number, areas: JointArea[] }>> {
+    if (areas.length === 0) return new Map()
+    const placeholders = areas.map(() => '?').join(', ')
+    const result = await this.db.execute({
+      sql: `SELECT psd.preset_split_id AS preset_id, COUNT(DISTINCT pse.exercise_id) AS n, GROUP_CONCAT(DISTINCT s.area) AS areas
+            FROM preset_split_exercises pse
+            JOIN preset_split_days psd ON psd.id = pse.preset_split_day_id
+            JOIN exercises e ON e.id = pse.exercise_id AND e.tier = 1
+            JOIN exercise_stressors s ON s.exercise_id = e.id AND s.area IN (${placeholders})
+            GROUP BY psd.preset_split_id`,
+      args: [...areas],
+    })
+    return new Map(result.rows.map((row) => {
+      const found = (row.areas as string).split(',')
+      return [row.preset_id as number, {
+        count: row.n as number,
+        areas: JOINT_AREAS.filter(area => found.includes(area)),
+      }]
+    }))
   }
 
   async findWithDays(presetId: number): Promise<PresetSplitWithDays | null> {

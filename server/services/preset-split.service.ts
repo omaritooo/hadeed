@@ -3,6 +3,7 @@ import type { CreatePresetSplitInput, PresetSplitRepository } from '~~/server/re
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { PresetSplit, RecommendationInput, SplitRecommendation } from '~~/shared/types/preset.types'
 import { equipmentSatisfies } from '~~/shared/lib/equipment'
+import { JOINT_AREA_LABELS } from '~~/shared/lib/joint-areas'
 
 const frequencyScore = (daysPerWeek: number, min: number, max: number): number => {
   if (daysPerWeek >= min && daysPerWeek <= max) return 3
@@ -43,11 +44,23 @@ export class PresetSplitService extends BaseService {
   }
 
   async recommend(input: RecommendationInput): Promise<SplitRecommendation[]> {
-    const published = await this.presets.findPublished()
+    const [published, stressed] = await Promise.all([
+      this.presets.findPublished(),
+      this.presets.countStressedTier1Exercises(input.limitations ?? []),
+    ])
     return published
       .map((preset) => {
         const { score, reasons } = scorePreset(preset, input)
-        return { preset, score, reasons }
+        const conflict = stressed.get(preset.id)
+        if (!conflict) return { preset, score, reasons }
+        // A soft penalty only: the frequency filter below ignores it, so a conflict re-ranks a
+        // preset but never hides it.
+        const areaLabel = conflict.areas.map(area => JOINT_AREA_LABELS[area].toLowerCase()).join(' and ')
+        return {
+          preset,
+          score: score - conflict.count,
+          reasons: [...reasons, `${conflict.count} exercise${conflict.count === 1 ? ' loads' : 's load'} your ${areaLabel}`],
+        }
       })
       .filter(({ preset }) => frequencyScore(input.daysPerWeek, preset.frequencyMinDays, preset.frequencyMaxDays) > 0)
       .sort((a, b) => b.score - a.score)
