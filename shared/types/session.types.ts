@@ -1,4 +1,5 @@
 import type { SetType, SplitFormat } from '~~/shared/types/split.types'
+import type { ProgressionSuggestion } from '~~/shared/lib/progression'
 
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned'
 
@@ -30,6 +31,9 @@ export interface ExerciseLog {
   targetReps?: number | null
   targetRpe: number | null
   restSeconds: number | null
+  // What progression suggested for this exercise when the session started, snapshotted so a
+  // past session still shows the advice it was logged against.
+  suggestion: ProgressionSuggestion | null
 }
 
 export interface SetLog {

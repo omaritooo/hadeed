@@ -341,6 +341,15 @@ CREATE TABLE IF NOT EXISTS exercise_logs (
 -- so a later edit to the split's planned rest doesn't retroactively change a past session's log.
 ALTER TABLE exercise_logs ADD COLUMN rest_seconds INTEGER;
 
+-- Progression suggestion snapshotted at session start (see shared/lib/progression.ts), for the
+-- same reason as rest_seconds: a past session keeps saying what it suggested even after later
+-- set edits. suggestion_reason is a reason key, not prose, so it can be translated.
+ALTER TABLE exercise_logs ADD COLUMN suggested_weight_kg REAL;
+ALTER TABLE exercise_logs ADD COLUMN suggested_reps_min INTEGER;
+ALTER TABLE exercise_logs ADD COLUMN suggested_reps_max INTEGER;
+ALTER TABLE exercise_logs ADD COLUMN suggestion_action TEXT CHECK (suggestion_action IN ('increase','hold','reduce','first_time'));
+ALTER TABLE exercise_logs ADD COLUMN suggestion_reason TEXT;
+
 CREATE TABLE IF NOT EXISTS set_logs (
   id               TEXT PRIMARY KEY,
   exercise_log_id  TEXT NOT NULL REFERENCES exercise_logs(id) ON DELETE CASCADE,

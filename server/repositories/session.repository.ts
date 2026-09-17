@@ -10,7 +10,7 @@ import type {
   WorkoutSessionWithLogs,
 } from '~~/shared/types/session.types'
 import type { RecentSessionSummary } from '~~/shared/types/home.types'
-import type { WorkingSet } from '~~/shared/lib/progression'
+import type { ProgressionSuggestion, SuggestionAction, SuggestionReason, WorkingSet } from '~~/shared/lib/progression'
 
 const ABANDON_AFTER_HOURS = 12
 
@@ -25,6 +25,9 @@ export interface StartSessionExerciseInput {
   targetRepsMax: number | null
   targetRpe: number | null
   restSeconds?: number | null
+  // Snapshotted as-suggested at session start, same as restSeconds. Older app builds don't send
+  // it, so the columns stay null and the log reports no suggestion.
+  suggestion?: ProgressionSuggestion | null
 }
 
 export interface StartSessionInput {
@@ -105,6 +108,17 @@ export class SessionRepository {
       ...repRangeFromRow(row),
       targetRpe: row.target_rpe as number | null,
       restSeconds: row.rest_seconds as number | null,
+      // suggestion_action is the presence flag: it and the rep ends are always written together,
+      // so a row without an action was logged before/without a suggestion rather than partially.
+      suggestion: row.suggestion_action
+        ? {
+            action: row.suggestion_action as SuggestionAction,
+            reason: row.suggestion_reason as SuggestionReason,
+            weightKg: row.suggested_weight_kg as number | null,
+            repsMin: row.suggested_reps_min as number,
+            repsMax: row.suggested_reps_max as number,
+          }
+        : null,
     }
   }
 
@@ -150,10 +164,11 @@ export class SessionRepository {
       return
     }
 
+    const suggestion = exercise.suggestion
     try {
       const inserted = await this.db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds)
-              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds, suggested_weight_kg, suggested_reps_min, suggested_reps_max, suggestion_action, suggestion_reason)
+              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
               WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
               RETURNING id`,
         args: [
@@ -167,6 +182,11 @@ export class SessionRepository {
           ...repRangeArgs(exercise),
           exercise.targetRpe ?? null,
           exercise.restSeconds ?? null,
+          suggestion?.weightKg ?? null,
+          suggestion?.repsMin ?? null,
+          suggestion?.repsMax ?? null,
+          suggestion?.action ?? null,
+          suggestion?.reason ?? null,
           session.id,
         ],
       })

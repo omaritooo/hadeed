@@ -132,6 +132,59 @@ describe('SessionRepository.startSession', () => {
     expect(withLogs?.format).toBe('circuit')
     expect(withLogs?.rounds).toBe(4)
   })
+
+  it('snapshots a progression suggestion onto the exercise log', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-s',
+      splitDayId: 1,
+      exercises: [{
+        id: 'exlog-s',
+        exerciseId: 'bench-press',
+        splitExerciseId: 1,
+        position: 0,
+        setType: 'weight_reps',
+        targetSets: 3,
+        targetRepsMin: 8,
+        targetRepsMax: 10,
+        targetRpe: 7,
+        suggestion: { action: 'increase', reason: 'all_sets_top_of_range', weightKg: 62.5, repsMin: 8, repsMax: 10 },
+      }],
+    })
+
+    const [exercise] = (await repo.findWithLogs('session-s'))!.exercises
+    expect(exercise!.suggestion).toEqual({ action: 'increase', reason: 'all_sets_top_of_range', weightKg: 62.5, repsMin: 8, repsMax: 10 })
+  })
+
+  it('snapshots a bodyweight suggestion with no weight', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-bw',
+      splitDayId: 1,
+      exercises: [{
+        id: 'exlog-bw',
+        exerciseId: 'bench-press',
+        splitExerciseId: 1,
+        position: 0,
+        setType: 'bodyweight_reps',
+        targetSets: 3,
+        targetRepsMin: 8,
+        targetRepsMax: 10,
+        targetRpe: null,
+        suggestion: { action: 'increase', reason: 'all_sets_top_of_range', weightKg: null, repsMin: 11, repsMax: 12 },
+      }],
+    })
+
+    const [exercise] = (await repo.findWithLogs('session-bw'))!.exercises
+    expect(exercise!.suggestion).toEqual({ action: 'increase', reason: 'all_sets_top_of_range', weightKg: null, repsMin: 11, repsMax: 12 })
+  })
+
+  it('reports a null suggestion when none was snapshotted', async () => {
+    await repo.startSession('user-1', {
+      id: 'session-n',
+      splitDayId: null,
+      exercises: [{ id: 'exlog-n', exerciseId: 'bench-press', splitExerciseId: null, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null }],
+    })
+    expect((await repo.findWithLogs('session-n'))!.exercises[0]!.suggestion).toBeNull()
+  })
 })
 
 describe('SessionRepository logging', () => {
