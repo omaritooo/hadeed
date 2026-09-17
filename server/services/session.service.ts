@@ -1,13 +1,21 @@
 import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
-import type { SessionRepository } from '~~/server/repositories/session.repository'
+import type { SessionRepository, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
 import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
+import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
+import type { ProfileRepository } from '~~/server/repositories/profile.repository'
+import { repRangeArgs } from '~~/server/repositories/rep-range-columns'
 import type { GamificationService } from '~~/server/services/gamification.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { SessionCompletionSummary, WorkoutSession } from '~~/shared/types/session.types'
+import { suggestProgression } from '~~/shared/lib/progression'
 import { startOfWeek, toSqliteDatetime, fromSqliteDatetime } from '~~/server/utils/date'
+
+// How many recent sessions of an exercise the progression rules look at (the back-off rule needs
+// the previous two).
+const PROGRESSION_LOOKBACK_SESSIONS = 2
 
 export class SessionService extends BaseService {
   constructor(
@@ -19,8 +27,53 @@ export class SessionService extends BaseService {
     // streak) — separate from `gamification`, which owns writing/mutating this same state.
     private xp: XpRepository,
     private streaks: StreakRepository,
+    // Optional: only the routes that need progression suggestions wire these up, so routes that
+    // just complete a session don't have to construct repositories they never use.
+    private deps: { exercises?: ExerciseRepository, profiles?: ProfileRepository } = {},
   ) {
     super(ctx)
+  }
+
+  async startSession(input: StartSessionInput): Promise<WorkoutSession> {
+    await this.sessions.expireStaleSessions(this.ctx.userId)
+    const exercises = await this.withSuggestions(input.exercises)
+    return this.sessions.startSession(this.ctx.userId, { ...input, exercises })
+  }
+
+  // Never blocks starting a workout: if anything about computing suggestions fails, the exercises
+  // are attached with no suggestion and the UI simply doesn't show one.
+  private async withSuggestions(exercises: StartSessionExerciseInput[]): Promise<StartSessionExerciseInput[]> {
+    const { exercises: exerciseRepo, profiles } = this.deps
+    if (!exerciseRepo || !profiles || exercises.length === 0) return exercises
+
+    try {
+      const [catalog, profile] = await Promise.all([
+        exerciseRepo.findByIds([...new Set(exercises.map(e => e.exerciseId))]),
+        profiles.findByUserId(this.ctx.userId),
+      ])
+      const byId = new Map(catalog.map(e => [e.id, e]))
+      const unitSystem = profile?.unitSystem ?? 'metric'
+
+      return await Promise.all(exercises.map(async (exercise) => {
+        const recentSessions = await this.sessions.findRecentWorkingSets(this.ctx.userId, exercise.exerciseId, PROGRESSION_LOOKBACK_SESSIONS)
+        const meta = byId.get(exercise.exerciseId)
+        // Same rep-range resolution the repository writes to the columns, so a suggestion made for
+        // an older build's single targetReps matches the targets stored alongside it.
+        const [, repsMin, repsMax] = repRangeArgs(exercise)
+        const suggestion = suggestProgression({
+          prescription: { sets: exercise.targetSets, repsMin, repsMax, rpe: exercise.targetRpe },
+          recentSessions,
+          setType: exercise.setType,
+          equipment: meta?.equipment ?? null,
+          movementPattern: meta?.movementPattern ?? null,
+          unitSystem,
+        })
+        return { ...exercise, suggestion }
+      }))
+    } catch (error) {
+      console.error('SessionService.withSuggestions failed; starting session without suggestions', { error })
+      return exercises
+    }
   }
 
   private async requireOwnedSession(sessionId: string) {

@@ -5,6 +5,8 @@ import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
 import { StreakRepository } from '~~/server/repositories/streak.repository'
+import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
+import { ProfileRepository } from '~~/server/repositories/profile.repository'
 import { SessionService } from '~~/server/services/session.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 
@@ -195,5 +197,74 @@ describe('SessionService', () => {
     expect(result.summary.prsHit).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5 }])
     expect(result.summary.durationMinutes).toBeGreaterThanOrEqual(0)
     expect(result.summary.currentStreak).toBe((await streaks.findForUser('user-1')).currentStreak)
+  })
+})
+
+describe('SessionService.startSession', () => {
+  let db: Client
+  let sessions: SessionRepository
+  let service: SessionService
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute(`INSERT INTO exercises (id, name, equipment, movement_pattern, instructions) VALUES ('bench-press', 'Bench Press', 'barbell', 'horizontal_push', '[]')`)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), {} as never, new XpRepository(db), new StreakRepository(db), {
+      exercises: new ExerciseRepository(db),
+      profiles: new ProfileRepository(db),
+    })
+  })
+
+  const exercise = (id: string) => ({
+    id,
+    exerciseId: 'bench-press',
+    splitExerciseId: null,
+    position: 0,
+    setType: 'weight_reps' as const,
+    targetSets: 3,
+    targetRepsMin: 8,
+    targetRepsMax: 10,
+    targetRpe: null,
+  })
+
+  it('snapshots first_time for an exercise with no history', async () => {
+    await service.startSession({ id: 's1', splitDayId: null, exercises: [exercise('e1')] })
+
+    expect((await sessions.findWithLogs('s1'))!.exercises[0]!.suggestion?.action).toBe('first_time')
+  })
+
+  it('snapshots an increase after a session at the top of the range', async () => {
+    await service.startSession({ id: 's1', splitDayId: null, exercises: [exercise('e1')] })
+    for (const n of [1, 2, 3]) {
+      await sessions.logSet({ id: `set-${n}`, exerciseLogId: 'e1', setNumber: n, weightKg: 60, reps: 10, rpe: null })
+    }
+    await sessions.completeSession('s1', 1)
+
+    await service.startSession({ id: 's2', splitDayId: null, exercises: [exercise('e2')] })
+
+    expect((await sessions.findWithLogs('s2'))!.exercises[0]!.suggestion).toMatchObject({ action: 'increase', weightKg: 62.5 })
+  })
+
+  it('falls back to the legacy targetReps payload older app builds send', async () => {
+    await service.startSession({
+      id: 's1',
+      splitDayId: null,
+      exercises: [{ ...exercise('e1'), targetRepsMin: null, targetRepsMax: null, targetReps: 8 } as never],
+    })
+
+    expect((await sessions.findWithLogs('s1'))!.exercises[0]!.suggestion).toMatchObject({ action: 'first_time', repsMin: 8, repsMax: 8 })
+  })
+
+  it('still starts the session when loading history throws', async () => {
+    vi.spyOn(sessions, 'findRecentWorkingSets').mockRejectedValueOnce(new Error('db down'))
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await service.startSession({ id: 's1', splitDayId: null, exercises: [exercise('e1')] })
+
+    expect((await sessions.findWithLogs('s1'))!.exercises[0]!.suggestion).toBeNull()
+    expect(consoleErrorSpy).toHaveBeenCalled()
+
+    consoleErrorSpy.mockRestore()
   })
 })
