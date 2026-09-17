@@ -1,5 +1,6 @@
 import type { SetType, SplitFormat } from '~~/shared/types/split.types'
 import type { ProgressionSuggestion } from '~~/shared/lib/progression'
+import type { PrType } from '~~/shared/lib/personal-records'
 
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned'
 
@@ -68,10 +69,15 @@ export interface ExerciseHistorySet {
   reps: number
 }
 
+// One PR *set*, with every PR type it achieved folded together -- a single set can be a weight,
+// rep and e1RM PR at once, and the summary shows it once rather than three times.
 export interface SessionPrHit {
   exerciseName: string
   weightKg: number
   reps: number
+  prTypes: PrType[]
+  // Set only when prTypes includes 'e1rm'.
+  e1rmKg: number | null
 }
 
 // Returned by SessionService.completeSession alongside the completed session itself, to drive

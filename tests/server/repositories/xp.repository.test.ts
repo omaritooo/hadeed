@@ -87,8 +87,8 @@ describe('XpRepository', () => {
       await repo.award('user-1', 50, 'pr', 'set-1')
       await repo.award('user-1', 50, 'pr', 'set-2')
 
-      expect(await repo.findPrsForSession('user-1', 'session-1')).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5 }])
-      expect(await repo.findPrsForSession('user-1', 'session-2')).toEqual([{ exerciseName: 'Bench Press', weightKg: 110, reps: 3 }])
+      expect(await repo.findPrsForSession('user-1', 'session-1')).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5, prTypes: ['weight'], e1rmKg: null }])
+      expect(await repo.findPrsForSession('user-1', 'session-2')).toEqual([{ exerciseName: 'Bench Press', weightKg: 110, reps: 3, prTypes: ['weight'], e1rmKg: null }])
     })
 
     it('excludes non-PR xp_ledger entries, e.g. set_logged awards', async () => {

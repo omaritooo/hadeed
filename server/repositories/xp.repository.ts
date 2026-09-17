@@ -35,6 +35,10 @@ export class XpRepository {
 
   // `limit` omitted returns the full PR history (most recent first) — used by the Stats tab's
   // PR timeline, as opposed to the home/workouts summaries which always pass a small cap.
+  //
+  // Superseded by PersonalRecordRepository.recent: xp_ledger only knows *that* a set was a PR,
+  // not which kind, so `prTypes`/`e1rmKg` are filled in with the one fact it does imply (the
+  // legacy detector only ever recorded weight PRs). Deleted once the readers switch over.
   async recentPrs(userId: string, limit?: number): Promise<RecentPr[]> {
     const result = await this.db.execute({
       sql: `SELECT xl.created_at AS achieved_at, sl.weight_kg, sl.reps, e.name AS exercise_name
@@ -51,6 +55,8 @@ export class XpRepository {
       exerciseName: row.exercise_name as string,
       weightKg: row.weight_kg as number,
       reps: row.reps as number,
+      prTypes: ['weight'],
+      e1rmKg: null,
       achievedAt: row.achieved_at as string,
     }))
   }
@@ -62,6 +68,9 @@ export class XpRepository {
    * sets are already in set_logs, so a fresh best-weight lookup could no longer distinguish a PR
    * set from the new baseline it just became. PR detection instead happens once, at log time
    * (see server/api/sessions/[id]/sets.post.ts), and is durably recorded here.
+   *
+   * Superseded by PersonalRecordRepository.findForSession, and deleted once the readers switch
+   * over. See recentPrs above for why `prTypes`/`e1rmKg` are hardcoded here.
    */
   async findPrsForSession(userId: string, sessionId: string): Promise<SessionPrHit[]> {
     const result = await this.db.execute({
@@ -78,6 +87,8 @@ export class XpRepository {
       exerciseName: row.exercise_name as string,
       weightKg: row.weight_kg as number,
       reps: row.reps as number,
+      prTypes: ['weight'],
+      e1rmKg: null,
     }))
   }
 }

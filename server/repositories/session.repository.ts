@@ -439,6 +439,24 @@ export class SessionRepository {
     return typeof maxWeight === 'number' ? maxWeight : null
   }
 
+  // PR baseline for one set: every earlier working set of the same exercise by this user,
+  // ordered by (logged_at, rowid) so a replayed or edited set is compared only against what came
+  // before it, never against itself or later sets. The rowid tiebreak matters because logged_at
+  // only has second resolution -- several sets of one exercise routinely share a timestamp.
+  async findWorkingSetsBefore(userId: string, exerciseId: string, setLogId: string): Promise<{ weightKg: number | null, reps: number | null }[]> {
+    const result = await this.db.execute({
+      sql: `SELECT sl.weight_kg, sl.reps
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN workout_sessions ws ON ws.id = el.session_id
+            JOIN set_logs target ON target.id = ?
+            WHERE ws.user_id = ? AND el.exercise_id = ? AND sl.is_warmup = 0
+              AND (sl.logged_at, sl.rowid) < (target.logged_at, target.rowid)`,
+      args: [setLogId, userId, exerciseId],
+    })
+    return result.rows.map(row => ({ weightKg: row.weight_kg as number | null, reps: row.reps as number | null }))
+  }
+
   async expireStaleSessions(userId: string): Promise<void> {
     await this.db.execute({
       sql: `UPDATE workout_sessions

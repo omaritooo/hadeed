@@ -1,4 +1,5 @@
 import type { SetType, SplitFormat } from '~~/shared/types/split.types'
+import type { SessionPrHit } from '~~/shared/types/session.types'
 
 export interface TodaysWorkoutExercise {
   exerciseId: string
@@ -45,10 +46,7 @@ export interface RecentSessionSummary {
   topReps: number | null
 }
 
-export interface RecentPr {
-  exerciseName: string
-  weightKg: number
-  reps: number
+export interface RecentPr extends SessionPrHit {
   achievedAt: string
 }
 

@@ -489,3 +489,20 @@ CREATE TABLE IF NOT EXISTS user_limitations (
   area    TEXT NOT NULL CHECK (area IN ('knee','shoulder','lower_back','wrist','elbow','ankle')),
   PRIMARY KEY (user_id, area)
 );
+
+-- One row per PR type a working set achieved (a set can be a weight, rep and e1RM PR at once).
+-- Replaces reading PRs out of the 'pr' rows of xp_ledger: XP is a reward, this is the training
+-- record. (No semicolons in comments: the schema is split on them.)
+CREATE TABLE IF NOT EXISTS personal_records (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  exercise_id    TEXT NOT NULL REFERENCES exercises(id),
+  set_log_id     TEXT NOT NULL REFERENCES set_logs(id) ON DELETE CASCADE,
+  pr_type        TEXT NOT NULL CHECK (pr_type IN ('weight','reps','e1rm')),
+  value          REAL NOT NULL,
+  previous_value REAL NOT NULL,
+  achieved_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (set_log_id, pr_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_personal_records_user ON personal_records(user_id, achieved_at);

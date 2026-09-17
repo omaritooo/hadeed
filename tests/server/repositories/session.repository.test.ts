@@ -1059,3 +1059,18 @@ describe('SessionRepository.findRecentWorkingSets', () => {
     expect(await repo.findRecentWorkingSets('user-1', 'bench-press', 2)).toEqual([[{ weightKg: 50, reps: 8, rpe: 7 }]])
   })
 })
+
+describe('SessionRepository.findWorkingSetsBefore', () => {
+  it('returns earlier working sets of the exercise, excluding warm-ups and the set itself', async () => {
+    const db = await createTestDb()
+    const repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await repo.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 40, reps: 10, rpe: null, isWarmup: true })
+    await repo.logSet({ id: 'b', exerciseLogId: 'e1', setNumber: 2, weightKg: 80, reps: 8, rpe: null })
+    await repo.logSet({ id: 'c', exerciseLogId: 'e1', setNumber: 3, weightKg: 85, reps: 6, rpe: null })
+
+    expect(await repo.findWorkingSetsBefore('user-1', 'bench-press', 'c')).toEqual([{ weightKg: 80, reps: 8 }])
+  })
+})

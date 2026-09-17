@@ -194,7 +194,7 @@ describe('SessionService', () => {
     expect(result.conflict).toBe(false)
     if (result.conflict) return
     expect(result.summary.totalVolumeKg).toBe(100 * 5)
-    expect(result.summary.prsHit).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5 }])
+    expect(result.summary.prsHit).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5, prTypes: ['weight'], e1rmKg: null }])
     expect(result.summary.durationMinutes).toBeGreaterThanOrEqual(0)
     expect(result.summary.currentStreak).toBe((await streaks.findForUser('user-1')).currentStreak)
   })
