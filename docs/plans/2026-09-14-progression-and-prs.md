@@ -1957,6 +1957,11 @@ is the fallback only if the field is missing.
 - **PR rows** (`completionSummary.prsHit`, `index.vue` recent PRs, `workouts/index.vue`, `stats.vue`):
   add a muted line `{{ formatPrTypes(pr.prTypes, pr.e1rmKg) }}` under each existing
   `{{ pr.weightKg }}kg × {{ pr.reps }}`.
+  - **Don't show a rep PR's `previousValue` as "previous best at this weight".** The rule
+    compares against sets at this weight *or heavier*, so the previous value can come from a
+    heavier set: 95kg × 8 after 100kg × 5 reports `previousValue: 5`, which a lifter would
+    read as "my best at 95kg was 5", when they had never done 95kg for reps. Label it
+    "Reps" only, or word it as "most reps at this weight or above".
 
 **Step 5: Verify manually**
 
