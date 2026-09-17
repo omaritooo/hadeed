@@ -184,11 +184,15 @@ against this exercise's prior working sets:
 - **No prior working sets → no PR.** The first session sets the baseline.
 - Warm-ups are never PRs and never part of the baseline (unchanged).
 
-An e1RM PR therefore never occurs on its own: it always arrives with a weight or rep PR.
-Because the rep rule compares against sets at this weight *or heavier*, any prior set that
-blocks the rep PR has both weight ≥ and reps ≥ the new set, so its e1RM is ≥ the new set's
-and it blocks the e1RM PR too. A lighter, longer prior set can still block the e1RM alone —
-90 × 12 estimates 126.0, above 95 × 8's 120.33, so that set scores a rep PR and no e1RM PR.
+The three rules read different slices of history, so the types appear in most combinations.
+A prior set at this weight *or heavier* with at least as many reps blocks the rep PR, and
+when that set is within the 12-rep cap its e1RM is ≥ the new set's, so it blocks the e1RM
+PR too. The exception is a blocking set **above** the cap: it is excluded from the e1RM
+comparison, so an e1RM PR can stand alone — 50 × 3 after 50 × 1 and 50 × 15 scores e1RM
+only, since 50 × 15 blocks the reps while the eligible prior is 50 × 1 at 51.7, under the
+new set's 55.0. The reverse happens too: a lighter, longer *eligible* set can block the
+e1RM while the rep PR stands — 90 × 12 estimates 126.0, above 95 × 8's 120.33, so that set
+scores a rep PR and no e1RM PR.
 
 ### XP
 

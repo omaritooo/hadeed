@@ -47,6 +47,13 @@ describe('detectPersonalRecords', () => {
     expect(prs.find(p => p.type === 'e1rm')).toEqual({ type: 'e1rm', value: 120.3, previousValue: 120 })
   })
 
+  it('detects an e1RM PR alone when the rep-blocking set is above the 12-rep cap', () => {
+    // 50x15 blocks the rep PR but is excluded from e1RM; eligible prior is 50x1 (51.7),
+    // and the new set's 55.0 beats it.
+    const prs = detectPersonalRecords(working(50, 3), [{ weightKg: 50, reps: 1 }, { weightKg: 50, reps: 15 }])
+    expect(prs.map(p => p.type)).toEqual(['e1rm'])
+  })
+
   it('blocks an e1RM PR when a lighter, higher-rep set already estimates higher', () => {
     // 90x12 estimates 126.0, above 95x8's 120.33, so only the rep PR stands
     const prs = detectPersonalRecords(working(95, 8), [{ weightKg: 100, reps: 5 }, { weightKg: 90, reps: 12 }])
