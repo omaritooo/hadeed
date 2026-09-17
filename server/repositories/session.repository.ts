@@ -10,6 +10,7 @@ import type {
   WorkoutSessionWithLogs,
 } from '~~/shared/types/session.types'
 import type { RecentSessionSummary } from '~~/shared/types/home.types'
+import type { WorkingSet } from '~~/shared/lib/progression'
 
 const ABANDON_AFTER_HOURS = 12
 
@@ -525,6 +526,44 @@ export class SessionRepository {
       }
     }
     return byExercise
+  }
+
+  // Progression input: every working set of the `sessions` most recent *completed* sessions that
+  // contain this exercise, grouped per session, newest first. Separate from findExerciseHistory
+  // because progression autoregulates on RPE (which that query doesn't select) and must ignore
+  // the in-progress session it's suggesting for -- findExerciseHistory deliberately includes the
+  // live session so the session page can show a "last time" hint mid-workout.
+  async findRecentWorkingSets(userId: string, exerciseId: string, sessions: number): Promise<WorkingSet[][]> {
+    const result = await this.db.execute({
+      sql: `WITH recent AS (
+              SELECT DISTINCT
+                ws.id AS id,
+                COALESCE(ws.completed_at, ws.started_at) AS session_date,
+                ws.rowid AS session_rowid
+              FROM workout_sessions ws
+              JOIN exercise_logs el ON el.session_id = ws.id
+              WHERE ws.user_id = ? AND el.exercise_id = ? AND ws.status = 'completed'
+              ORDER BY session_date DESC, session_rowid DESC
+              LIMIT ?
+            )
+            SELECT recent.id AS session_id, sl.weight_kg, sl.reps, sl.rpe
+            FROM recent
+            JOIN exercise_logs el ON el.session_id = recent.id AND el.exercise_id = ?
+            JOIN set_logs sl ON sl.exercise_log_id = el.id
+            WHERE sl.is_warmup = 0
+            ORDER BY recent.session_date DESC, recent.session_rowid DESC, sl.set_number`,
+      args: [userId, exerciseId, sessions, exerciseId],
+    })
+
+    const bySession = new Map<string, WorkingSet[]>()
+    for (const row of result.rows) {
+      const r = row as unknown as Record<string, unknown>
+      const sessionId = r.session_id as string
+      const sets = bySession.get(sessionId) ?? []
+      sets.push({ weightKg: r.weight_kg as number | null, reps: r.reps as number | null, rpe: r.rpe as number | null })
+      bySession.set(sessionId, sets)
+    }
+    return [...bySession.values()]
   }
 
   async countTrainedDaysInRange(userId: string, startIso: string, endIso: string): Promise<number> {

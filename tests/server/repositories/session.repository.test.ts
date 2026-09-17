@@ -929,3 +929,80 @@ describe('SessionRepository.weeklySetsByMuscle', () => {
     expect(results).toEqual([])
   })
 })
+
+describe('SessionRepository.findRecentWorkingSets', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  // completeSession stamps completed_at with datetime('now'), so sessions completed inside one
+  // test would otherwise share a timestamp and leave the ordering to the rowid tiebreak. Pinning
+  // both timestamps here keeps the newest-first assertion about dates rather than insert order.
+  const completedSession = async (
+    id: string,
+    at: string,
+    sets: { weightKg: number, reps: number, rpe: number | null, isWarmup?: boolean }[],
+  ) => {
+    await repo.startSession('user-1', { id, splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: `${id}-ex`, sessionId: id, exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    for (const [i, s] of sets.entries()) {
+      await repo.logSet({ id: `${id}-set-${i}`, exerciseLogId: `${id}-ex`, setNumber: i + 1, ...s })
+    }
+    await repo.completeSession(id, 1)
+    await db.execute({ sql: 'UPDATE workout_sessions SET started_at = ?, completed_at = ? WHERE id = ?', args: [at, at, id] })
+  }
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('returns working sets of the most recent completed sessions, newest first, in set order', async () => {
+    await completedSession('s-old', '2026-01-01 10:00:00', [{ weightKg: 50, reps: 8, rpe: null }])
+    await completedSession('s-mid', '2026-01-03 10:00:00', [{ weightKg: 55, reps: 8, rpe: 7 }, { weightKg: 55, reps: 7, rpe: 8 }])
+    await completedSession('s-new', '2026-01-05 10:00:00', [{ weightKg: 20, reps: 10, rpe: null, isWarmup: true }, { weightKg: 60, reps: 8, rpe: 7 }])
+
+    const result = await repo.findRecentWorkingSets('user-1', 'bench-press', 2)
+
+    expect(result).toEqual([
+      [{ weightKg: 60, reps: 8, rpe: 7 }],
+      [{ weightKg: 55, reps: 8, rpe: 7 }, { weightKg: 55, reps: 7, rpe: 8 }],
+    ])
+  })
+
+  it('ignores sessions that do not contain the exercise', async () => {
+    await db.execute({ sql: `INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')` })
+    await completedSession('s-bench', '2026-01-01 10:00:00', [{ weightKg: 50, reps: 8, rpe: 7 }])
+
+    await repo.startSession('user-1', { id: 's-squat', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 's-squat-ex', sessionId: 's-squat', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 's-squat-set', exerciseLogId: 's-squat-ex', setNumber: 1, weightKg: 100, reps: 5, rpe: 8 })
+    await repo.completeSession('s-squat', 1)
+    await db.execute({ sql: `UPDATE workout_sessions SET started_at = '2026-01-09 10:00:00', completed_at = '2026-01-09 10:00:00' WHERE id = 's-squat'` })
+
+    const result = await repo.findRecentWorkingSets('user-1', 'bench-press', 2)
+
+    expect(result).toEqual([[{ weightKg: 50, reps: 8, rpe: 7 }]])
+  })
+
+  it('ignores in-progress sessions', async () => {
+    await repo.startSession('user-1', { id: 's-live', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 's-live-ex', sessionId: 's-live', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 's-live-set', exerciseLogId: 's-live-ex', setNumber: 1, weightKg: 70, reps: 5, rpe: null })
+
+    expect(await repo.findRecentWorkingSets('user-1', 'bench-press', 2)).toEqual([])
+  })
+
+  it("does not read another user's sessions", async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    await completedSession('s-mine', '2026-01-01 10:00:00', [{ weightKg: 50, reps: 8, rpe: 7 }])
+
+    await repo.startSession('user-2', { id: 's-theirs', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 's-theirs-ex', sessionId: 's-theirs', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 's-theirs-set', exerciseLogId: 's-theirs-ex', setNumber: 1, weightKg: 90, reps: 5, rpe: 9 })
+    await repo.completeSession('s-theirs', 1)
+    await db.execute({ sql: `UPDATE workout_sessions SET started_at = '2026-01-09 10:00:00', completed_at = '2026-01-09 10:00:00' WHERE id = 's-theirs'` })
+
+    expect(await repo.findRecentWorkingSets('user-1', 'bench-press', 2)).toEqual([[{ weightKg: 50, reps: 8, rpe: 7 }]])
+  })
+})
