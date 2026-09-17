@@ -25,6 +25,12 @@ describe('XpRepository', () => {
     expect(await repo.totalForUser('user-1')).toBe(10)
   })
 
+  it('revokes an award so it can no longer be counted', async () => {
+    await repo.award('user-1', 50, 'pr', 'set-1')
+    await repo.revoke('user-1', 'pr', 'set-1')
+    expect(await repo.totalForUser('user-1')).toBe(0)
+  })
+
   describe('recentPrs', () => {
     beforeEach(async () => {
       await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')" })

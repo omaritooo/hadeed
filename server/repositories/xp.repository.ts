@@ -15,6 +15,15 @@ export class XpRepository {
     })
   }
 
+  // Undoes an award. Deletes rather than writing a compensating negative row so `award`'s
+  // ON CONFLICT idempotency still holds afterwards: re-logging the same source re-awards it once.
+  async revoke(userId: string, sourceType: XpSourceType, sourceId: string): Promise<void> {
+    await this.db.execute({
+      sql: 'DELETE FROM xp_ledger WHERE user_id = ? AND source_type = ? AND source_id = ?',
+      args: [userId, sourceType, sourceId],
+    })
+  }
+
   async countBySourceType(userId: string, sourceType: XpSourceType): Promise<number> {
     const result = await this.db.execute({
       sql: 'SELECT COUNT(*) as count FROM xp_ledger WHERE user_id = ? AND source_type = ?',

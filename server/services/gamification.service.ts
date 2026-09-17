@@ -40,6 +40,13 @@ export class GamificationService {
     await this.evaluateAchievements(userId)
   }
 
+  // Called when a set is deleted (both rewards) or edited (PR only, before re-detection), so a
+  // fake PR can't be logged, deleted and re-logged under a fresh id for repeated XP.
+  async revokeSetRewards(userId: string, setId: string, options: { includeSetXp: boolean }): Promise<void> {
+    await this.xp.revoke(userId, 'pr', setId)
+    if (options.includeSetXp) await this.xp.revoke(userId, 'set_logged', setId)
+  }
+
   async onSessionCompleted(userId: string, sessionId: string, facts: SessionCompletionFacts): Promise<void> {
     await this.xp.award(userId, XP_SESSION_COMPLETE_BONUS, 'session_completed', sessionId)
 

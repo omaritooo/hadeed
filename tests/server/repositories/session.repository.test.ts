@@ -857,9 +857,9 @@ describe('SessionRepository warm-up exclusion from PR baseline and history', () 
     const baselineAfterWarmup = await repo.findBestWeightForExercise('user-1', 'bench-press')
     expect(baselineAfterWarmup).toBeNull()
 
-    // Mirrors the route's isNewPr check: no real best on record, so even the warm-up's own
-    // weight would need isNewPersonalRecord to say false - covered directly in pr.test.ts.
-    // Here we confirm the baseline the route reads is unaffected by the warm-up.
+    // Mirrors a PR check against this baseline: no real best on record, so the warm-up cannot
+    // stand in for one - the detector itself is covered in tests/shared/lib/personal-records.
+    // Here we confirm the baseline a PR check reads is unaffected by the warm-up.
     const workingWeight = 60
     const isNewPr = workingWeight != null && (baselineAfterWarmup === null || workingWeight > baselineAfterWarmup)
     expect(isNewPr).toBe(true)

@@ -1,15 +1,17 @@
 import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
-import type { SessionRepository, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
+import type { ConflictResult, EditSetLogInput, LogSetInput, SessionRepository, SetLogEditResult, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
 import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
+import type { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import { repRangeArgs } from '~~/server/repositories/rep-range-columns'
 import type { GamificationService } from '~~/server/services/gamification.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import type { SessionCompletionSummary, WorkoutSession } from '~~/shared/types/session.types'
+import type { SessionCompletionSummary, SetLog, WorkoutSession } from '~~/shared/types/session.types'
+import { detectPersonalRecords } from '~~/shared/lib/personal-records'
 import { suggestProgression } from '~~/shared/lib/progression'
 import { startOfWeek, toSqliteDatetime, fromSqliteDatetime } from '~~/server/utils/date'
 
@@ -27,9 +29,9 @@ export class SessionService extends BaseService {
     // streak) — separate from `gamification`, which owns writing/mutating this same state.
     private xp: XpRepository,
     private streaks: StreakRepository,
-    // Optional: only the routes that need progression suggestions wire these up, so routes that
-    // just complete a session don't have to construct repositories they never use.
-    private deps: { exercises?: ExerciseRepository, profiles?: ProfileRepository } = {},
+    // Optional: only the routes that need progression suggestions or set logging wire these up,
+    // so routes that just complete a session don't have to construct repositories they never use.
+    private deps: { exercises?: ExerciseRepository, profiles?: ProfileRepository, personalRecords?: PersonalRecordRepository } = {},
   ) {
     super(ctx)
   }
@@ -81,6 +83,73 @@ export class SessionService extends BaseService {
     if (!session) throw createError({ statusCode: 404, statusMessage: 'Session not found' })
     this.requireOwner(session.userId)
     return session
+  }
+
+  private get personalRecords(): PersonalRecordRepository {
+    if (!this.deps.personalRecords) throw new Error('SessionService: personalRecords repository not provided')
+    return this.deps.personalRecords
+  }
+
+  private async requireOwnedExerciseLog(exerciseLogId: string) {
+    const ownerId = await this.sessions.findExerciseLogOwnerId(exerciseLogId)
+    if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Exercise log not found' })
+    this.requireOwner(ownerId)
+  }
+
+  private async requireOwnedSet(setLogId: string) {
+    const ownerId = await this.sessions.findSetLogOwnerId(setLogId)
+    if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Set log not found' })
+    this.requireOwner(ownerId)
+  }
+
+  // Rewards and PR detection never block logging: the set is already durably stored by the time
+  // they run, and a failure there shouldn't fail the request mid-workout.
+  async logSet(input: LogSetInput): Promise<SetLog> {
+    await this.requireOwnedExerciseLog(input.exerciseLogId)
+    const setLog = await this.sessions.logSet(input)
+    try {
+      await this.gamification.onSetLogged(this.ctx.userId, setLog.id)
+      await this.recordPersonalRecords(setLog)
+    } catch (error) {
+      console.error('SessionService.logSet: rewards/PR detection failed after set logged', { setLogId: setLog.id, error })
+    }
+    return setLog
+  }
+
+  // A correction can turn a PR into a non-PR (or the reverse), so the set's PRs are torn down and
+  // re-detected against the same "everything logged before it" baseline. The set XP stays: the set
+  // itself was still performed.
+  async editSet(setLogId: string, expectedVersion: number, corrections: EditSetLogInput): Promise<SetLogEditResult | ConflictResult> {
+    await this.requireOwnedSet(setLogId)
+    const result = await this.sessions.editSetLog(setLogId, expectedVersion, corrections)
+    if (result.conflict) return result
+    try {
+      await this.personalRecords.deleteForSet(setLogId)
+      await this.gamification.revokeSetRewards(this.ctx.userId, setLogId, { includeSetXp: false })
+      await this.recordPersonalRecords(result.setLog)
+    } catch (error) {
+      console.error('SessionService.editSet: PR re-detection failed after set edited', { setLogId, error })
+    }
+    return result
+  }
+
+  // Unlike logSet, the reward teardown is *not* swallowed: leaving XP or a PR behind for a set
+  // that no longer exists is worse than failing the delete, which the client can retry.
+  async deleteSet(setLogId: string): Promise<void> {
+    await this.requireOwnedSet(setLogId)
+    await this.personalRecords.deleteForSet(setLogId)
+    await this.gamification.revokeSetRewards(this.ctx.userId, setLogId, { includeSetXp: true })
+    await this.sessions.deleteSetLog(setLogId)
+  }
+
+  private async recordPersonalRecords(setLog: SetLog): Promise<void> {
+    const exerciseId = await this.sessions.findExerciseIdForLog(setLog.exerciseLogId)
+    if (!exerciseId) return
+    const prior = await this.sessions.findWorkingSetsBefore(this.ctx.userId, exerciseId, setLog.id)
+    const prs = detectPersonalRecords(setLog, prior)
+    if (prs.length === 0) return
+    await this.personalRecords.insertMany({ userId: this.ctx.userId, exerciseId, setLogId: setLog.id, achievedAt: setLog.loggedAt, prs })
+    await this.gamification.onPrHit(this.ctx.userId, setLog.id)
   }
 
   async completeSession(

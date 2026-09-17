@@ -1,7 +1,5 @@
-import { createError, getRouterParam } from 'h3'
-import { useDb } from '~~/server/utils/db'
-import { getRequestContext } from '~~/server/utils/get-request-context'
-import { SessionRepository } from '~~/server/repositories/session.repository'
+import { getRouterParam } from 'h3'
+import { useSessionService } from '~~/server/utils/session-service'
 
 defineRouteMeta({
   openAPI: {
@@ -19,14 +17,9 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async (event) => {
-  const ctx = await getRequestContext(event)
   const setId = getRouterParam(event, 'setId')!
-  const repo = new SessionRepository(useDb())
+  const service = await useSessionService(event)
 
-  const ownerId = await repo.findSetLogOwnerId(setId)
-  if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Set log not found' })
-  if (ownerId !== ctx.userId) throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
-
-  await repo.deleteSetLog(setId)
+  await service.deleteSet(setId)
   return { success: true }
 })

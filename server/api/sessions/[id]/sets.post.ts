@@ -1,12 +1,5 @@
-import { createError, readBody } from 'h3'
-import { useDb } from '~~/server/utils/db'
-import { getRequestContext } from '~~/server/utils/get-request-context'
-import { isNewPersonalRecord } from '~~/server/utils/pr'
-import { SessionRepository } from '~~/server/repositories/session.repository'
-import { XpRepository } from '~~/server/repositories/xp.repository'
-import { StreakRepository } from '~~/server/repositories/streak.repository'
-import { AchievementRepository } from '~~/server/repositories/achievement.repository'
-import { GamificationService } from '~~/server/services/gamification.service'
+import { readBody } from 'h3'
+import { useSessionService } from '~~/server/utils/session-service'
 
 defineRouteMeta({
   openAPI: {
@@ -41,7 +34,6 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async (event) => {
-  const ctx = await getRequestContext(event)
   const body = await readBody(event) as {
     id: string
     exerciseLogId: string
@@ -51,17 +43,9 @@ export default defineEventHandler(async (event) => {
     rpe?: number | null
     isWarmup?: boolean
   }
-  const repo = new SessionRepository(useDb())
+  const service = await useSessionService(event)
 
-  const ownerId = await repo.findExerciseLogOwnerId(body.exerciseLogId)
-  if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Exercise log not found' })
-  if (ownerId !== ctx.userId) throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
-
-  const exerciseId = await repo.findExerciseIdForLog(body.exerciseLogId)
-  // Already excludes warm-up sets from the baseline (see findBestWeightForExercise).
-  const previousBest = exerciseId ? await repo.findBestWeightForExercise(ctx.userId, exerciseId) : null
-
-  const setLog = await repo.logSet({
+  return service.logSet({
     id: body.id,
     exerciseLogId: body.exerciseLogId,
     setNumber: body.setNumber,
@@ -70,14 +54,4 @@ export default defineEventHandler(async (event) => {
     rpe: body.rpe ?? null,
     isWarmup: body.isWarmup ?? false,
   })
-
-  if (isNewPersonalRecord(setLog, previousBest)) {
-    const db = useDb()
-    const gamification = new GamificationService(new XpRepository(db), new StreakRepository(db), new AchievementRepository(db), repo)
-    await gamification.onPrHit(ctx.userId, setLog.id).catch((error) => {
-      console.error('GamificationService.onPrHit failed after set logged', { setLogId: setLog.id, error })
-    })
-  }
-
-  return setLog
 })

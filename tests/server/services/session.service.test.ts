@@ -7,6 +7,9 @@ import { XpRepository } from '~~/server/repositories/xp.repository'
 import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
+import { AchievementRepository } from '~~/server/repositories/achievement.repository'
+import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
+import { GamificationService } from '~~/server/services/gamification.service'
 import { SessionService } from '~~/server/services/session.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 
@@ -266,5 +269,70 @@ describe('SessionService.startSession', () => {
     expect(consoleErrorSpy).toHaveBeenCalled()
 
     consoleErrorSpy.mockRestore()
+  })
+})
+
+describe('SessionService set logging', () => {
+  let db: Client
+  let sessions: SessionRepository
+  let xp: XpRepository
+  let prs: PersonalRecordRepository
+  let service: SessionService
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    xp = new XpRepository(db)
+    prs = new PersonalRecordRepository(db)
+    const streaks = new StreakRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
+    const gamification = new GamificationService(xp, streaks, new AchievementRepository(db), sessions)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, xp, streaks, { personalRecords: prs })
+    await sessions.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+  })
+
+  const log = (id: string, weightKg: number, reps: number) =>
+    service.logSet({ id, exerciseLogId: 'e1', setNumber: 1, weightKg, reps, rpe: null })
+
+  it('awards 10 XP per set', async () => {
+    await log('set-1', 60, 8)
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(1)
+  })
+
+  it('does not treat a first-ever set as a PR', async () => {
+    await log('set-1', 60, 8)
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+  })
+
+  it('records PR types and awards the PR bonus once per set', async () => {
+    await log('set-1', 60, 8)
+    await log('set-2', 65, 8)
+    expect((await prs.findForSession('user-1', 's1'))[0]!.prTypes).toEqual(['e1rm', 'weight'])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(1)
+  })
+
+  it('revokes set and PR XP when the set is deleted', async () => {
+    await log('set-1', 60, 8)
+    await log('set-2', 65, 8)
+    await service.deleteSet('set-2')
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(1)
+    expect(await prs.findForSession('user-1', 's1')).toEqual([])
+  })
+
+  it('re-detects PRs when a set is edited', async () => {
+    await log('set-1', 60, 8)
+    const pr = await log('set-2', 65, 8)
+    await service.editSet(pr.id, pr.version, { weightKg: 55 })
+    expect(await prs.findForSession('user-1', 's1')).toEqual([])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+  })
+
+  it('rejects logging to someone else\'s exercise log', async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, xp, new StreakRepository(db), { personalRecords: prs })
+    await expect(other.logSet({ id: 'x', exerciseLogId: 'e1', setNumber: 1, weightKg: 1, reps: 1, rpe: null })).rejects.toThrow(/forbidden/i)
   })
 })
