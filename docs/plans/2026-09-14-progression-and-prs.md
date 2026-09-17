@@ -2065,3 +2065,25 @@ live, because a still-running build that reads or writes `target_reps` would bre
 Also remove the `db:backfill-rep-ranges` script and `backfill-rep-ranges.ts` in a release after the
 drop, once no database still has `target_reps`. Or keep the function if the drop migration still
 imports it.
+
+---
+
+### Task 16: Re-detect later PRs when an earlier set is edited (follow-up)
+
+Found while implementing Task 9. `editSet` re-detects PRs for the edited set only, but
+`findWorkingSetsBefore` orders by `(logged_at, rowid)`, so any *later* set's PR was judged
+against the edited set's old value.
+
+- Edit 60kg × 8 up to 70kg, and the later 65kg × 8 keeps its weight/e1RM PR rows and its
+  50 XP even though 65kg no longer beats anything.
+- Edit it down instead, and a later set never gains the rep PR it now deserves.
+
+`pr_count` feeds achievement unlocks, so the ledger can drift permanently.
+
+**Approach:** after editing (or deleting) a set, re-detect every later working set of that
+exercise for that user: delete their `personal_records` rows, revoke their `pr` XP, and
+replay `detectPersonalRecords` in `(logged_at, rowid)` order. Keep it in one transaction if
+the row count allows. Add tests for both directions above, and for a delete.
+
+**Deferred because:** it needs a replay helper and a bounded-cost decision (how many later
+sets to touch), which is more than Task 9's scope.
