@@ -44,8 +44,14 @@ const allExerciseIds = computed(() => {
 });
 const { data: exercisesById } = useExercisesByIds(allExerciseIds);
 
+// Built once per preset, not on every emission. A preset is catalog data -- its days, positions
+// and exercises don't change underneath a review -- but the query refetches on window focus, and
+// rebuilding from that would silently discard every swap made so far, which is the whole point of
+// this screen. Only a genuinely different preset starts over.
+const builtForPresetId = ref<number | null>(null);
 watch(preset, (value) => {
-  if (!value) return;
+  if (!value || builtForPresetId.value === value.id) return;
+  builtForPresetId.value = value.id;
   reviewDays.value = value.days.map(day => ({
     dayIndex: day.dayIndex,
     name: day.name,
