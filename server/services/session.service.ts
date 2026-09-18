@@ -2,7 +2,6 @@ import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
 import type { ConflictResult, EditSetLogInput, LogSetInput, SessionRepository, SetLogEditResult, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
-import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
@@ -25,13 +24,14 @@ export class SessionService extends BaseService {
     private sessions: SessionRepository,
     private blocks: BlockRepository,
     private gamification: GamificationService,
-    // Read-only lookups for the post-workout summary (PRs recorded during this session, current
-    // streak) — separate from `gamification`, which owns writing/mutating this same state.
-    private xp: XpRepository,
+    // Records PRs at log time and reads them back for the post-workout summary; `streaks` is the
+    // read-only streak lookup for that same summary. Both are separate from `gamification`, which
+    // owns the XP/streak writes.
+    private personalRecords: PersonalRecordRepository,
     private streaks: StreakRepository,
-    // Optional: only the routes that need progression suggestions or set logging wire these up,
-    // so routes that just complete a session don't have to construct repositories they never use.
-    private deps: { exercises?: ExerciseRepository, profiles?: ProfileRepository, personalRecords?: PersonalRecordRepository } = {},
+    // Optional: only the routes that need progression suggestions wire these up, so routes that
+    // just complete a session don't have to construct repositories they never use.
+    private deps: { exercises?: ExerciseRepository, profiles?: ProfileRepository } = {},
   ) {
     super(ctx)
   }
@@ -83,11 +83,6 @@ export class SessionService extends BaseService {
     if (!session) throw createError({ statusCode: 404, statusMessage: 'Session not found' })
     this.requireOwner(session.userId)
     return session
-  }
-
-  private get personalRecords(): PersonalRecordRepository {
-    if (!this.deps.personalRecords) throw new Error('SessionService: personalRecords repository not provided')
-    return this.deps.personalRecords
   }
 
   private async requireOwnedExerciseLog(exerciseLogId: string) {
@@ -192,7 +187,7 @@ export class SessionService extends BaseService {
     // consistent with this method's existing swallow-and-log behavior for gamification failures.
     const [totalVolumeKg, prsHit, streak] = await Promise.all([
       this.sessions.sessionVolumeKg(sessionId),
-      this.xp.findPrsForSession(this.ctx.userId, sessionId),
+      this.personalRecords.findForSession(this.ctx.userId, sessionId),
       this.streaks.findForUser(this.ctx.userId),
     ])
 

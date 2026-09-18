@@ -3,7 +3,7 @@ import { getRequestContext } from '~~/server/utils/get-request-context'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
-import { XpRepository } from '~~/server/repositories/xp.repository'
+import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 
 defineRouteMeta({
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     new SessionRepository(db),
     new BlockRepository(db),
     new ExerciseRepository(db),
-    new XpRepository(db),
+    new PersonalRecordRepository(db),
   )
   return service.getWeeklyVolume(ctx.userId)
 })

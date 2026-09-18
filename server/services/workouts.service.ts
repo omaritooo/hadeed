@@ -2,7 +2,7 @@ import { BaseService } from '~~/server/services/base.service'
 import type { SessionRepository } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
 import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
-import type { XpRepository } from '~~/server/repositories/xp.repository'
+import type { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActiveSessionSummary, TodaysWorkout } from '~~/shared/types/home.types'
 import type { MuscleVolume, VolumeBand, WeeklyVolumeSnapshot, WorkoutsSummary } from '~~/shared/types/workouts.types'
@@ -28,7 +28,7 @@ export class WorkoutsService extends BaseService {
     private sessions: SessionRepository,
     private blocks: BlockRepository,
     private exercises: ExerciseRepository,
-    private xp: XpRepository,
+    private personalRecords: PersonalRecordRepository,
   ) {
     super(ctx)
   }
@@ -49,7 +49,7 @@ export class WorkoutsService extends BaseService {
       this.buildActiveSession(activeSessionRow),
       this.buildTodaysWorkout(userId, trainingDays, activeSessionRow),
       this.sessions.findRecentCompletedSummaries(userId, RECENT_SESSIONS_LIMIT),
-      this.xp.recentPrs(userId, RECENT_PRS_LIMIT),
+      this.personalRecords.recent(userId, RECENT_PRS_LIMIT),
     ])
 
     return { todaysWorkout, activeSession, recentSessions, recentPrs }

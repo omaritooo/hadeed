@@ -7,6 +7,7 @@ import { XpRepository } from '~~/server/repositories/xp.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
+import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 import { HomeService } from '~~/server/services/home.service'
 
@@ -26,13 +27,15 @@ export default defineEventHandler(async (event) => {
   const sessions = new SessionRepository(db)
   const blocks = new BlockRepository(db)
   const xp = new XpRepository(db)
-  const workouts = new WorkoutsService(ctx, sessions, blocks, new ExerciseRepository(db), xp)
+  const personalRecords = new PersonalRecordRepository(db)
+  const workouts = new WorkoutsService(ctx, sessions, blocks, new ExerciseRepository(db), personalRecords)
   const service = new HomeService(
     ctx,
     sessions,
     blocks,
     new StreakRepository(db),
     xp,
+    personalRecords,
     new AchievementRepository(db),
     new BodyMetricsRepository(db),
     workouts,

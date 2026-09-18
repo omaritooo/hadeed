@@ -3,6 +3,7 @@ import type { SessionRepository } from '~~/server/repositories/session.repositor
 import type { BlockRepository } from '~~/server/repositories/block.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { XpRepository } from '~~/server/repositories/xp.repository'
+import type { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import type { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
@@ -26,6 +27,7 @@ export class HomeService extends BaseService {
     private blocks: BlockRepository,
     private streaks: StreakRepository,
     private xp: XpRepository,
+    private personalRecords: PersonalRecordRepository,
     private achievements: AchievementRepository,
     private bodyMetrics: BodyMetricsRepository,
     private workouts: WorkoutsService,
@@ -64,7 +66,7 @@ export class HomeService extends BaseService {
       this.sessions.countTrainedDaysInRange(userId, toSqliteDatetime(weekStart), toSqliteDatetime(weekEnd)),
       this.sessions.volumeKgInRange(userId, toSqliteDatetime(weekStart), toSqliteDatetime(weekEnd)),
       this.sessions.findMostRecentCompletedSummary(userId),
-      this.xp.recentPrs(userId, RECENT_PRS_LIMIT),
+      this.personalRecords.recent(userId, RECENT_PRS_LIMIT),
       this.achievements.findRecentlyUnlocked(userId, RECENT_ACHIEVEMENTS_LIMIT),
       this.bodyMetrics.findForUser(userId),
       this.sessions.findTrainedDatesInRange(userId, toSqliteDatetime(consistencyStart), toSqliteDatetime(consistencyEnd)),

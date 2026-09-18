@@ -8,6 +8,7 @@ import { XpRepository } from '~~/server/repositories/xp.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
+import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 import { HomeService } from '~~/server/services/home.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
@@ -20,16 +21,18 @@ describe('HomeService', () => {
   let db: Client
   let sessions: SessionRepository
   let blocks: BlockRepository
+  let prs: PersonalRecordRepository
   let service: HomeService
 
   beforeEach(async () => {
     db = await createTestDb()
     sessions = new SessionRepository(db)
     blocks = new BlockRepository(db)
+    prs = new PersonalRecordRepository(db)
     const exercises = new ExerciseRepository(db)
     const xp = new XpRepository(db)
-    const workouts = new WorkoutsService(ctx(), sessions, blocks, exercises, xp)
-    service = new HomeService(ctx(), sessions, blocks, new StreakRepository(db), xp, new AchievementRepository(db), new BodyMetricsRepository(db), workouts)
+    const workouts = new WorkoutsService(ctx(), sessions, blocks, exercises, prs)
+    service = new HomeService(ctx(), sessions, blocks, new StreakRepository(db), xp, prs, new AchievementRepository(db), new BodyMetricsRepository(db), workouts)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
   })
@@ -75,5 +78,24 @@ describe('HomeService', () => {
     const summary = await service.getSummary()
 
     expect(summary.activeSession).toMatchObject({ sessionId: 'session-1', setsLogged: 1 })
+  })
+
+  it('surfaces recorded personal records in recentPrs, with their PR types', async () => {
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
+    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 8 })
+    await prs.insertMany({
+      userId: 'user-1',
+      exerciseId: 'squat',
+      setLogId: 'set-1',
+      achievedAt: '2026-01-01 10:00:00',
+      prs: [{ type: 'weight', value: 100, previousValue: 95 }],
+    })
+
+    const summary = await service.getSummary()
+
+    expect(summary.recentPrs).toEqual([
+      { exerciseName: 'Squat', weightKg: 100, reps: 5, prTypes: ['weight'], e1rmKg: null, achievedAt: '2026-01-01 10:00:00' },
+    ])
   })
 })

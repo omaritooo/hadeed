@@ -81,11 +81,11 @@ export interface SessionPrHit {
 }
 
 // Returned by SessionService.completeSession alongside the completed session itself, to drive
-// the post-workout summary screen. `prsHit` is looked up from recorded xp_ledger('pr') entries
-// for sets logged in this session (see XpRepository.findPrsForSession) rather than re-derived
-// from set_logs at completion time — by completion time this session's own working sets are
-// already in set_logs, so a fresh best-weight lookup could no longer tell a PR set apart from
-// the new baseline it just became.
+// the post-workout summary screen. `prsHit` is looked up from the personal_records rows recorded
+// for sets logged in this session (see PersonalRecordRepository.findForSession) rather than
+// re-derived from set_logs at completion time — by completion time this session's own working
+// sets are already in set_logs, so a fresh best-weight lookup could no longer tell a PR set apart
+// from the new baseline it just became.
 export interface SessionCompletionSummary {
   totalVolumeKg: number
   durationMinutes: number

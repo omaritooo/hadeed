@@ -36,7 +36,7 @@ async function seedUserWithActiveBlock(db: Client, trainingDays: number) {
 describe('SessionService', () => {
   let db: Client
   let sessions: SessionRepository
-  let xp: XpRepository
+  let prs: PersonalRecordRepository
   let streaks: StreakRepository
   let service: SessionService
   let onSessionCompleted: ReturnType<typeof vi.fn>
@@ -44,10 +44,10 @@ describe('SessionService', () => {
   beforeEach(async () => {
     db = await createTestDb()
     sessions = new SessionRepository(db)
-    xp = new XpRepository(db)
+    prs = new PersonalRecordRepository(db)
     streaks = new StreakRepository(db)
     onSessionCompleted = vi.fn()
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), { onSessionCompleted } as never, xp, streaks)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), { onSessionCompleted } as never, prs, streaks)
   })
 
   it('rejects completing a session owned by someone else', async () => {
@@ -187,10 +187,16 @@ describe('SessionService', () => {
     await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
     // A warm-up (40kg x 10) that must not count toward volume, plus a real working set (100kg x
     // 5) that a prior set-logging call would have flagged as a PR — simulated here the same way
-    // sets.post.ts records one: an xp_ledger('pr') entry keyed by the set's id.
+    // SessionService.logSet records one: a personal_records row keyed by the set's id.
     await sessions.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 40, reps: 10, rpe: null, isWarmup: true })
     await sessions.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 100, reps: 5, rpe: 8, isWarmup: false })
-    await xp.award('user-1', 50, 'pr', 'set-working')
+    await prs.insertMany({
+      userId: 'user-1',
+      exerciseId: 'bench-press',
+      setLogId: 'set-working',
+      achievedAt: '2026-01-01 10:00:00',
+      prs: [{ type: 'weight', value: 100, previousValue: 95 }],
+    })
 
     const result = await service.completeSession('session-1', 1)
 
@@ -213,7 +219,7 @@ describe('SessionService.startSession', () => {
     sessions = new SessionRepository(db)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, equipment, movement_pattern, instructions) VALUES ('bench-press', 'Bench Press', 'barbell', 'horizontal_push', '[]')`)
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), {} as never, new XpRepository(db), new StreakRepository(db), {
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), {} as never, new PersonalRecordRepository(db), new StreakRepository(db), {
       exercises: new ExerciseRepository(db),
       profiles: new ProfileRepository(db),
     })
@@ -288,7 +294,7 @@ describe('SessionService set logging', () => {
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
     const gamification = new GamificationService(xp, streaks, new AchievementRepository(db), sessions)
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, xp, streaks, { personalRecords: prs })
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs, streaks)
     await sessions.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
     await sessions.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
   })
@@ -332,7 +338,7 @@ describe('SessionService set logging', () => {
 
   it('rejects logging to someone else\'s exercise log', async () => {
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
-    const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, xp, new StreakRepository(db), { personalRecords: prs })
+    const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, prs, new StreakRepository(db))
     await expect(other.logSet({ id: 'x', exerciseLogId: 'e1', setNumber: 1, weightKg: 1, reps: 1, rpe: null })).rejects.toThrow(/forbidden/i)
   })
 })

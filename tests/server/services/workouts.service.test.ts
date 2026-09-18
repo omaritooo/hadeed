@@ -5,7 +5,7 @@ import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { MuscleRepository } from '~~/server/repositories/muscle.repository'
-import { XpRepository } from '~~/server/repositories/xp.repository'
+import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import { toSqliteDatetime } from '~~/server/utils/date'
@@ -18,15 +18,15 @@ describe('WorkoutsService', () => {
   let db: Client
   let sessions: SessionRepository
   let blocks: BlockRepository
-  let xp: XpRepository
+  let prs: PersonalRecordRepository
   let service: WorkoutsService
 
   beforeEach(async () => {
     db = await createTestDb()
     sessions = new SessionRepository(db)
     blocks = new BlockRepository(db)
-    xp = new XpRepository(db)
-    service = new WorkoutsService(ctx(), sessions, blocks, new ExerciseRepository(db), xp)
+    prs = new PersonalRecordRepository(db)
+    service = new WorkoutsService(ctx(), sessions, blocks, new ExerciseRepository(db), prs)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
   })
@@ -133,14 +133,21 @@ describe('WorkoutsService', () => {
     await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'squat', position: 0, setType: 'weight_reps' })
     await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 8 })
     await sessions.completeSession('session-1', 1)
-    await xp.award('user-1', 50, 'pr', 'set-1')
+    await prs.insertMany({
+      userId: 'user-1',
+      exerciseId: 'squat',
+      setLogId: 'set-1',
+      achievedAt: '2026-01-01 10:00:00',
+      prs: [{ type: 'weight', value: 100, previousValue: 95 }, { type: 'e1rm', value: 112.5, previousValue: 107 }],
+    })
 
     const summary = await service.getSummary()
 
     expect(summary.recentSessions).toHaveLength(1)
     expect(summary.recentSessions[0]).toMatchObject({ sessionId: 'session-1', topWeightKg: 100, topReps: 5 })
+    // One row per PR *set*, with both of that set's PR types folded together.
     expect(summary.recentPrs).toHaveLength(1)
-    expect(summary.recentPrs[0]).toMatchObject({ exerciseName: 'Squat', weightKg: 100, reps: 5 })
+    expect(summary.recentPrs[0]).toMatchObject({ exerciseName: 'Squat', weightKg: 100, reps: 5, prTypes: ['e1rm', 'weight'], e1rmKg: 112.5 })
   })
 
   describe('getWeeklyVolume', () => {

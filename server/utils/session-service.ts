@@ -22,9 +22,8 @@ export const useSessionService = async (event: H3Event): Promise<SessionService>
   const xp = new XpRepository(db)
   const streaks = new StreakRepository(db)
   const gamification = new GamificationService(xp, streaks, new AchievementRepository(db), sessions)
-  return new SessionService(ctx, sessions, new BlockRepository(db), gamification, xp, streaks, {
+  return new SessionService(ctx, sessions, new BlockRepository(db), gamification, new PersonalRecordRepository(db), streaks, {
     exercises: new ExerciseRepository(db),
     profiles: new ProfileRepository(db),
-    personalRecords: new PersonalRecordRepository(db),
   })
 }
