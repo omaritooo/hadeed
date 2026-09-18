@@ -77,8 +77,19 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
   reps, and RPE per set, with sets editable and deletable after the fact.
 - **Warm-up sets** — flagging a set as a warm-up keeps it out of PR detection, "last
   performed" lookups, and weekly volume-by-muscle, rather than deleting the record.
-- **PR detection** — a working set that beats the best non-warm-up weight on record for
-  that exercise is recorded as a personal record and awards bonus XP.
+- **PR detection** — three kinds, recorded per set: a **weight** PR beats every prior
+  working weight, a **rep** PR beats the most reps done at that weight or heavier, and an
+  **e1RM** PR beats the best Epley estimate (only sets at 12 reps or fewer, on either side
+  of the comparison, since Epley drifts at high reps). An exercise's first working set sets
+  the baseline rather than scoring a PR. A set that hits any type awards one bonus XP
+  payment, not one per type.
+- **Progression suggestions** — prescriptions carry a rep *range*, and at session start each
+  exercise gets a suggestion computed from its last two sessions: double progression (every
+  set at the top of the range earns a load increase, rounded to a loadable increment for the
+  equipment and the profile's unit), RPE autoregulation in both directions, and a back-off
+  when the bottom of the range was missed twice running. The suggestion is snapshotted onto
+  the exercise log, so a past session still shows the advice it was logged against, and it
+  pre-fills the first working set's inputs as a fill, not a lock.
 - **Rest timer and plate calculator** — a per-exercise rest countdown driven by the
   session's snapshotted rest seconds, and a plate breakdown for a target barbell load with
   kg/lb plate sets and an inline bar-weight override.
@@ -117,6 +128,8 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
 
 - **XP ledger** — 10 XP per set, 25 for completing a session, 50 for a PR. The ledger is
   uniquely keyed on `(user_id, source_type, source_id)`, so an award can't be double-counted.
+  Deleting a set revokes what it earned, and editing one re-detects its PRs, so a set can't
+  be logged, deleted and re-logged to farm the PR bonus.
 - **Streaks** — a week counts when every scheduled day was completed; a missed scheduled
   day resets the streak.
 - **Achievements** — published achievements are returned annotated with unlocked state and
@@ -285,6 +298,8 @@ npm run dev                   # http://localhost:3000
 | `npm run db:seed` | Apply migrations + schema, seed catalog data and roles |
 | `npm run db:seed:dummy` | Seed a demo user with sessions, meals, and metrics |
 | `npm run db:classify-exercises` | Backfill movement patterns and tiers, and rebuild joint stressor tags (run after `db:seed`) |
+| `npm run db:backfill-rep-ranges` | One-off: fill `target_reps_min`/`max` on rows an older client wrote. Idempotent |
+| `npm run db:backfill-prs` | One-off: replay logged sets to populate `personal_records`. Idempotent |
 
 ---
 
