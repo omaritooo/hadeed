@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
-import { describeSuggestion, formatPrTypes } from "~~/shared/lib/suggestion-copy";
+import { describeSuggestion, formatLoad, formatPrTypes } from "~~/shared/lib/suggestion-copy";
 import type { ExerciseHistorySet, ExerciseLog, SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
 
 const route = useRoute();
@@ -389,7 +389,7 @@ const doneWithSummary = () => navigateTo("/workouts");
       >
         <span class="min-w-0 text-foreground">{{ pr.exerciseName }}</span>
         <span class="shrink-0 text-right">
-          <span class="block text-muted-foreground">{{ pr.weightKg }}kg × {{ pr.reps }}</span>
+          <span class="block text-muted-foreground">{{ formatLoad(pr.weightKg, unitSystem) }} × {{ pr.reps }}</span>
           <span v-if="pr.prTypes.length > 0" class="block font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
             {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
           </span>
