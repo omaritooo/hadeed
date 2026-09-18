@@ -129,11 +129,19 @@ const openSwapSheet = (index: number) => {
   swapSheetOpen.value = true;
 };
 
-// One reps box for now: it writes a zero-width range until the builder gets a min–max pair.
-const setTargetReps = (exercise: CreateSplitExerciseInput, value: string | number) => {
-  const reps = value === "" ? null : Number(value);
-  exercise.targetRepsMin = reps;
-  exercise.targetRepsMax = reps;
+// Keeps min <= max as either end moves, rather than rejecting the edit: raising min past max
+// drags max up with it, and lowering max below min drags min down. Typing a range means passing
+// through invalid states (8–10 → 12–10 → 12–14), so rejecting would make the field unusable.
+const setRepsMin = (exercise: CreateSplitExerciseInput, value: string | number) => {
+  const min = value === "" ? null : Number(value);
+  exercise.targetRepsMin = min;
+  if (min !== null && (exercise.targetRepsMax === null || exercise.targetRepsMax < min)) exercise.targetRepsMax = min;
+};
+
+const setRepsMax = (exercise: CreateSplitExerciseInput, value: string | number) => {
+  const max = value === "" ? null : Number(value);
+  exercise.targetRepsMax = max;
+  if (max !== null && exercise.targetRepsMin !== null && exercise.targetRepsMin > max) exercise.targetRepsMin = max;
 };
 
 const onSwapSelect = (exercise: Exercise) => {
@@ -183,10 +191,19 @@ const onSwapSelect = (exercise: Exercise) => {
         <Input
           :model-value="exercise.targetRepsMin ?? ''"
           type="number"
-          placeholder="reps"
-          aria-label="Target reps"
-          class="h-9 w-16 py-0"
-          @update:model-value="(v) => setTargetReps(exercise, v)"
+          placeholder="min"
+          aria-label="Minimum reps"
+          class="h-9 w-14 py-0"
+          @update:model-value="(v) => setRepsMin(exercise, v)"
+        />
+        –
+        <Input
+          :model-value="exercise.targetRepsMax ?? ''"
+          type="number"
+          placeholder="max"
+          aria-label="Maximum reps"
+          class="h-9 w-14 py-0"
+          @update:model-value="(v) => setRepsMax(exercise, v)"
         />
         reps
       </div>
