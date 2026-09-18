@@ -70,6 +70,28 @@ describe('classifyMovementPattern', () => {
     expect(classifyMovementPattern({ name: 'Side Lateral Raise', force: 'push', mechanic: 'isolation', primaryMuscles: ['shoulders'] })).toBe('lateral_isolation')
   })
 
+  // The named vertical-push list can't enumerate every overhead variant, and anything it misses
+  // used to reach the shoulders fallback and come back lateral_isolation -- which offers lateral
+  // raises as a substitute for a heavy overhead press.
+  it('treats any shoulder press or jerk as a vertical push', () => {
+    const shoulderPress = (name: string) =>
+      classifyMovementPattern({ name, force: 'push', mechanic: 'compound', primaryMuscles: ['shoulders'] })
+    expect(shoulderPress('Push Press')).toBe('vertical_push')
+    expect(shoulderPress('Kettlebell Arnold Press')).toBe('vertical_push')
+    expect(shoulderPress('Alternating Kettlebell Press')).toBe('vertical_push')
+    expect(shoulderPress('Bradford Press')).toBe('vertical_push')
+    expect(shoulderPress('Clean and Press')).toBe('vertical_push')
+    expect(shoulderPress('Push Jerk')).toBe('vertical_push')
+    expect(shoulderPress('Log Lift')).toBe('vertical_push')
+  })
+
+  // The press rule is scoped to shoulders, so presses driven by another muscle keep their own
+  // pattern rather than being swept up as overhead work.
+  it('leaves non-shoulder presses classified by their own muscle', () => {
+    expect(classifyMovementPattern({ name: 'Leg Press', force: 'push', mechanic: 'compound', primaryMuscles: ['quadriceps'] })).toBe('knee_dominant')
+    expect(classifyMovementPattern({ name: 'Barbell Bench Press', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('horizontal_push')
+  })
+
   it('returns null when there is not enough signal to classify confidently', () => {
     expect(classifyMovementPattern({ name: 'Foam Roll', force: null, mechanic: null, primaryMuscles: [] })).toBeNull()
   })

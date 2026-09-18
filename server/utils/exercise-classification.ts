@@ -85,6 +85,14 @@ export const classifyMovementPattern = (exercise: ClassifiableExercise): Movemen
   if (nameHas(name, 'incline', 'overhead press', 'shoulder press', 'military press', 'viking press')) return 'vertical_push'
   if (nameHas(name, 'bench press', 'chest press', 'push-up', 'push up', 'pushup', 'flye', 'fly')) return 'horizontal_push'
 
+  // Any shoulder-driven press or jerk left over is overhead work. The named list above can't
+  // enumerate every variant -- Push Press, Arnold Press, Bradford Press, Clean and Press, Log
+  // Lift -- and without this they reach the shoulders fallback at the bottom and come back
+  // lateral_isolation, which offers lateral raises as a substitute for a heavy overhead press.
+  // Scoped to shoulders so a leg press or bench press keeps its own pattern; 'log lift' is spelled
+  // out rather than matching 'lift', which would also catch deadlift variants.
+  if (muscle === 'shoulders' && nameHas(name, 'press', 'jerk', 'log lift')) return 'vertical_push'
+
   // Coarser fallback from force + muscle when name-matching didn't hit.
   if (muscle === 'quadriceps') return 'knee_dominant'
   if (muscle === 'hamstrings' || muscle === 'glutes') return 'hip_dominant'
@@ -147,8 +155,9 @@ export const classifyStressors = (exercise: StressorClassifiableExercise): Joint
   // Clean/snatch pulls, deadlifts and shrugs stop before the catch, so they skip the rack-position
   // wrist and overhead shoulder stress of the full lift.
   const olympicPull = nameHas(name, 'pull', 'deadlift', 'shrug')
-  // classifyMovementPattern labels many overhead presses lateral_isolation (via the shoulders
-  // fallback, e.g. "Seated Dumbbell Press", "Push Press"), so recover them by name here.
+  // classifyMovementPattern now classifies shoulder presses as vertical_push, but `pattern` is
+  // usually the *stored* value, which stays lateral_isolation until db:classify-exercises is
+  // re-run -- so keep recovering those by name rather than silently dropping the shoulder tag.
   const overheadPress = pattern === 'vertical_push' || (pattern === 'lateral_isolation' && nameHas(name, 'press', 'jerk'))
   const areas = new Set<JointArea>()
 
