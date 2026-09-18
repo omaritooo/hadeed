@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { prefillForSet, suggestProgression } from "~~/shared/lib/progression";
 import { describeSuggestion, formatLoad, formatPrTypes } from "~~/shared/lib/suggestion-copy";
 import type { ExerciseHistorySet, ExerciseLog, SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
 
@@ -87,19 +88,30 @@ const nextSetHint = (exercise: SetsByExercise) => {
   return match ? `Set ${index + 1} last time: ${match.weightKg}kg × ${match.reps}` : null;
 };
 
-// What to pre-fill for the working set at `index`: the same set from last session if there
+// The inputs hold strings, with "" for empty; the progression helpers work in numbers.
+const toNumberOrNull = (value: string) => {
+  const parsed = Number(value);
+  return value === "" || !Number.isFinite(parsed) ? null : parsed;
+};
+const toInput = (value: number | null) => (value === null ? "" : String(value));
+
+// History-based fill for the working set at `index`: the same set from last session if there
 // was one, otherwise whatever was just done (so a weight carries over set to set instead of
-// being typed again), otherwise nothing.
-const suggestedSetValues = (exercise: SetsByExercise, index: number, justLogged?: { weightKg: string, reps: string }) => {
+// being typed again), otherwise the last working set logged today.
+const historyFallback = (exercise: SetsByExercise, index: number, justLogged?: { weightKg: string, reps: string }) => {
   const match = previousSessionSets(exercise.exerciseId)?.[index];
-  if (match) return { weightKg: String(match.weightKg), reps: String(match.reps) };
-  if (justLogged) return justLogged;
+  if (match) return { weightKg: match.weightKg, reps: match.reps };
+  if (justLogged) return { weightKg: toNumberOrNull(justLogged.weightKg), reps: toNumberOrNull(justLogged.reps) };
   const lastWorking = exercise.sets.filter(set => !set.isWarmup).at(-1);
-  if (!lastWorking) return null;
-  return {
-    weightKg: lastWorking.weightKg === null ? "" : String(lastWorking.weightKg),
-    reps: lastWorking.reps === null ? "" : String(lastWorking.reps),
-  };
+  return lastWorking ? { weightKg: lastWorking.weightKg, reps: lastWorking.reps } : null;
+};
+
+// What to pre-fill for the working set at `index`. The progression suggestion wins whenever it
+// moves the load -- otherwise the box would contradict the "Today: …" line rendered right above
+// it -- and history fills the rest.
+const suggestedSetValues = (exercise: SetsByExercise, index: number, justLogged?: { weightKg: string, reps: string }) => {
+  const values = prefillForSet(exercise.suggestion ?? null, historyFallback(exercise, index, justLogged), index === 0);
+  return values && { weightKg: toInput(values.weightKg), reps: toInput(values.reps) };
 };
 
 // Seeds each exercise's draft once, as soon as its history has loaded -- only into a draft the
@@ -136,6 +148,9 @@ const equipmentByExerciseId = computed(() => {
   return map;
 });
 const stressorsByExerciseId = computed(() => new Map((sessionExerciseDetails.value ?? []).map(exercise => [exercise.id, exercise.stressors] as const)));
+// Needed alongside equipment so the "Next time" preview picks the same increment the server did:
+// without the pattern, lower-body barbell lifts would preview +2.5kg against a real +5kg.
+const patternByExerciseId = computed(() => new Map((sessionExerciseDetails.value ?? []).map(exercise => [exercise.id, exercise.movementPattern] as const)));
 
 const exerciseDisplayInfo = computed(() => {
   return (session.value?.exercises ?? []).map(exercise => ({
@@ -330,6 +345,33 @@ const logSameAsLast = async (exerciseLogId: string) => {
 // the user reviews volume/duration/PRs/streak and taps "Done" to leave.
 const completionSummary = ref<SessionCompletionSummary | null>(null);
 
+// A preview of what the lifter will be asked for next time, run over the session they just
+// finished. Display only -- the real suggestion is computed and snapshotted when that session
+// starts, against the full two-session lookback. Only progressions are worth previewing, so
+// holds and back-offs are dropped; with a single session in view, the back-off rule (which needs
+// two) can't fire here anyway.
+const nextTime = computed(() => {
+  if (!completionSummary.value || !session.value) return [];
+  return session.value.exercises.flatMap(exercise => {
+    const suggestion = suggestProgression({
+      prescription: {
+        sets: exercise.targetSets,
+        repsMin: exercise.targetRepsMin,
+        repsMax: exercise.targetRepsMax,
+        rpe: exercise.targetRpe,
+      },
+      recentSessions: [exercise.sets.filter(set => !set.isWarmup)],
+      setType: exercise.setType,
+      equipment: equipmentByExerciseId.value.get(exercise.exerciseId) ?? null,
+      movementPattern: patternByExerciseId.value.get(exercise.exerciseId) ?? null,
+      unitSystem: unitSystem.value,
+    });
+    return suggestion?.action === "increase" && suggestion.weightKg !== null
+      ? [{ name: exercise.exerciseName ?? exercise.exerciseId, load: formatLoad(suggestion.weightKg, unitSystem.value) }]
+      : [];
+  });
+});
+
 const finish = async () => {
   if (!session.value) return;
   const hasSkippedExercises = session.value.exercises.some(exercise => exercise.sets.length === 0);
@@ -394,6 +436,14 @@ const doneWithSummary = () => navigateTo("/workouts");
             {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
           </span>
         </span>
+      </div>
+    </UiCard>
+
+    <UiCard v-if="nextTime.length > 0" class="space-y-2">
+      <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Next time</p>
+      <div v-for="entry in nextTime" :key="entry.name" class="flex items-start justify-between gap-3 text-sm">
+        <span class="min-w-0 text-foreground">{{ entry.name }}</span>
+        <span class="shrink-0 text-right text-muted-foreground">&rarr; {{ entry.load }}</span>
       </div>
     </UiCard>
 

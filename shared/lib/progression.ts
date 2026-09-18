@@ -129,3 +129,25 @@ export const suggestProgression = (input: ProgressionInput): ProgressionSuggesti
 
   return hold('building_reps')
 }
+
+/**
+ * What to pre-fill into a working set's inputs, given the suggestion for this exercise and
+ * whatever the page's own history logic came up with (last session's matching set, or the set
+ * just logged). A fill, not a lock -- the lifter types over it freely.
+ *
+ * Only a changed load overrides history, and only on the first working set: the suggestion is
+ * advice about where to start the exercise, so once a working set has actually been logged today
+ * the lifter's own choice is the better fill. Re-asserting the suggestion on set two would retype
+ * over the weight they just decided on -- if they went to 65 after a suggested 62.5, they meant
+ * it. Warm-ups don't count as starting, so a warm-up first still leaves the suggestion standing.
+ */
+export const prefillForSet = (
+  suggestion: ProgressionSuggestion | null,
+  fallback: { weightKg: number | null, reps: number | null } | null,
+  isFirstWorkingSet: boolean,
+): { weightKg: number | null, reps: number | null } | null => {
+  if (!isFirstWorkingSet) return fallback
+  if (suggestion === null || (suggestion.action !== 'increase' && suggestion.action !== 'reduce')) return fallback
+  // Bodyweight and time set types carry no suggested load, so only the reps move.
+  return { weightKg: suggestion.weightKg ?? fallback?.weightKg ?? null, reps: suggestion.repsMin }
+}

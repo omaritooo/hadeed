@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { lbsToKg } from '~~/shared/lib/formulas'
-import { suggestProgression, workingWeight, type ProgressionInput, type WorkingSet } from '~~/shared/lib/progression'
+import { prefillForSet, suggestProgression, workingWeight, type ProgressionInput, type ProgressionSuggestion, type WorkingSet } from '~~/shared/lib/progression'
 
 const set = (weightKg: number | null, reps: number | null, rpe: number | null = null): WorkingSet => ({ weightKg, reps, rpe })
 
@@ -153,5 +153,59 @@ describe('suggestProgression', () => {
       recentSessions: [[set(null, 5)], [set(null, 5)]],
     }))
     expect(result).toMatchObject({ action: 'hold', reason: 'missed_min_twice', weightKg: null })
+  })
+})
+
+describe('prefillForSet', () => {
+  const suggestion = (overrides: Partial<ProgressionSuggestion> = {}): ProgressionSuggestion => ({
+    action: 'increase',
+    reason: 'all_sets_top_of_range',
+    weightKg: 62.5,
+    repsMin: 8,
+    repsMax: 10,
+    ...overrides,
+  })
+
+  it('leaves the fallback alone when there is no suggestion', () => {
+    expect(prefillForSet(null, { weightKg: 60, reps: 9 }, true)).toEqual({ weightKg: 60, reps: 9 })
+    expect(prefillForSet(null, null, true)).toBeNull()
+  })
+
+  it('leaves the fallback alone when holding or lifting for the first time', () => {
+    const fallback = { weightKg: 60, reps: 9 }
+    expect(prefillForSet(suggestion({ action: 'hold', reason: 'building_reps' }), fallback, true)).toEqual(fallback)
+    expect(prefillForSet(suggestion({ action: 'first_time', reason: 'first_time', weightKg: null }), fallback, true)).toEqual(fallback)
+  })
+
+  // Once the load moves, last session's per-set weights no longer describe today -- including
+  // ramping patterns, where every set gets the new working weight to adjust from.
+  it('overrides both weight and reps when the load changes', () => {
+    expect(prefillForSet(suggestion(), { weightKg: 60, reps: 10 }, true)).toEqual({ weightKg: 62.5, reps: 8 })
+    expect(prefillForSet(suggestion({ action: 'reduce', reason: 'missed_min_twice', weightKg: 55 }), { weightKg: 60, reps: 10 }, true))
+      .toEqual({ weightKg: 55, reps: 8 })
+  })
+
+  it('fills a changed load even with no history to fall back on', () => {
+    expect(prefillForSet(suggestion(), null, true)).toEqual({ weightKg: 62.5, reps: 8 })
+  })
+
+  // Bodyweight and time set types never carry a suggested load, so only the reps move.
+  it('keeps the fallback weight when the suggestion carries no load', () => {
+    expect(prefillForSet(suggestion({ weightKg: null, repsMin: 11 }), { weightKg: null, reps: 10 }, true))
+      .toEqual({ weightKg: null, reps: 11 })
+    expect(prefillForSet(suggestion({ weightKg: null, repsMin: 11 }), null, true)).toEqual({ weightKg: null, reps: 11 })
+  })
+})
+
+describe('prefillForSet after the first working set', () => {
+  const increase: ProgressionSuggestion = { action: 'increase', reason: 'all_sets_top_of_range', weightKg: 62.5, repsMin: 8, repsMax: 10 }
+
+  // The lifter who went to 65 after a suggested 62.5 meant it; set two should not retype over it.
+  it('keeps what was just lifted rather than re-asserting the suggestion', () => {
+    expect(prefillForSet(increase, { weightKg: 65, reps: 9 }, false)).toEqual({ weightKg: 65, reps: 9 })
+  })
+
+  it('still fills nothing when there is nothing to carry over', () => {
+    expect(prefillForSet(increase, null, false)).toBeNull()
   })
 })
