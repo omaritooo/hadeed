@@ -1,4 +1,4 @@
-import type { Client } from '@libsql/client'
+import type { Client, InStatement } from '@libsql/client'
 import type { DetectedPr, PrType } from '~~/shared/lib/personal-records'
 import type { SessionPrHit } from '~~/shared/types/session.types'
 import type { RecentPr } from '~~/shared/types/home.types'
@@ -11,19 +11,24 @@ export interface InsertPersonalRecordsInput {
   prs: DetectedPr[]
 }
 
+// Idempotent per (set, type) via the UNIQUE constraint, so replaying a set log -- an offline sync
+// retry, say -- records each PR once rather than duplicating the training record. Exposed as
+// statements so the backfill script can send a whole history in batches instead of one round trip
+// per PR, without a second copy of this insert.
+export const personalRecordInsertStatements = (input: InsertPersonalRecordsInput): InStatement[] =>
+  input.prs.map(pr => ({
+    sql: `INSERT INTO personal_records (user_id, exercise_id, set_log_id, pr_type, value, previous_value, achieved_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT (set_log_id, pr_type) DO NOTHING`,
+    args: [input.userId, input.exerciseId, input.setLogId, pr.type, pr.value, pr.previousValue, input.achievedAt],
+  }))
+
 export class PersonalRecordRepository {
   constructor(private db: Client) {}
 
-  // Idempotent per (set, type) via the UNIQUE constraint, so replaying a set log -- an offline
-  // sync retry, say -- records each PR once rather than duplicating the training record.
   async insertMany(input: InsertPersonalRecordsInput): Promise<void> {
-    for (const pr of input.prs) {
-      await this.db.execute({
-        sql: `INSERT INTO personal_records (user_id, exercise_id, set_log_id, pr_type, value, previous_value, achieved_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT (set_log_id, pr_type) DO NOTHING`,
-        args: [input.userId, input.exerciseId, input.setLogId, pr.type, pr.value, pr.previousValue, input.achievedAt],
-      })
+    for (const statement of personalRecordInsertStatements(input)) {
+      await this.db.execute(statement)
     }
   }
 
