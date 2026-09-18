@@ -41,11 +41,27 @@ describe('PersonalRecordRepository', () => {
     expect((await db.execute('SELECT COUNT(*) AS n FROM personal_records')).rows[0]!.n).toBe(2)
   })
 
-  it('lists recent PRs newest first with an optional limit', async () => {
+  it('lists recent PRs newest first, capped by an optional limit', async () => {
+    await sessions.logSet({ id: 'set-2', exerciseLogId: 'e1', setNumber: 2, weightKg: 110, reps: 5, rpe: null })
+    await sessions.logSet({ id: 'set-3', exerciseLogId: 'e1', setNumber: 3, weightKg: 120, reps: 5, rpe: null })
     await record()
-    const recent = await repo.recent('user-1', 5)
-    expect(recent).toHaveLength(1)
-    expect(recent[0]).toMatchObject({ exerciseName: 'Bench Press', prTypes: ['e1rm', 'weight'], achievedAt: '2026-01-01 10:00:00' })
+    await repo.insertMany({ userId: 'user-1', exerciseId: 'bench-press', setLogId: 'set-2', achievedAt: '2026-01-02 10:00:00', prs: [{ type: 'weight', value: 110, previousValue: 100 }] })
+    await repo.insertMany({ userId: 'user-1', exerciseId: 'bench-press', setLogId: 'set-3', achievedAt: '2026-01-03 10:00:00', prs: [{ type: 'weight', value: 120, previousValue: 110 }] })
+
+    expect((await repo.recent('user-1')).map(pr => pr.weightKg)).toEqual([120, 110, 100])
+    expect((await repo.recent('user-1', 2)).map(pr => pr.weightKg)).toEqual([120, 110])
+    expect((await repo.recent('user-1'))[2]).toMatchObject({ prTypes: ['e1rm', 'weight'], achievedAt: '2026-01-01 10:00:00' })
+  })
+
+  // logged_at (and so achieved_at, which is copied from it) only has second resolution, so several
+  // sets of one exercise routinely share a timestamp. rowid breaks the tie the way the rest of the
+  // repository layer does, keeping the newest set on top instead of ordering nondeterministically.
+  it('breaks a same-second tie by insertion order', async () => {
+    await sessions.logSet({ id: 'set-2', exerciseLogId: 'e1', setNumber: 2, weightKg: 110, reps: 5, rpe: null })
+    await record()
+    await repo.insertMany({ userId: 'user-1', exerciseId: 'bench-press', setLogId: 'set-2', achievedAt: '2026-01-01 10:00:00', prs: [{ type: 'weight', value: 110, previousValue: 100 }] })
+
+    expect((await repo.recent('user-1')).map(pr => pr.weightKg)).toEqual([110, 100])
   })
 
   it('deletes a set\'s PRs', async () => {

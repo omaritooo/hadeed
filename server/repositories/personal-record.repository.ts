@@ -43,7 +43,7 @@ export class PersonalRecordRepository {
             JOIN exercises e ON e.id = pr.exercise_id
             WHERE ${where}
             GROUP BY pr.set_log_id
-            ORDER BY achieved_at DESC, sl.logged_at DESC
+            ORDER BY achieved_at DESC, sl.rowid DESC
             ${limit ? 'LIMIT ?' : ''}`
   }
 
