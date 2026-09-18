@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { describeSuggestion, formatPrTypes } from "~~/shared/lib/suggestion-copy";
 import type { ExerciseHistorySet, ExerciseLog, SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
 
 const route = useRoute();
@@ -144,8 +145,13 @@ const exerciseDisplayInfo = computed(() => {
     nextSetHint: nextSetHint(exercise),
     setsProgressLabel: formatSetsProgress(exercise.sets.length, exercise.targetSets),
     isBarbell: equipmentByExerciseId.value.get(exercise.exerciseId) === "barbell",
+    suggestionInfo: exercise.suggestion ? describeSuggestion(exercise.suggestion, unitSystem.value) : null,
   }));
 });
+
+// Whether each exercise's suggestion has been tapped open to reveal *why* it was suggested.
+// Keyed by exercise log id; the line itself stays collapsed by default so the card stays scannable.
+const expandedReason = reactive<Record<string, boolean>>({});
 
 const draftWeightKgNumber = (exerciseLogId: string) => {
   const parsed = Number(draftFor(exerciseLogId).weightKg);
@@ -379,10 +385,15 @@ const doneWithSummary = () => navigateTo("/workouts");
       <div
         v-for="pr in completionSummary.prsHit"
         :key="`${pr.exerciseName}-${pr.weightKg}-${pr.reps}`"
-        class="flex items-center justify-between text-sm"
+        class="flex items-start justify-between gap-3 text-sm"
       >
-        <span class="text-foreground">{{ pr.exerciseName }}</span>
-        <span class="text-muted-foreground">{{ pr.weightKg }}kg × {{ pr.reps }}</span>
+        <span class="min-w-0 text-foreground">{{ pr.exerciseName }}</span>
+        <span class="shrink-0 text-right">
+          <span class="block text-muted-foreground">{{ pr.weightKg }}kg × {{ pr.reps }}</span>
+          <span v-if="pr.prTypes.length > 0" class="block font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
+            {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
+          </span>
+        </span>
       </div>
     </UiCard>
 
@@ -434,6 +445,17 @@ const doneWithSummary = () => navigateTo("/workouts");
           <span v-if="exercise.targetLabel">{{ exercise.targetLabel }}</span>
           <span v-if="exercise.lastPerformanceLabel">{{ exercise.lastPerformanceLabel }}</span>
         </div>
+        <template v-if="exercise.suggestionInfo && exercise.suggestion?.action !== 'first_time'">
+          <button
+            type="button"
+            class="block py-0.5 text-left font-mono text-xs uppercase tracking-[1.2px] text-foreground underline decoration-dotted underline-offset-4"
+            :aria-expanded="expandedReason[exercise.id] === true"
+            @click="expandedReason[exercise.id] = !expandedReason[exercise.id]"
+          >
+            {{ exercise.suggestionInfo.line }} {{ exercise.suggestionInfo.glyph }}
+          </button>
+          <p v-if="expandedReason[exercise.id]" class="text-xs text-muted-foreground">{{ exercise.suggestionInfo.reason }}</p>
+        </template>
       </div>
 
       <div class="space-y-2">
@@ -558,6 +580,18 @@ const doneWithSummary = () => navigateTo("/workouts");
             >
               <span v-if="exercise.targetLabel">{{ exercise.targetLabel }}</span>
               <span v-if="exercise.lastPerformanceLabel">{{ exercise.lastPerformanceLabel }}</span>
+            </p>
+            <button
+              v-if="exercise.suggestionInfo && exercise.suggestion?.action !== 'first_time'"
+              type="button"
+              class="mt-1 block py-0.5 text-left font-mono text-xs uppercase tracking-[1.2px] text-foreground underline decoration-dotted underline-offset-4"
+              :aria-expanded="expandedReason[exercise.id] === true"
+              @click="expandedReason[exercise.id] = !expandedReason[exercise.id]"
+            >
+              {{ exercise.suggestionInfo.line }} {{ exercise.suggestionInfo.glyph }}
+            </button>
+            <p v-if="exercise.suggestionInfo && expandedReason[exercise.id]" class="mt-1 text-xs text-muted-foreground">
+              {{ exercise.suggestionInfo.reason }}
             </p>
 
             <div v-if="!circuitComplete && index === circuitCurrentExerciseIndex" class="mt-3 border-t border-surface-strong pt-3">

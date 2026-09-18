@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { kgToLbs } from "~~/shared/lib/formulas";
 import { buildSparkline } from "~~/shared/lib/sparkline";
+import { formatPrTypes } from "~~/shared/lib/suggestion-copy";
 
 const HYDRATION_PRESETS_ML = [250, 500, 750] as const;
 const HYDRATION_UNDO_WINDOW_MS = 5000;
@@ -169,8 +170,10 @@ const consistencyWeeks = computed(() => {
   return weeks;
 });
 
+const unitSystem = computed(() => profile.value?.profile?.unitSystem ?? "metric");
+
 const formatWeight = (weightKg: number): string => {
-  if (profile.value?.profile?.unitSystem === "imperial") {
+  if (unitSystem.value === "imperial") {
     return `${Math.round(kgToLbs(weightKg)).toLocaleString()} lbs`;
   }
   return `${Math.round(weightKg).toLocaleString()} kg`;
@@ -588,21 +591,22 @@ const continueWorkout = async () => {
         <h2 class="font-heading text-lg uppercase text-foreground">Recent PRs</h2>
       </div>
       <UiCard class="space-y-2.5">
-        <div
-          v-for="pr in stats.recentPrs.slice(0, 3)"
-          :key="`${pr.exerciseName}-${pr.achievedAt}`"
-          class="flex items-baseline justify-between gap-3"
-        >
-          <span class="min-w-0 truncate text-sm text-foreground">{{ pr.exerciseName }}</span>
-          <span class="flex shrink-0 items-baseline gap-2">
-            <span
-              class="font-heading text-base text-lime [font-variant-numeric:tabular-nums]"
-              >{{ formatWeight(pr.weightKg) }} &times; {{ pr.reps }}</span
-            >
-            <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">
-              {{ useDateFormat(new Date(`${pr.achievedAt.replace(" ", "T")}Z`), "MMM DD") }}
+        <div v-for="pr in stats.recentPrs.slice(0, 3)" :key="`${pr.exerciseName}-${pr.achievedAt}`" class="space-y-0.5">
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="min-w-0 truncate text-sm text-foreground">{{ pr.exerciseName }}</span>
+            <span class="flex shrink-0 items-baseline gap-2">
+              <span
+                class="font-heading text-base text-lime [font-variant-numeric:tabular-nums]"
+                >{{ formatWeight(pr.weightKg) }} &times; {{ pr.reps }}</span
+              >
+              <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">
+                {{ useDateFormat(new Date(`${pr.achievedAt.replace(" ", "T")}Z`), "MMM DD") }}
+              </span>
             </span>
-          </span>
+          </div>
+          <p v-if="pr.prTypes.length > 0" class="text-right font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
+            {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
+          </p>
         </div>
       </UiCard>
     </div>

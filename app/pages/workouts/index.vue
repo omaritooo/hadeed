@@ -2,6 +2,7 @@
 import { DumbbellIcon, LayoutGridIcon, PlayIcon, SettingsIcon, TrophyIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { kgToLbs } from "~~/shared/lib/formulas";
+import { formatPrTypes } from "~~/shared/lib/suggestion-copy";
 import type { VolumeBand } from "~~/shared/types/workouts.types";
 import { WEEKLY_VOLUME_HIGH_THRESHOLD } from "~~/shared/types/workouts.types";
 
@@ -19,8 +20,10 @@ const openInfo = (exerciseId: string) => {
   infoDrawerOpen.value = true;
 };
 
+const unitSystem = computed(() => profileData.value?.profile?.unitSystem ?? "metric");
+
 const formatWeight = (weightKg: number): string => {
-  if (profileData.value?.profile?.unitSystem === "imperial") {
+  if (unitSystem.value === "imperial") {
     return `${Math.round(kgToLbs(weightKg))} lbs`;
   }
   return `${Math.round(weightKg)} kg`;
@@ -191,7 +194,10 @@ const resumeWorkout = async () => {
           </div>
           <div class="min-w-0">
             <p class="truncate text-sm font-semibold text-foreground">{{ pr.exerciseName }}</p>
-            <p class="text-xs text-muted-foreground">{{ pr.weightKg }}kg × {{ pr.reps }}</p>
+            <p class="text-xs text-muted-foreground">{{ formatWeight(pr.weightKg) }} × {{ pr.reps }}</p>
+            <p v-if="pr.prTypes.length > 0" class="font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
+              {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
+            </p>
           </div>
         </UiCard>
       </div>

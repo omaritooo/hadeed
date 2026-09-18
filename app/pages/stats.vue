@@ -3,11 +3,13 @@ import { ActivityIcon, DumbbellIcon, ScaleIcon, TrophyIcon } from "@lucide/vue";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { kgToLbs } from "~~/shared/lib/formulas";
 import { buildSparkline } from "~~/shared/lib/sparkline";
+import { formatPrTypes } from "~~/shared/lib/suggestion-copy";
 import type { VolumeBand } from "~~/shared/types/workouts.types";
 
 const { data: profile } = useProfile();
+const unitSystem = computed(() => profile.value?.profile?.unitSystem ?? "metric");
 const formatWeight = (weightKg: number): string => {
-  if (profile.value?.profile?.unitSystem === "imperial") {
+  if (unitSystem.value === "imperial") {
     return `${Math.round(kgToLbs(weightKg))} lbs`;
   }
   return `${Math.round(weightKg)} kg`;
@@ -240,6 +242,9 @@ const recentBodyMetrics = computed(() => (bodyMetrics.value ?? []).slice(0, 5));
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-semibold text-foreground">{{ pr.exerciseName }}</p>
             <p class="text-xs text-muted-foreground">{{ formatWeight(pr.weightKg) }} × {{ pr.reps }}</p>
+            <p v-if="pr.prTypes.length > 0" class="font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
+              {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
+            </p>
           </div>
           <span class="font-mono text-xs text-muted-foreground">{{ formatDateTime(pr.achievedAt) }}</span>
         </UiCard>
