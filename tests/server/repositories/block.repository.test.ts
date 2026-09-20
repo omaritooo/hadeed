@@ -257,8 +257,8 @@ describe('BlockRepository.findScheduleHistory', () => {
     })
 
     expect(await repo.findScheduleHistory('user-1')).toEqual([
-      { startDate: '2026-01-01', endDate: '2026-02-01', trainingDays: 1 },
-      { startDate: '2026-02-02', endDate: null, trainingDays: 0 },
+      { id: 1, startDate: '2026-01-01', endDate: '2026-02-01', trainingDays: 1 },
+      { id: 2, startDate: '2026-02-02', endDate: null, trainingDays: 0 },
     ])
   })
 
@@ -277,7 +277,7 @@ describe('BlockRepository.findScheduleHistory', () => {
     })
 
     expect(await repo.findScheduleHistory('user-1')).toEqual([
-      { startDate: '2026-01-01', endDate: null, trainingDays: 4 },
+      { id: 1, startDate: '2026-01-01', endDate: null, trainingDays: 4 },
     ])
   })
 
@@ -300,7 +300,29 @@ describe('BlockRepository.findScheduleHistory', () => {
     })
 
     expect(await repo.findScheduleHistory('user-1')).toEqual([
-      { startDate: '2026-01-01', endDate: null, trainingDays: 1 },
+      { id: 1, startDate: '2026-01-01', endDate: null, trainingDays: 1 },
+    ])
+  })
+
+  // Replacing a split on its own start date retires the old block to endDate = its own startDate,
+  // so both cover that day. The id is what lets a consumer tell which one is really live.
+  it('includes a block retired on its own start date, with ids that order the overlap', async () => {
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'Old', startDate: '2026-01-05', endDate: '2026-01-05', trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{ name: 'Full body', dayOfWeek: 0, location: 'gym', exercises: [] }],
+    })
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'New', startDate: '2026-01-05', endDate: null, trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] },
+        { name: 'Pull', dayOfWeek: 1, location: 'gym', exercises: [] },
+        { name: 'Legs', dayOfWeek: 2, location: 'gym', exercises: [] },
+      ],
+    })
+
+    expect(await repo.findScheduleHistory('user-1')).toEqual([
+      { id: 1, startDate: '2026-01-05', endDate: '2026-01-05', trainingDays: 1 },
+      { id: 2, startDate: '2026-01-05', endDate: null, trainingDays: 3 },
     ])
   })
 })

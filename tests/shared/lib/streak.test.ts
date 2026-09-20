@@ -117,8 +117,8 @@ describe('buildStreakWeeks', () => {
   it('spans from the earliest trained week to the current week, resolving each week\'s block', () => {
     const weeks = buildStreakWeeks({
       schedules: [
-        { startDate: '2026-08-01', endDate: '2026-08-26', trainingDays: 3 },
-        { startDate: '2026-08-27', endDate: null, trainingDays: 5 },
+        { id: 1, startDate: '2026-08-01', endDate: '2026-08-26', trainingDays: 3 },
+        { id: 2, startDate: '2026-08-27', endDate: null, trainingDays: 5 },
       ],
       completedDaysByWeek: { '2026-08-17': 3, '2026-08-31': 4 },
       currentWeekStart: '2026-09-07',
@@ -132,9 +132,33 @@ describe('buildStreakWeeks', () => {
     ])
   })
 
+  // A split replaced on its own start date leaves the retired block covering that day too. The
+  // live block must win, or the week is measured against a husk -- on a Monday swap, that husk is
+  // exactly the week's own start.
+  it('resolves an overlap on a tied start date to the newer block', () => {
+    expect(buildStreakWeeks({
+      schedules: [
+        { id: 1, startDate: '2026-09-07', endDate: '2026-09-07', trainingDays: 1 },
+        { id: 2, startDate: '2026-09-07', endDate: null, trainingDays: 3 },
+      ],
+      completedDaysByWeek: { '2026-09-07': 2 },
+      currentWeekStart: '2026-09-07',
+    })).toEqual([{ weekStart: '2026-09-07', scheduled: 3, completed: 2 }])
+  })
+
+  // Order from the query must not decide it either.
+  it('resolves a tied start date the same way whatever order the schedules arrive in', () => {
+    const schedules = [
+      { id: 2, startDate: '2026-09-07', endDate: null, trainingDays: 3 },
+      { id: 1, startDate: '2026-09-07', endDate: '2026-09-07', trainingDays: 1 },
+    ]
+    expect(buildStreakWeeks({ schedules, completedDaysByWeek: { '2026-09-07': 2 }, currentWeekStart: '2026-09-07' }))
+      .toEqual([{ weekStart: '2026-09-07', scheduled: 3, completed: 2 }])
+  })
+
   it('falls back to the block active on Sunday when none was active Monday', () => {
     const weeks = buildStreakWeeks({
-      schedules: [{ startDate: '2026-09-03', endDate: null, trainingDays: 4 }],
+      schedules: [{ id: 3, startDate: '2026-09-03', endDate: null, trainingDays: 4 }],
       completedDaysByWeek: { '2026-08-31': 2 },
       currentWeekStart: '2026-08-31',
     })
@@ -143,7 +167,7 @@ describe('buildStreakWeeks', () => {
 
   it('keeps the Monday block for a week whose block ends mid-week', () => {
     const weeks = buildStreakWeeks({
-      schedules: [{ startDate: '2026-08-10', endDate: '2026-09-02', trainingDays: 3 }],
+      schedules: [{ id: 4, startDate: '2026-08-10', endDate: '2026-09-02', trainingDays: 3 }],
       completedDaysByWeek: { '2026-08-31': 3 },
       currentWeekStart: '2026-09-07',
     })
@@ -165,7 +189,7 @@ describe('buildStreakWeeks', () => {
 
   it('returns nothing for a user who has never trained', () => {
     expect(buildStreakWeeks({
-      schedules: [{ startDate: '2026-08-01', endDate: null, trainingDays: 4 }],
+      schedules: [{ id: 5, startDate: '2026-08-01', endDate: null, trainingDays: 4 }],
       completedDaysByWeek: {},
       currentWeekStart: '2026-09-07',
     })).toEqual([])

@@ -11,6 +11,7 @@ export interface WeekStreak {
 }
 
 export interface BlockSchedule {
+  id: number
   startDate: string
   endDate: string | null
   trainingDays: number
@@ -66,10 +67,14 @@ const addDays = (isoDate: string, days: number): string => {
   return date.toISOString().slice(0, 10)
 }
 
+// Retiring a split on its own start date leaves the old block covering that one day too, so two
+// blocks can genuinely be active at once. The newer id wins, matching what
+// BlockRepository.findActiveForUser treats as active -- tie-broken here rather than left to the
+// order the rows arrived in, so this stays correct however the query is written.
 const activeOn = (schedules: BlockSchedule[], isoDate: string): BlockSchedule | undefined =>
   schedules
     .filter(s => s.startDate <= isoDate && (s.endDate === null || s.endDate >= isoDate))
-    .sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
+    .sort((a, b) => b.startDate.localeCompare(a.startDate) || b.id - a.id)[0]
 
 // Every week from the earliest trained week to the current one, so missed weeks in between
 // appear (as scheduled > 0, completed 0) rather than silently vanishing.

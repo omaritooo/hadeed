@@ -162,7 +162,7 @@ export class BlockRepository {
   // reduced to a count here -- the streak only needs "how many non-rest days did this ask for".
   async findScheduleHistory(userId: string): Promise<BlockSchedule[]> {
     const result = await this.db.execute({
-      sql: `SELECT b.start_date, b.end_date,
+      sql: `SELECT b.id, b.start_date, b.end_date,
                    COALESCE(SUM(CASE WHEN sd.is_rest_day = 0 THEN 1 ELSE 0 END), 0) AS training_days
             FROM blocks b
             LEFT JOIN split_days sd ON sd.block_id = b.id
@@ -172,6 +172,7 @@ export class BlockRepository {
       args: [userId],
     })
     return result.rows.map(row => ({
+      id: row.id as number,
       startDate: row.start_date as string,
       endDate: row.end_date as string | null,
       trainingDays: row.training_days as number,
