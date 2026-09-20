@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client'
 import { repRangeArgs, repRangeFromRow } from '~~/server/repositories/rep-range-columns'
 import type { Block, MacroTarget, SetType, SplitDay, SplitExercise, SplitFormat } from '~~/shared/types/split.types'
+import type { BlockSchedule } from '~~/shared/lib/streak'
 
 export interface CreateSplitExerciseInput {
   exerciseId: string
@@ -154,6 +155,27 @@ export class BlockRepository {
     )
 
     return { ...block, days }
+  }
+
+  // Every block the user has ever had, so a week streak can resolve its scheduled count from
+  // whichever block was active back then rather than only from the current one. Days are
+  // reduced to a count here -- the streak only needs "how many non-rest days did this ask for".
+  async findScheduleHistory(userId: string): Promise<BlockSchedule[]> {
+    const result = await this.db.execute({
+      sql: `SELECT b.start_date, b.end_date,
+                   COALESCE(SUM(CASE WHEN sd.is_rest_day = 0 THEN 1 ELSE 0 END), 0) AS training_days
+            FROM blocks b
+            LEFT JOIN split_days sd ON sd.block_id = b.id
+            WHERE b.user_id = ?
+            GROUP BY b.id
+            ORDER BY b.start_date, b.id`,
+      args: [userId],
+    })
+    return result.rows.map(row => ({
+      startDate: row.start_date as string,
+      endDate: row.end_date as string | null,
+      trainingDays: row.training_days as number,
+    }))
   }
 
   async findActiveForUser(userId: string, asOfDate: string): Promise<BlockWithDays | null> {

@@ -613,6 +613,20 @@ export class SessionRepository {
     return (result.rows[0]?.count as number) ?? 0
   }
 
+  // Keyed by the week's Monday (UTC), matching startOfWeek in server/utils/date.ts:
+  // date(x, 'weekday 0') moves forward to Sunday (or stays put on one), then -6 days lands on
+  // that week's Monday. Distinct days, not sessions, so two workouts in a day count once.
+  async completedDaysByWeek(userId: string): Promise<Record<string, number>> {
+    const result = await this.db.execute({
+      sql: `SELECT date(started_at, 'weekday 0', '-6 days') AS week_start, COUNT(DISTINCT date(started_at)) AS days
+            FROM workout_sessions
+            WHERE user_id = ? AND status = 'completed'
+            GROUP BY week_start`,
+      args: [userId],
+    })
+    return Object.fromEntries(result.rows.map(row => [row.week_start as string, row.days as number]))
+  }
+
   async findTrainedDatesInRange(userId: string, startIso: string, endIso: string): Promise<Set<string>> {
     const result = await this.db.execute({
       sql: `SELECT DISTINCT date(started_at) as day FROM workout_sessions

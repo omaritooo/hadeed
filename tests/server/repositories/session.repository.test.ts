@@ -1074,3 +1074,58 @@ describe('SessionRepository.findWorkingSetsBefore', () => {
     expect(await repo.findWorkingSetsBefore('user-1', 'bench-press', 'c')).toEqual([{ weightKg: 80, reps: 8 }])
   })
 })
+
+describe('SessionRepository.completedDaysByWeek', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  // started_at defaults to now, so each session is backdated once it has been completed.
+  const complete = async (id: string, startedAt: string, userId = 'user-1') => {
+    await repo.startSession(userId, { id, splitDayId: null, exercises: [] })
+    await repo.completeSession(id, 1)
+    await db.execute({ sql: 'UPDATE workout_sessions SET started_at = ? WHERE id = ?', args: [startedAt, id] })
+  }
+
+  it('counts distinct completed days per Monday-start week, across a year boundary', async () => {
+    await complete('a', '2025-12-29 09:00:00') // Monday
+    await complete('b', '2026-01-01 09:00:00') // Thursday, same week
+    await complete('c', '2026-01-01 18:00:00') // same day as b
+    await complete('d', '2026-01-04 09:00:00') // Sunday, same week
+    await complete('e', '2026-01-05 09:00:00') // next Monday
+    await repo.startSession('user-1', { id: 'live', splitDayId: null, exercises: [] }) // in progress, ignored
+
+    expect(await repo.completedDaysByWeek('user-1')).toEqual({ '2025-12-29': 3, '2026-01-05': 1 })
+  })
+
+  it('keys a week whose only session is on Sunday to the Monday that opened it', async () => {
+    await complete('sunday', '2026-01-11 20:00:00') // Sunday closing the week of Mon 2026-01-05
+
+    expect(await repo.completedDaysByWeek('user-1')).toEqual({ '2026-01-05': 1 })
+  })
+
+  it('excludes an abandoned session', async () => {
+    await complete('kept', '2026-01-05 09:00:00')
+    await complete('expired', '2026-01-06 09:00:00')
+    await db.execute({ sql: "UPDATE workout_sessions SET status = 'abandoned' WHERE id = 'expired'" })
+
+    expect(await repo.completedDaysByWeek('user-1')).toEqual({ '2026-01-05': 1 })
+  })
+
+  it("does not read another user's completed sessions", async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    await complete('mine', '2026-01-05 09:00:00')
+    await complete('theirs', '2026-01-06 09:00:00', 'user-2')
+
+    expect(await repo.completedDaysByWeek('user-1')).toEqual({ '2026-01-05': 1 })
+  })
+
+  it('returns an empty map for a user who has never completed a session', async () => {
+    expect(await repo.completedDaysByWeek('user-1')).toEqual({})
+  })
+})

@@ -232,3 +232,75 @@ describe('BlockRepository.findActiveForUser', () => {
     expect(found?.id).not.toBe(first.id)
   })
 })
+
+describe('BlockRepository.findScheduleHistory', () => {
+  let db: Client
+  let repo: BlockRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    repo = new BlockRepository(db)
+  })
+
+  it('returns every block with its non-rest day count', async () => {
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'A', startDate: '2026-01-01', endDate: '2026-02-01', trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] },
+        { name: 'Rest', dayOfWeek: 1, location: 'home', isRestDay: true, exercises: [] },
+      ],
+    })
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'B', startDate: '2026-02-02', endDate: null, trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [],
+    })
+
+    expect(await repo.findScheduleHistory('user-1')).toEqual([
+      { startDate: '2026-01-01', endDate: '2026-02-01', trainingDays: 1 },
+      { startDate: '2026-02-02', endDate: null, trainingDays: 0 },
+    ])
+  })
+
+  it('counts only the non-rest days of a split that mixes several of each', async () => {
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'Four day', startDate: '2026-01-01', endDate: null, trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] },
+        { name: 'Rest', dayOfWeek: 1, location: 'home', isRestDay: true, exercises: [] },
+        { name: 'Pull', dayOfWeek: 2, location: 'gym', exercises: [] },
+        { name: 'Legs', dayOfWeek: 3, location: 'gym', exercises: [] },
+        { name: 'Rest', dayOfWeek: 4, location: 'home', isRestDay: true, exercises: [] },
+        { name: 'Upper', dayOfWeek: 5, location: 'gym', exercises: [] },
+        { name: 'Rest', dayOfWeek: 6, location: 'home', isRestDay: true, exercises: [] },
+      ],
+    })
+
+    expect(await repo.findScheduleHistory('user-1')).toEqual([
+      { startDate: '2026-01-01', endDate: null, trainingDays: 4 },
+    ])
+  })
+
+  it('returns an empty history for a user with no blocks', async () => {
+    expect(await repo.findScheduleHistory('user-1')).toEqual([])
+  })
+
+  it("does not read another user's blocks", async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    await repo.createWithDays('user-1', {
+      programId: null, name: 'Mine', startDate: '2026-01-01', endDate: null, trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{ name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] }],
+    })
+    await repo.createWithDays('user-2', {
+      programId: null, name: 'Theirs', startDate: '2026-01-01', endDate: null, trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] },
+        { name: 'Pull', dayOfWeek: 1, location: 'gym', exercises: [] },
+      ],
+    })
+
+    expect(await repo.findScheduleHistory('user-1')).toEqual([
+      { startDate: '2026-01-01', endDate: null, trainingDays: 1 },
+    ])
+  })
+})
