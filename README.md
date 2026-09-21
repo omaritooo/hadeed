@@ -130,8 +130,11 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
   uniquely keyed on `(user_id, source_type, source_id)`, so an award can't be double-counted.
   Deleting a set revokes what it earned, and editing one re-detects its PRs, so a set can't
   be logged, deleted and re-logged to farm the PR bonus.
-- **Streaks** — a week counts when every scheduled day was completed; a missed scheduled
-  day resets the streak.
+- **Streaks** — counted in weeks, with one session of grace: a week counts when you complete
+  at least your scheduled sessions minus one, never fewer than one, on whichever days suit.
+  Weeks with no active split are skipped rather than breaking the run. Derived from session
+  history on every read rather than stored, so backdating a forgotten workout repairs the week
+  it belongs to.
 - **Achievements** — published achievements are returned annotated with unlocked state and
   progress toward the next unlock, computed from the same facts used to decide unlocks, so
   displayed progress can't drift from unlock logic.
