@@ -143,7 +143,7 @@ const save = async () => {
     <h1 class="font-heading text-3xl font-semibold text-foreground">Log a past workout</h1>
 
     <!-- NativeSelect's wrapper is w-fit; widen it so both selects fill their column. -->
-    <UiCard class="grid grid-cols-2 gap-3 [&_[data-slot=native-select-wrapper]]:w-full">
+    <UiCard class="grid grid-cols-2 gap-3 **:data-[slot=native-select-wrapper]:w-full">
       <label class="space-y-1.5">
         <span class="font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">Date</span>
         <NativeSelect v-model="selectedDate">
@@ -166,10 +166,11 @@ const save = async () => {
           <TrashIcon class="size-4" />
         </Button>
       </div>
+      <!-- UiMetricInput's label is a <p>; wrapping each in <label> gives its input an accessible name. -->
       <div class="grid grid-cols-3 gap-2">
-        <UiMetricInput v-model="row.sets" label="Sets" unit="×" />
-        <UiMetricInput v-if="row.setType !== 'time'" v-model="row.reps" label="Reps" unit="reps" />
-        <UiMetricInput v-if="row.setType === 'weight_reps'" v-model="row.weight" label="Weight" :unit="unitLabel" />
+        <label class="min-w-0"><UiMetricInput v-model="row.sets" label="Sets" unit="×" /></label>
+        <label v-if="row.setType !== 'time'" class="min-w-0"><UiMetricInput v-model="row.reps" label="Reps" unit="reps" /></label>
+        <label v-if="row.setType === 'weight_reps'" class="min-w-0"><UiMetricInput v-model="row.weight" label="Weight" :unit="unitLabel" /></label>
       </div>
     </UiCard>
 
