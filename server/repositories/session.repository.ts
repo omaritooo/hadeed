@@ -41,6 +41,16 @@ export interface StartSessionInput {
   rounds?: number
 }
 
+export interface InsertPastSessionInput {
+  id: string
+  splitDayId: number | null
+  startedAt: string // SQLite datetime
+  completedAt: string
+  exercises: Array<Omit<StartSessionExerciseInput, 'restSeconds' | 'suggestion'> & {
+    sets: Array<{ id: string, setNumber: number, weightKg: number | null, reps: number | null, loggedAt: string }>
+  }>
+}
+
 export interface LogSetInput {
   id: string
   exerciseLogId: string
@@ -456,6 +466,47 @@ export class SessionRepository {
       args: [setLogId, userId, exerciseId],
     })
     return result.rows.map(row => ({ weightKg: row.weight_kg as number | null, reps: row.reps as number | null }))
+  }
+
+  // One transaction: a past workout is written whole or not at all, never as a half-built
+  // session a retry would then have to reconcile.
+  async insertPastSession(userId: string, input: InsertPastSessionInput): Promise<void> {
+    await this.db.batch([
+      {
+        sql: `INSERT INTO workout_sessions (id, user_id, split_day_id, status, started_at, completed_at, logged_retroactively)
+              VALUES (?, ?, ?, 'completed', ?, ?, 1)`,
+        args: [input.id, userId, input.splitDayId, input.startedAt, input.completedAt],
+      },
+      ...input.exercises.flatMap(exercise => [
+        {
+          sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [exercise.id, input.id, exercise.exerciseId, exercise.splitExerciseId ?? null, exercise.position, exercise.setType,
+            exercise.targetSets ?? null, ...repRangeArgs(exercise), exercise.targetRpe ?? null],
+        },
+        ...exercise.sets.map(set => ({
+          sql: 'INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, logged_at) VALUES (?, ?, ?, ?, ?, ?)',
+          args: [set.id, exercise.id, set.setNumber, set.weightKg, set.reps, set.loggedAt],
+        })),
+      ]),
+    ], 'write')
+  }
+
+  // The counterpart of findWorkingSetsBefore: the sets whose PR baseline a backdated set just
+  // joined, so their PRs can be re-detected. Same (logged_at, rowid) ordering.
+  async findWorkingSetsAfter(userId: string, exerciseId: string, setLogId: string): Promise<SetLog[]> {
+    const result = await this.db.execute({
+      sql: `SELECT sl.*
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            JOIN workout_sessions ws ON ws.id = el.session_id
+            JOIN set_logs target ON target.id = ?
+            WHERE ws.user_id = ? AND el.exercise_id = ? AND sl.is_warmup = 0
+              AND (sl.logged_at, sl.rowid) > (target.logged_at, target.rowid)
+            ORDER BY sl.logged_at, sl.rowid`,
+      args: [setLogId, userId, exerciseId],
+    })
+    return result.rows.map(row => this.mapSetLog(row as unknown as Record<string, unknown>))
   }
 
   async expireStaleSessions(userId: string): Promise<void> {

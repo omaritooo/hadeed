@@ -1153,4 +1153,35 @@ describe('SessionRepository past sessions', () => {
     expect(summary!.durationMinutes).toBeNull()
     expect((await repo.findSessionById('past-1'))!.loggedRetroactively).toBe(true)
   })
+
+  const pastInput = (id: string, startedAt: string, weightKg: number) => ({
+    id,
+    splitDayId: null,
+    startedAt,
+    completedAt: startedAt.replace(/:00$/, ':09'),
+    exercises: [{
+      id: `${id}-e1`, exerciseId: 'bench-press', splitExerciseId: null, position: 0, setType: 'weight_reps' as const,
+      targetSets: null, targetRepsMin: null, targetRepsMax: null, targetRpe: null,
+      sets: [1, 2].map(n => ({ id: `${id}-set-${n}`, setNumber: n, weightKg, reps: 10, loggedAt: startedAt.replace(/:00$/, `:0${n}`) })),
+    }],
+  })
+
+  it('inserts a past session as completed and retroactive, with its sets', async () => {
+    await repo.insertPastSession('user-1', pastInput('past-1', '2026-09-10 08:00:00', 60))
+
+    const session = await repo.findWithLogs('past-1')
+    expect(session!.status).toBe('completed')
+    expect(session!.loggedRetroactively).toBe(true)
+    expect(session!.startedAt).toBe('2026-09-10 08:00:00')
+    expect(session!.exercises[0]!.sets.map(s => s.loggedAt)).toEqual(['2026-09-10 08:00:01', '2026-09-10 08:00:02'])
+  })
+
+  it('finds working sets of an exercise logged after a given set, oldest first', async () => {
+    await repo.insertPastSession('user-1', pastInput('past-1', '2026-09-10 08:00:00', 60))
+    await repo.insertPastSession('user-1', pastInput('past-2', '2026-09-12 08:00:00', 65))
+
+    const later = await repo.findWorkingSetsAfter('user-1', 'bench-press', 'past-1-set-2')
+
+    expect(later.map(s => s.id)).toEqual(['past-2-set-1', 'past-2-set-2'])
+  })
 })

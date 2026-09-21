@@ -111,6 +111,15 @@ export class BlockRepository {
     })
   }
 
+  async findSplitDayOwnerId(splitDayId: number): Promise<string | null> {
+    const result = await this.db.execute({
+      sql: 'SELECT b.user_id FROM split_days sd JOIN blocks b ON b.id = sd.block_id WHERE sd.id = ?',
+      args: [splitDayId],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? (row.user_id as string) : null
+  }
+
   async findWithDays(blockId: number): Promise<BlockWithDays | null> {
     const blockResult = await this.db.execute({ sql: 'SELECT * FROM blocks WHERE id = ?', args: [blockId] })
     const blockRow = blockResult.rows[0]

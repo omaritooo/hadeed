@@ -326,3 +326,26 @@ describe('BlockRepository.findScheduleHistory', () => {
     ])
   })
 })
+
+describe('BlockRepository.findSplitDayOwnerId', () => {
+  let db: Client
+  let repo: BlockRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    repo = new BlockRepository(db)
+  })
+
+  it('finds the owner of a split day, or null for an unknown one', async () => {
+    const block = await repo.createWithDays('user-1', {
+      programId: null, name: 'Block', startDate: '2026-08-18', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{ name: 'Push', dayOfWeek: 1, location: 'gym', exercises: [] }],
+    })
+    const dayId = (await repo.findWithDays(block.id))!.days[0]!.id
+
+    expect(await repo.findSplitDayOwnerId(dayId)).toBe('user-1')
+    expect(await repo.findSplitDayOwnerId(999_999)).toBeNull()
+  })
+})
