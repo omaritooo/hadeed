@@ -14,7 +14,7 @@ import type { PastSessionInput, PastSessionResult, SessionCompletionSummary, Set
 import { detectPersonalRecords } from '~~/shared/lib/personal-records'
 import { pastSessionTimestamps, validatePastSession } from '~~/shared/lib/past-session'
 import { suggestProgression } from '~~/shared/lib/progression'
-import { startOfWeek, toSqliteDatetime, fromSqliteDatetime } from '~~/server/utils/date'
+import { toSqliteDatetime, fromSqliteDatetime } from '~~/server/utils/date'
 
 // How many recent sessions of an exercise the progression rules look at (the back-off rule needs
 // the previous two).
@@ -158,35 +158,14 @@ export class SessionService extends BaseService {
     const result = await this.sessions.completeSession(sessionId, expectedVersion)
     if (result.conflict) return result
 
-    const now = new Date()
-    const weekStart = startOfWeek(now)
-    const weekEnd = new Date(weekStart)
-    weekEnd.setUTCDate(weekStart.getUTCDate() + 7)
-
-    const activeBlock = await this.blocks.findActiveForUser(this.ctx.userId, now.toISOString().slice(0, 10))
-    const scheduledDaysThisWeek = activeBlock?.days.filter(day => !day.isRestDay).length ?? 0
-
-    const completedDaysThisWeek = await this.sessions.countTrainedDaysInRange(
-      this.ctx.userId,
-      toSqliteDatetime(weekStart),
-      toSqliteDatetime(weekEnd),
-    )
-
-    const missedScheduledDay = false
-
+    // Nothing to measure here any more: the streak is derived from session history on read, so
+    // gamification only needs to know that this session finished.
     try {
-      await this.gamification.onSessionCompleted(this.ctx.userId, sessionId, {
-        scheduledDaysThisWeek,
-        completedDaysThisWeek,
-        missedScheduledDay,
-      })
+      await this.gamification.onSessionCompleted(this.ctx.userId, sessionId)
     } catch (error) {
       console.error('GamificationService.onSessionCompleted failed after session completion', { sessionId, error })
     }
 
-    // Gathered after the gamification call above so currentStreak reflects any update it just
-    // made (e.g. recordActiveDay). If that call threw, this just reports the pre-update streak —
-    // consistent with this method's existing swallow-and-log behavior for gamification failures.
     const [totalVolumeKg, prsHit, streak] = await Promise.all([
       this.sessions.sessionVolumeKg(sessionId),
       this.personalRecords.findForSession(this.ctx.userId, sessionId),

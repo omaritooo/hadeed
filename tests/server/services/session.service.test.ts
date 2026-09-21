@@ -59,24 +59,6 @@ describe('SessionService', () => {
     await expect(service.completeSession('session-1', 1)).rejects.toThrow(/forbidden/i)
   })
 
-  it('calls GamificationService.onSessionCompleted with the computed weekly facts', async () => {
-    await seedUserWithActiveBlock(db, 2)
-    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
-    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
-    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
-    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
-
-    await service.completeSession('session-1', 1)
-
-    expect(onSessionCompleted).toHaveBeenCalledTimes(1)
-    const [userId, sessionId, facts] = onSessionCompleted.mock.calls[0]
-    expect(userId).toBe('user-1')
-    expect(sessionId).toBe('session-1')
-    expect(facts.scheduledDaysThisWeek).toBe(2)
-    expect(facts.completedDaysThisWeek).toBe(1)
-    expect(facts.missedScheduledDay).toBe(false)
-  })
-
   it('allows completing a planned session that has not hit its target sets', async () => {
     await seedUserWithActiveBlock(db, 1)
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench', '[]')" })
@@ -101,33 +83,6 @@ describe('SessionService', () => {
     expect(completed?.status).toBe('completed')
   })
 
-  it('excludes rest days from scheduledDaysThisWeek', async () => {
-    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
-    const blocks = new BlockRepository(db)
-    await blocks.createWithDays('user-1', {
-      programId: null,
-      name: 'Block',
-      startDate: '2020-01-01',
-      endDate: null,
-      trainingDayMacroTarget: null,
-      restDayMacroTarget: null,
-      days: [
-        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] },
-        { name: 'Pull', dayOfWeek: 1, location: 'gym', exercises: [] },
-        { name: 'Rest', dayOfWeek: 2, location: 'home', isRestDay: true, exercises: [] },
-      ],
-    })
-    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
-    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
-    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
-    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
-
-    await service.completeSession('session-1', 1)
-
-    const [, , facts] = onSessionCompleted.mock.calls[0]
-    expect(facts.scheduledDaysThisWeek).toBe(2)
-  })
-
   it('never calls GamificationService.onSessionCompleted when completion conflicts on a stale version', async () => {
     await seedUserWithActiveBlock(db, 1)
     await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
@@ -142,22 +97,6 @@ describe('SessionService', () => {
 
     expect(result.conflict).toBe(true)
     expect(onSessionCompleted).not.toHaveBeenCalled()
-  })
-
-  it('reports zero scheduled days when the user has no active block, without treating it as a missed day', async () => {
-    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
-    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
-    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
-    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
-    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
-
-    await service.completeSession('session-1', 1)
-
-    expect(onSessionCompleted).toHaveBeenCalledTimes(1)
-    const [, , facts] = onSessionCompleted.mock.calls[0]
-    expect(facts.scheduledDaysThisWeek).toBe(0)
-    expect(facts.completedDaysThisWeek).toBe(1)
-    expect(facts.missedScheduledDay).toBe(false)
   })
 
   it('still returns the completion result when GamificationService.onSessionCompleted throws', async () => {
@@ -294,7 +233,7 @@ describe('SessionService set logging', () => {
     const streaks = new StreakRepository(db)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
-    const gamification = new GamificationService(xp, streaks, new AchievementRepository(db), sessions)
+    const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, new BlockRepository(db))
     service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs, streaks)
     await sessions.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
     await sessions.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
@@ -359,7 +298,7 @@ describe('SessionService.logPastSession', () => {
     const streaks = new StreakRepository(db)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
-    const gamification = new GamificationService(xp, streaks, new AchievementRepository(db), sessions)
+    const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, new BlockRepository(db))
     service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs, streaks)
   })
 

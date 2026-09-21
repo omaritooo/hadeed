@@ -9,6 +9,12 @@ export interface XpEvent {
   createdAt: string
 }
 
+// The derived week streak every caller reads. Re-exported here so gamification consumers keep
+// importing their types from one place.
+export type { WeekStreak } from '~~/shared/lib/streak'
+
+// The stored per-user counter behind StreakRepository. Superseded by WeekStreak and read by
+// nothing but that repository, which goes away with it.
 export interface Streak {
   userId: string
   currentStreak: number
