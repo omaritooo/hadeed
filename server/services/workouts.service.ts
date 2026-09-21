@@ -5,7 +5,7 @@ import type { ExerciseRepository } from '~~/server/repositories/exercise.reposit
 import type { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ActiveSessionSummary, TodaysWorkout } from '~~/shared/types/home.types'
-import type { MuscleVolume, VolumeBand, WeeklyVolumeSnapshot, WorkoutsSummary } from '~~/shared/types/workouts.types'
+import type { MuscleVolume, PastWorkoutOptions, VolumeBand, WeeklyVolumeSnapshot, WorkoutsSummary } from '~~/shared/types/workouts.types'
 import {
   WEEKLY_VOLUME_HIGH_THRESHOLD,
   WEEKLY_VOLUME_HISTORY_DEFAULT_WEEKS,
@@ -140,6 +140,18 @@ export class WorkoutsService extends BaseService {
     }
     if (!day) return null
 
+    return this.describeDay(userId, day)
+  }
+
+  async getPastWorkoutOptions(): Promise<PastWorkoutOptions> {
+    const todayIso = new Date().toISOString().slice(0, 10)
+    const activeBlock = await this.blocks.findActiveForUser(this.ctx.userId, todayIso)
+    const trainingDays: TrainingDay[] = (activeBlock?.days.filter(day => !day.isRestDay) ?? [])
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    return { days: await Promise.all(trainingDays.map(day => this.describeDay(this.ctx.userId, day))) }
+  }
+
+  private async describeDay(userId: string, day: TrainingDay): Promise<TodaysWorkout> {
     const exerciseIds = day.exercises.map(exercise => exercise.exerciseId)
     const [exerciseDetails, lastPerformed] = await Promise.all([
       this.exercises.findByIds(exerciseIds),

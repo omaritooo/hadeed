@@ -31,6 +31,25 @@ describe('WorkoutsService', () => {
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
   })
 
+  it('lists every non-rest day of the active block as past-workout options, in weekday order', async () => {
+    await blocks.createWithDays('user-1', {
+      programId: null, name: 'Block', startDate: '2020-01-01', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [
+        { name: 'Legs', dayOfWeek: 2, location: 'gym', exercises: [
+          { exerciseId: 'squat', position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
+        ] },
+        { name: 'Rest', dayOfWeek: 1, location: 'gym', isRestDay: true, exercises: [] },
+        { name: 'Push', dayOfWeek: 0, location: 'gym', exercises: [] },
+      ],
+    })
+
+    const { days } = await service.getPastWorkoutOptions()
+
+    expect(days.map(d => d.dayName)).toEqual(['Push', 'Legs'])
+    expect(days[1]!.exercises[0]).toMatchObject({ exerciseId: 'squat', exerciseName: 'Squat', targetSets: 3 })
+  })
+
   it('returns null todaysWorkout when there is no active block', async () => {
     const summary = await service.getSummary()
     expect(summary.todaysWorkout).toBeNull()

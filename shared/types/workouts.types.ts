@@ -33,3 +33,8 @@ export interface WeeklyVolumeSnapshot {
 
 export const WEEKLY_VOLUME_HISTORY_DEFAULT_WEEKS = 8
 export const WEEKLY_VOLUME_HISTORY_MAX_WEEKS = 12
+
+export interface PastWorkoutOptions {
+  // Non-rest days of the block active today, in weekday order, shaped like today's workout.
+  days: TodaysWorkout[]
+}
