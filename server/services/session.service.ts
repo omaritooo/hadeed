@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
-import type { ConflictResult, EditSetLogInput, LogSetInput, SessionRepository, SetLogEditResult, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
+import type { ConflictResult, EditSetLogInput, InsertPastSessionInput, LogSetInput, SessionRepository, SetLogEditResult, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
 import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
@@ -9,8 +10,9 @@ import type { PersonalRecordRepository } from '~~/server/repositories/personal-r
 import { repRangeArgs } from '~~/server/repositories/rep-range-columns'
 import type { GamificationService } from '~~/server/services/gamification.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import type { SessionCompletionSummary, SetLog, WorkoutSession } from '~~/shared/types/session.types'
+import type { PastSessionInput, PastSessionResult, SessionCompletionSummary, SetLog, WorkoutSession } from '~~/shared/types/session.types'
 import { detectPersonalRecords } from '~~/shared/lib/personal-records'
+import { pastSessionTimestamps, validatePastSession } from '~~/shared/lib/past-session'
 import { suggestProgression } from '~~/shared/lib/progression'
 import { startOfWeek, toSqliteDatetime, fromSqliteDatetime } from '~~/server/utils/date'
 
@@ -204,5 +206,86 @@ export class SessionService extends BaseService {
       session: result.session,
       summary: { totalVolumeKg, durationMinutes, prsHit, currentStreak: streak.currentStreak },
     }
+  }
+
+  async logPastSession(input: PastSessionInput, now = new Date()): Promise<PastSessionResult> {
+    const invalid = validatePastSession(input, now)
+    if (invalid) throw createError({ statusCode: 422, statusMessage: invalid })
+
+    // A retried save returns what the first one wrote, and never re-runs rewards.
+    const existing = await this.sessions.findSessionById(input.id)
+    if (existing) {
+      this.requireOwner(existing.userId)
+      return { sessionId: existing.id, prsHit: await this.personalRecords.findForSession(this.ctx.userId, existing.id) }
+    }
+
+    if (input.splitDayId !== null) {
+      const ownerId = await this.blocks.findSplitDayOwnerId(input.splitDayId)
+      if (!ownerId) throw createError({ statusCode: 404, statusMessage: 'Split day not found' })
+      this.requireOwner(ownerId)
+    }
+
+    const totalSets = input.exercises.reduce((sum, exercise) => sum + exercise.sets, 0)
+    const times = pastSessionTimestamps(new Date(input.startedAt), totalSets, now)
+    let setIndex = 0
+    const exercises: InsertPastSessionInput['exercises'] = input.exercises.map((exercise, position) => ({
+      id: exercise.id,
+      exerciseId: exercise.exerciseId,
+      splitExerciseId: exercise.splitExerciseId,
+      position,
+      setType: exercise.setType,
+      targetSets: exercise.targetSets,
+      targetRepsMin: exercise.targetRepsMin,
+      targetRepsMax: exercise.targetRepsMax,
+      targetRpe: exercise.targetRpe,
+      sets: Array.from({ length: exercise.sets }, (_, i) => ({
+        id: randomUUID(),
+        setNumber: i + 1,
+        weightKg: exercise.setType === 'weight_reps' ? exercise.weightKg : null,
+        reps: exercise.setType === 'time' ? null : exercise.reps,
+        loggedAt: toSqliteDatetime(times.setTimes[setIndex++]!),
+      })),
+    }))
+
+    await this.sessions.insertPastSession(this.ctx.userId, {
+      id: input.id,
+      splitDayId: input.splitDayId,
+      startedAt: toSqliteDatetime(times.startedAt),
+      completedAt: toSqliteDatetime(times.completedAt),
+      exercises,
+    })
+
+    // Same rule as logSet: the workout is durably stored, so a reward failure is logged, not surfaced.
+    try {
+      await this.rewardPastSession(input.id, exercises)
+    } catch (error) {
+      console.error('SessionService.logPastSession: rewards failed after past session stored', { sessionId: input.id, error })
+    }
+
+    return { sessionId: input.id, prsHit: await this.personalRecords.findForSession(this.ctx.userId, input.id) }
+  }
+
+  private async rewardPastSession(sessionId: string, exercises: InsertPastSessionInput['exercises']): Promise<void> {
+    const userId = this.ctx.userId
+    for (const exercise of exercises) {
+      for (const set of exercise.sets) {
+        await this.gamification.onSetLogged(userId, set.id)
+        await this.recordPersonalRecords({ ...set, exerciseLogId: exercise.id, rpe: null, isWarmup: false, version: 1 })
+      }
+    }
+
+    // The backdated sets joined the baseline of everything logged after them, so those sets' PRs
+    // are torn down and re-detected, the same way editSet handles a corrected set.
+    for (const exercise of exercises) {
+      const lastSet = exercise.sets.at(-1)
+      if (!lastSet) continue
+      for (const later of await this.sessions.findWorkingSetsAfter(userId, exercise.exerciseId, lastSet.id)) {
+        await this.personalRecords.deleteForSet(later.id)
+        await this.gamification.revokeSetRewards(userId, later.id, { includeSetXp: false })
+        await this.recordPersonalRecords(later)
+      }
+    }
+
+    await this.gamification.onPastSessionLogged(userId, sessionId)
   }
 }

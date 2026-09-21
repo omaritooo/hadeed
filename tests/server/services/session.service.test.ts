@@ -12,6 +12,7 @@ import { PersonalRecordRepository } from '~~/server/repositories/personal-record
 import { GamificationService } from '~~/server/services/gamification.service'
 import { SessionService } from '~~/server/services/session.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
+import type { PastSessionInput } from '~~/shared/types/session.types'
 
 function ctx(userId = 'user-1'): RequestContext {
   return { userId, roles: [], permissions: [] }
@@ -340,5 +341,104 @@ describe('SessionService set logging', () => {
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
     const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, prs, new StreakRepository(db))
     await expect(other.logSet({ id: 'x', exerciseLogId: 'e1', setNumber: 1, weightKg: 1, reps: 1, rpe: null })).rejects.toThrow(/forbidden/i)
+  })
+})
+
+describe('SessionService.logPastSession', () => {
+  let db: Client
+  let sessions: SessionRepository
+  let xp: XpRepository
+  let prs: PersonalRecordRepository
+  let service: SessionService
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    xp = new XpRepository(db)
+    prs = new PersonalRecordRepository(db)
+    const streaks = new StreakRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
+    const gamification = new GamificationService(xp, streaks, new AchievementRepository(db), sessions)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs, streaks)
+  })
+
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString()
+  const past = (id: string, weightKg: number, overrides: Partial<PastSessionInput> = {}): PastSessionInput => ({
+    id,
+    startedAt: daysAgo(3),
+    splitDayId: null,
+    exercises: [{
+      id: `${id}-e1`, exerciseId: 'bench-press', splitExerciseId: null, setType: 'weight_reps',
+      targetSets: null, targetRepsMin: null, targetRepsMax: null, targetRpe: null,
+      sets: 3, reps: 8, weightKg,
+    }],
+    ...overrides,
+  })
+
+  // A live session today: 60x8, then a 65x8 weight PR.
+  const logLiveSession = async () => {
+    await sessions.startSession('user-1', { id: 'live', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'live-e1', sessionId: 'live', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await service.logSet({ id: 'live-1', exerciseLogId: 'live-e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
+    await service.logSet({ id: 'live-2', exerciseLogId: 'live-e1', setNumber: 2, weightKg: 65, reps: 8, rpe: null })
+  }
+
+  it('writes a completed, retroactive session dated to the chosen day', async () => {
+    await service.logPastSession(past('p1', 60))
+
+    const session = await sessions.findWithLogs('p1')
+    expect(session!.status).toBe('completed')
+    expect(session!.loggedRetroactively).toBe(true)
+    expect(session!.startedAt.slice(0, 10)).toBe(daysAgo(3).slice(0, 10))
+    expect(session!.exercises[0]!.sets).toHaveLength(3)
+  })
+
+  it('awards set and session XP', async () => {
+    await service.logPastSession(past('p1', 60))
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(3)
+    expect(await xp.countBySourceType('user-1', 'session_completed')).toBe(1)
+  })
+
+  it('rejects an out-of-window date with 422', async () => {
+    await expect(service.logPastSession(past('p1', 60, { startedAt: daysAgo(20) }))).rejects.toMatchObject({ statusCode: 422 })
+  })
+
+  it('rejects someone else\'s split day', async () => {
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+    await new BlockRepository(db).createWithDays('user-2', {
+      programId: null, name: 'Theirs', startDate: '2020-01-01', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [{ name: 'Day', dayOfWeek: 0, location: 'gym', exercises: [] }],
+    })
+    const day = await db.execute('SELECT id FROM split_days LIMIT 1')
+
+    await expect(service.logPastSession(past('p1', 60, { splitDayId: day.rows[0]!.id as number }))).rejects.toThrow(/forbidden/i)
+  })
+
+  it('is idempotent on replay: no duplicate rows or XP', async () => {
+    await service.logPastSession(past('p1', 60))
+    await service.logPastSession(past('p1', 60))
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(3)
+    expect(await xp.countBySourceType('user-1', 'session_completed')).toBe(1)
+  })
+
+  it('turns a later PR into a non-PR when a heavier set is backdated before it', async () => {
+    await logLiveSession()
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(1)
+
+    await service.logPastSession(past('p1', 70))
+
+    expect(await prs.findForSession('user-1', 'live')).toEqual([])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+  })
+
+  it('keeps later PRs that still beat a lighter backdated set', async () => {
+    await logLiveSession()
+
+    await service.logPastSession(past('p1', 50))
+
+    const livePrSets = (await prs.findForSession('user-1', 'live')).map(hit => hit.weightKg)
+    expect(livePrSets).toContain(65)
   })
 })
