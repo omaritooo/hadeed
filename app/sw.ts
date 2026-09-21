@@ -1,7 +1,17 @@
-import { precacheAndRoute } from 'workbox-precaching'
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 
 declare const self: ServiceWorkerGlobalScope
 
+// A new build takes over as soon as it installs rather than waiting for every window of the app
+// to close; the client (registerType 'autoUpdate') then reloads onto it.
+self.addEventListener('install', () => {
+  void self.skipWaiting()
+})
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
+cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
 interface PushPayload {
@@ -14,6 +24,7 @@ self.addEventListener('push', (event) => {
   try {
     if (event.data) payload = { ...payload, ...event.data.json() }
   } catch {
+    // A payload that isn't JSON still shows the default hydration reminder.
   }
 
   event.waitUntil(

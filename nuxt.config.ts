@@ -35,6 +35,10 @@ export default defineNuxtConfig({
   },
 
   pwa: {
+    // The app has no "update available" prompt, so under the default 'prompt' a deploy only
+    // reached a phone once every window of the installed app was closed. 'autoUpdate' reloads
+    // onto the new build as soon as its service worker activates (see skipWaiting in sw.ts).
+    registerType: 'autoUpdate',
     strategies: 'injectManifest',
     srcDir: '.',
     filename: 'sw.ts',
