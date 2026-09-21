@@ -1129,3 +1129,28 @@ describe('SessionRepository.completedDaysByWeek', () => {
     expect(await repo.completedDaysByWeek('user-1')).toEqual({})
   })
 })
+
+describe('SessionRepository past sessions', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+  })
+
+  it('reports a retroactively logged session with no duration', async () => {
+    await repo.startSession('user-1', { id: 'past-1', splitDayId: null, exercises: [] })
+    await db.execute(`UPDATE workout_sessions
+                      SET status = 'completed', started_at = '2026-09-10 08:00:00',
+                          completed_at = '2026-09-10 08:00:05', logged_retroactively = 1
+                      WHERE id = 'past-1'`)
+
+    const [summary] = await repo.findRecentCompletedSummaries('user-1', 5)
+
+    expect(summary!.loggedRetroactively).toBe(true)
+    expect(summary!.durationMinutes).toBeNull()
+    expect((await repo.findSessionById('past-1'))!.loggedRetroactively).toBe(true)
+  })
+})

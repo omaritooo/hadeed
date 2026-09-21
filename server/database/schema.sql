@@ -323,6 +323,11 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
 ALTER TABLE workout_sessions ADD COLUMN format TEXT NOT NULL DEFAULT 'straight_sets' CHECK (format IN ('straight_sets', 'circuit'));
 ALTER TABLE workout_sessions ADD COLUMN rounds INTEGER NOT NULL DEFAULT 1;
 
+-- Set by POST /api/sessions/past: the session was entered after the fact, so its set timestamps
+-- are synthetic (one second apart) and its duration means nothing. Readers show "Logged later"
+-- instead of a duration.
+ALTER TABLE workout_sessions ADD COLUMN logged_retroactively INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS exercise_logs (
   id                 TEXT PRIMARY KEY,
   session_id         TEXT NOT NULL REFERENCES workout_sessions(id) ON DELETE CASCADE,

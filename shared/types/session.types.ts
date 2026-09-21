@@ -15,6 +15,7 @@ export interface WorkoutSession {
   // Snapshotted from split_days/preset_split_days.format/rounds at session-start time.
   format: SplitFormat
   rounds: number
+  loggedRetroactively: boolean
 }
 
 export interface ExerciseLog {

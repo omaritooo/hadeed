@@ -92,6 +92,7 @@ export class SessionRepository {
       version: row.version as number,
       format: row.format as SplitFormat,
       rounds: row.rounds as number,
+      loggedRetroactively: Boolean(row.logged_retroactively),
     }
   }
 
@@ -734,7 +735,8 @@ export class SessionRepository {
   async findRecentCompletedSummaries(userId: string, limit: number): Promise<RecentSessionSummary[]> {
     const sessionResult = await this.db.execute({
       sql: `SELECT workout_sessions.*, split_days.name AS day_name,
-                   ROUND((julianday(completed_at) - julianday(started_at)) * 24 * 60) AS duration_minutes
+                   CASE WHEN logged_retroactively = 1 THEN NULL
+                        ELSE ROUND((julianday(completed_at) - julianday(started_at)) * 24 * 60) END AS duration_minutes
             FROM workout_sessions
             LEFT JOIN split_days ON split_days.id = workout_sessions.split_day_id
             WHERE workout_sessions.user_id = ? AND workout_sessions.status = 'completed'
@@ -761,6 +763,7 @@ export class SessionRepository {
         startedAt: sessionRow.started_at as string,
         completedAt: sessionRow.completed_at as string,
         durationMinutes: sessionRow.duration_minutes as number | null,
+        loggedRetroactively: Boolean(sessionRow.logged_retroactively),
         topExerciseName: (topSetRow?.exercise_name as string) ?? null,
         topWeightKg: (topSetRow?.weight_kg as number) ?? null,
         topReps: (topSetRow?.reps as number) ?? null,

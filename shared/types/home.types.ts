@@ -41,6 +41,7 @@ export interface RecentSessionSummary {
   startedAt: string
   completedAt: string
   durationMinutes: number | null
+  loggedRetroactively: boolean
   topExerciseName: string | null
   topWeightKg: number | null
   topReps: number | null
