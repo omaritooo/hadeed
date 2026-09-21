@@ -307,10 +307,13 @@ const continueWorkout = async () => {
             <h2 class="text-3xl">{{ stats?.streak.current ?? 0 }}</h2></span
           >
           <span class="text-muted-foreground font-thin"
-            >Day Streak<template v-if="stats?.streak.longest">
+            >Week Streak<template v-if="stats?.streak.longest">
               &middot; Best {{ stats.streak.longest }}</template
             ></span
           >
+          <span v-if="stats?.streak.thisWeek.scheduled" class="font-mono text-xs text-muted-foreground">
+            {{ stats.streak.thisWeek.completed }} of {{ stats.streak.thisWeek.required }} this week
+          </span>
         </UiCard>
       </NuxtLink>
       <NuxtLink to="/profile" class="contents">

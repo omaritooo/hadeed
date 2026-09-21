@@ -413,7 +413,7 @@ const doneWithSummary = () => navigateTo("/workouts");
       <UiCard class="space-y-1 text-center">
         <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Streak</p>
         <p class="font-heading text-2xl text-foreground">
-          {{ completionSummary.currentStreak }} {{ completionSummary.currentStreak === 1 ? "day" : "days" }}
+          {{ completionSummary.currentStreak }} {{ completionSummary.currentStreak === 1 ? "week" : "weeks" }}
         </p>
       </UiCard>
       <UiCard class="space-y-1 text-center">
