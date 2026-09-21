@@ -109,3 +109,29 @@ export interface SyncConflict {
   resolvedAt: string | null
   resolution: SyncConflictResolution | null
 }
+
+export interface PastSessionExerciseInput {
+  id: string // exercise_log id, client-generated
+  exerciseId: string
+  splitExerciseId: number | null
+  setType: SetType
+  targetSets: number | null
+  targetRepsMin: number | null
+  targetRepsMax: number | null
+  targetRpe: number | null
+  sets: number
+  reps: number | null
+  weightKg: number | null
+}
+
+export interface PastSessionInput {
+  id: string // workout_sessions id, client-generated so a retried save is idempotent
+  startedAt: string // ISO datetime
+  splitDayId: number | null
+  exercises: PastSessionExerciseInput[]
+}
+
+export interface PastSessionResult {
+  sessionId: string
+  prsHit: SessionPrHit[]
+}
