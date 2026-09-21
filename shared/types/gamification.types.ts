@@ -13,15 +13,6 @@ export interface XpEvent {
 // importing their types from one place.
 export type { WeekStreak } from '~~/shared/lib/streak'
 
-// The stored per-user counter behind StreakRepository. Superseded by WeekStreak and read by
-// nothing but that repository, which goes away with it.
-export interface Streak {
-  userId: string
-  currentStreak: number
-  longestStreak: number
-  lastActiveDate: string | null
-}
-
 export type AchievementCriteriaType = 'session_count' | 'streak_length' | 'pr_count' | 'total_volume_kg' | 'target_hit'
 
 export interface Achievement {

@@ -3,7 +3,6 @@ import { createError } from 'h3'
 import { BaseService } from '~~/server/services/base.service'
 import type { ConflictResult, EditSetLogInput, InsertPastSessionInput, LogSetInput, SessionRepository, SetLogEditResult, StartSessionExerciseInput, StartSessionInput } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
-import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import type { ProfileRepository } from '~~/server/repositories/profile.repository'
 import type { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
@@ -26,11 +25,9 @@ export class SessionService extends BaseService {
     private sessions: SessionRepository,
     private blocks: BlockRepository,
     private gamification: GamificationService,
-    // Records PRs at log time and reads them back for the post-workout summary; `streaks` is the
-    // read-only streak lookup for that same summary. Both are separate from `gamification`, which
-    // owns the XP/streak writes.
+    // Records PRs at log time and reads them back for the post-workout summary; separate from
+    // `gamification`, which owns XP and the derived streak the summary also shows.
     private personalRecords: PersonalRecordRepository,
-    private streaks: StreakRepository,
     // Optional: only the routes that need progression suggestions wire these up, so routes that
     // just complete a session don't have to construct repositories they never use.
     private deps: { exercises?: ExerciseRepository, profiles?: ProfileRepository } = {},
@@ -169,7 +166,7 @@ export class SessionService extends BaseService {
     const [totalVolumeKg, prsHit, streak] = await Promise.all([
       this.sessions.sessionVolumeKg(sessionId),
       this.personalRecords.findForSession(this.ctx.userId, sessionId),
-      this.streaks.findForUser(this.ctx.userId),
+      this.gamification.getStreak(this.ctx.userId),
     ])
 
     // completedAt is guaranteed set: this branch is only reached when the completeSession update
@@ -183,7 +180,7 @@ export class SessionService extends BaseService {
     return {
       conflict: false,
       session: result.session,
-      summary: { totalVolumeKg, durationMinutes, prsHit, currentStreak: streak.currentStreak },
+      summary: { totalVolumeKg, durationMinutes, prsHit, currentStreak: streak.current },
     }
   }
 

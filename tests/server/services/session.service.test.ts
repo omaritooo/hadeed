@@ -4,7 +4,6 @@ import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
-import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
@@ -38,17 +37,17 @@ describe('SessionService', () => {
   let db: Client
   let sessions: SessionRepository
   let prs: PersonalRecordRepository
-  let streaks: StreakRepository
   let service: SessionService
   let onSessionCompleted: ReturnType<typeof vi.fn>
+  let getStreak: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     db = await createTestDb()
     sessions = new SessionRepository(db)
     prs = new PersonalRecordRepository(db)
-    streaks = new StreakRepository(db)
     onSessionCompleted = vi.fn()
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), { onSessionCompleted } as never, prs, streaks)
+    getStreak = vi.fn().mockResolvedValue({ current: 3, longest: 5, thisWeek: { completed: 1, required: 2, scheduled: 3 } })
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), { onSessionCompleted, getStreak } as never, prs)
   })
 
   it('rejects completing a session owned by someone else', async () => {
@@ -81,6 +80,13 @@ describe('SessionService', () => {
 
     const completed = await sessions.findSessionById('session-1')
     expect(completed?.status).toBe('completed')
+  })
+
+  it('calls onSessionCompleted with just the user and session', async () => {
+    await seedUserWithActiveBlock(db, 1)
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await service.completeSession('session-1', 1)
+    expect(onSessionCompleted).toHaveBeenCalledWith('user-1', 'session-1')
   })
 
   it('never calls GamificationService.onSessionCompleted when completion conflicts on a stale version', async () => {
@@ -145,7 +151,7 @@ describe('SessionService', () => {
     expect(result.summary.totalVolumeKg).toBe(100 * 5)
     expect(result.summary.prsHit).toEqual([{ exerciseName: 'Bench Press', weightKg: 100, reps: 5, prTypes: ['weight'], e1rmKg: null }])
     expect(result.summary.durationMinutes).toBeGreaterThanOrEqual(0)
-    expect(result.summary.currentStreak).toBe((await streaks.findForUser('user-1')).currentStreak)
+    expect(result.summary.currentStreak).toBe(3)
   })
 })
 
@@ -159,7 +165,7 @@ describe('SessionService.startSession', () => {
     sessions = new SessionRepository(db)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, equipment, movement_pattern, instructions) VALUES ('bench-press', 'Bench Press', 'barbell', 'horizontal_push', '[]')`)
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), {} as never, new PersonalRecordRepository(db), new StreakRepository(db), {
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), {} as never, new PersonalRecordRepository(db), {
       exercises: new ExerciseRepository(db),
       profiles: new ProfileRepository(db),
     })
@@ -230,11 +236,10 @@ describe('SessionService set logging', () => {
     sessions = new SessionRepository(db)
     xp = new XpRepository(db)
     prs = new PersonalRecordRepository(db)
-    const streaks = new StreakRepository(db)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
     const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, new BlockRepository(db))
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs, streaks)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs)
     await sessions.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
     await sessions.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
   })
@@ -278,7 +283,7 @@ describe('SessionService set logging', () => {
 
   it('rejects logging to someone else\'s exercise log', async () => {
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
-    const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, prs, new StreakRepository(db))
+    const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, prs)
     await expect(other.logSet({ id: 'x', exerciseLogId: 'e1', setNumber: 1, weightKg: 1, reps: 1, rpe: null })).rejects.toThrow(/forbidden/i)
   })
 })
@@ -295,11 +300,10 @@ describe('SessionService.logPastSession', () => {
     sessions = new SessionRepository(db)
     xp = new XpRepository(db)
     prs = new PersonalRecordRepository(db)
-    const streaks = new StreakRepository(db)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
     const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, new BlockRepository(db))
-    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs, streaks)
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs)
   })
 
   const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString()

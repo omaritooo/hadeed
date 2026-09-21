@@ -3,12 +3,12 @@ import type { Client } from '@libsql/client'
 import { createTestDb } from '~~/server/utils/test/create-test-db'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
-import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
+import { GamificationService } from '~~/server/services/gamification.service'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 import { HomeService } from '~~/server/services/home.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
@@ -32,7 +32,9 @@ describe('HomeService', () => {
     const exercises = new ExerciseRepository(db)
     const xp = new XpRepository(db)
     const workouts = new WorkoutsService(ctx(), sessions, blocks, exercises, prs)
-    service = new HomeService(ctx(), sessions, blocks, new StreakRepository(db), xp, prs, new AchievementRepository(db), new BodyMetricsRepository(db), workouts)
+    const achievements = new AchievementRepository(db)
+    const gamification = new GamificationService(xp, achievements, sessions, blocks)
+    service = new HomeService(ctx(), sessions, blocks, gamification, xp, prs, achievements, new BodyMetricsRepository(db), workouts)
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
     await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('squat', 'Squat', '[]')" })
   })
@@ -41,7 +43,7 @@ describe('HomeService', () => {
     const summary = await service.getSummary()
     expect(summary.todaysWorkout).toBeNull()
     expect(summary.activeSession).toBeNull()
-    expect(summary.streak).toEqual({ current: 0, longest: 0 })
+    expect(summary.streak).toEqual({ current: 0, longest: 0, thisWeek: { completed: 0, required: 0, scheduled: 0 } })
   })
 
   it('threads a real active block/split day through to todaysWorkout via the delegated WorkoutsService call', async () => {

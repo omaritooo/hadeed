@@ -1,7 +1,6 @@
 import { BaseService } from '~~/server/services/base.service'
 import type { SessionRepository } from '~~/server/repositories/session.repository'
 import type { BlockRepository } from '~~/server/repositories/block.repository'
-import type { StreakRepository } from '~~/server/repositories/streak.repository'
 import type { XpRepository } from '~~/server/repositories/xp.repository'
 import type { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
 import type { AchievementRepository } from '~~/server/repositories/achievement.repository'
@@ -9,6 +8,7 @@ import type { BodyMetricsRepository } from '~~/server/repositories/body-metrics.
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { ConsistencyDay, HomeSummary } from '~~/shared/types/home.types'
 import type { SplitDay, SplitExercise } from '~~/shared/types/split.types'
+import type { GamificationService } from '~~/server/services/gamification.service'
 import type { WorkoutsService } from '~~/server/services/workouts.service'
 import { xpFloorForLevel, xpToLevel } from '~~/shared/lib/formulas'
 import { startOfWeek, toSqliteDatetime } from '~~/server/utils/date'
@@ -25,7 +25,7 @@ export class HomeService extends BaseService {
     ctx: RequestContext,
     private sessions: SessionRepository,
     private blocks: BlockRepository,
-    private streaks: StreakRepository,
+    private gamification: GamificationService,
     private xp: XpRepository,
     private personalRecords: PersonalRecordRepository,
     private achievements: AchievementRepository,
@@ -51,7 +51,7 @@ export class HomeService extends BaseService {
     consistencyEnd.setUTCDate(consistencyEnd.getUTCDate() + 1)
 
     const [streak, xpTotal, activeBlock, activeSessionRow] = await Promise.all([
-      this.streaks.findForUser(userId),
+      this.gamification.getStreak(userId, now),
       this.xp.totalForUser(userId),
       this.blocks.findActiveForUser(userId, todayIso),
       this.sessions.findActiveForUser(userId),
@@ -89,7 +89,7 @@ export class HomeService extends BaseService {
     })
 
     return {
-      streak: { current: streak.currentStreak, longest: streak.longestStreak },
+      streak,
       xp: { total: xpTotal, level, xpIntoLevel: xpTotal - currentLevelFloor, xpForNextLevel: nextLevelFloor - currentLevelFloor },
       todaysWorkout,
       activeSession,

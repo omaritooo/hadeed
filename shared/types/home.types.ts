@@ -1,5 +1,6 @@
 import type { SetType, SplitFormat } from '~~/shared/types/split.types'
 import type { SessionPrHit } from '~~/shared/types/session.types'
+import type { WeekStreak } from '~~/shared/lib/streak'
 
 export interface TodaysWorkoutExercise {
   exerciseId: string
@@ -69,7 +70,7 @@ export interface ConsistencyDay {
 }
 
 export interface HomeSummary {
-  streak: { current: number, longest: number }
+  streak: WeekStreak
   xp: { total: number, level: number, xpIntoLevel: number, xpForNextLevel: number }
   todaysWorkout: TodaysWorkout | null
   activeSession: ActiveSessionSummary | null

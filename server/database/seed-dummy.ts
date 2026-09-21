@@ -411,7 +411,6 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
   if (!blockWithDays) throw new Error('Seed: failed to load freshly created block')
 
   const sessionDates = generateSessionDates(spec, now)
-  let lastCompletedDate: Date | undefined
   let prCount = 0
 
   for (const [sessionIndex, sessionDate] of sessionDates.entries()) {
@@ -470,7 +469,6 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
     }
 
     if (!inProgress) {
-      lastCompletedDate = sessionDate
       await db.execute({
         sql: `INSERT INTO xp_ledger (user_id, amount, source_type, source_id) VALUES (?, 50, 'session_completed', ?) ON CONFLICT DO NOTHING`,
         args: [spec.id, sessionId],
@@ -485,15 +483,6 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
     }
   }
 
-  const currentStreak = Math.min(sessionDates.length, spec.sessionsPerWeek >= 5 ? 9 : spec.sessionsPerWeek >= 4 ? 5 : 3)
-  const longestStreak = currentStreak + 2
-  await db.execute({
-    sql: `INSERT INTO streaks (user_id, current_streak, longest_streak, last_active_date)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT (user_id) DO UPDATE SET current_streak = excluded.current_streak, longest_streak = excluded.longest_streak, last_active_date = excluded.last_active_date`,
-    args: [spec.id, currentStreak, longestStreak, lastCompletedDate ? sqliteDate(lastCompletedDate) : null],
-  })
-
   const firstSessionAchievementId = await findAchievementId('first_session')
   await db.execute({
     sql: 'INSERT OR IGNORE INTO user_achievements (user_id, achievement_id) VALUES (?, ?)',
@@ -504,13 +493,6 @@ const seedUser = async (spec: TestUserSpec, now: Date, dummyPasswordHash: string
     await db.execute({
       sql: 'INSERT OR IGNORE INTO user_achievements (user_id, achievement_id) VALUES (?, ?)',
       args: [spec.id, prAchievementId],
-    })
-  }
-  if (currentStreak >= 7) {
-    const weekStreakAchievementId = await findAchievementId('week_streak')
-    await db.execute({
-      sql: 'INSERT OR IGNORE INTO user_achievements (user_id, achievement_id) VALUES (?, ?)',
-      args: [spec.id, weekStreakAchievementId],
     })
   }
 }

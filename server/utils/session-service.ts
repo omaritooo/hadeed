@@ -4,7 +4,6 @@ import { getRequestContext } from '~~/server/utils/get-request-context'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
-import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { ProfileRepository } from '~~/server/repositories/profile.repository'
@@ -20,10 +19,9 @@ export const useSessionService = async (event: H3Event): Promise<SessionService>
   const db = useDb()
   const sessions = new SessionRepository(db)
   const xp = new XpRepository(db)
-  const streaks = new StreakRepository(db)
   const blocks = new BlockRepository(db)
   const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, blocks)
-  return new SessionService(ctx, sessions, blocks, gamification, new PersonalRecordRepository(db), streaks, {
+  return new SessionService(ctx, sessions, blocks, gamification, new PersonalRecordRepository(db), {
     exercises: new ExerciseRepository(db),
     profiles: new ProfileRepository(db),
   })

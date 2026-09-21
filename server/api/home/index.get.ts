@@ -2,12 +2,12 @@ import { useDb } from '~~/server/utils/db'
 import { getRequestContext } from '~~/server/utils/get-request-context'
 import { SessionRepository } from '~~/server/repositories/session.repository'
 import { BlockRepository } from '~~/server/repositories/block.repository'
-import { StreakRepository } from '~~/server/repositories/streak.repository'
 import { XpRepository } from '~~/server/repositories/xp.repository'
 import { AchievementRepository } from '~~/server/repositories/achievement.repository'
 import { ExerciseRepository } from '~~/server/repositories/exercise.repository'
 import { BodyMetricsRepository } from '~~/server/repositories/body-metrics.repository'
 import { PersonalRecordRepository } from '~~/server/repositories/personal-record.repository'
+import { GamificationService } from '~~/server/services/gamification.service'
 import { WorkoutsService } from '~~/server/services/workouts.service'
 import { HomeService } from '~~/server/services/home.service'
 
@@ -28,15 +28,16 @@ export default defineEventHandler(async (event) => {
   const blocks = new BlockRepository(db)
   const xp = new XpRepository(db)
   const personalRecords = new PersonalRecordRepository(db)
+  const achievements = new AchievementRepository(db)
   const workouts = new WorkoutsService(ctx, sessions, blocks, new ExerciseRepository(db), personalRecords)
   const service = new HomeService(
     ctx,
     sessions,
     blocks,
-    new StreakRepository(db),
+    new GamificationService(xp, achievements, sessions, blocks),
     xp,
     personalRecords,
-    new AchievementRepository(db),
+    achievements,
     new BodyMetricsRepository(db),
     workouts,
   )
