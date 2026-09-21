@@ -59,6 +59,14 @@ export class GamificationService {
     await this.evaluateAchievements(userId)
   }
 
+  // A backdated session earns the completion bonus and can unlock achievements, but skips
+  // recordActiveDay: that stamps today's date, which is exactly wrong for a past workout. The
+  // derived week streak reads sessions' started_at, so it counts the day on its own.
+  async onPastSessionLogged(userId: string, sessionId: string): Promise<void> {
+    await this.xp.award(userId, XP_SESSION_COMPLETE_BONUS, 'session_completed', sessionId)
+    await this.evaluateAchievements(userId)
+  }
+
   /**
    * Returns every published achievement for the user, annotated with whether it's unlocked
    * and, if not, how close the user is to unlocking it. Reuses the exact same underlying facts

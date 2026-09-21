@@ -119,4 +119,15 @@ describe('GamificationService', () => {
       expect(progress.find(a => a.key === 'lifted-a-car')?.progress).toEqual({ current: 0, target: 1500, unit: 'kg' })
     })
   })
+
+  it('awards session XP for a past session without touching the streak', async () => {
+    const xp = new XpRepository(db)
+    const streaks = new StreakRepository(db)
+    const before = await streaks.findForUser('user-1')
+
+    await service.onPastSessionLogged('user-1', 'past-1')
+
+    expect(await xp.countBySourceType('user-1', 'session_completed')).toBe(1)
+    expect(await streaks.findForUser('user-1')).toEqual(before)
+  })
 })
