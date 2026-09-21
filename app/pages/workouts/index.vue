@@ -158,6 +158,10 @@ const resumeWorkout = async () => {
       </Button>
     </UiCard>
 
+    <NuxtLink to="/workouts/log-past" class="text-center text-sm text-muted-foreground underline underline-offset-4">
+      Missed a workout? Log it
+    </NuxtLink>
+
     <UiCard v-if="weeklyVolume?.length" class="space-y-3">
       <span class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Weekly Volume</span>
       <div v-for="muscle in weeklyVolume" :key="muscle.muscleName" class="space-y-1">
@@ -208,7 +212,10 @@ const resumeWorkout = async () => {
       <UiCard v-for="session in summary.recentSessions" :key="session.sessionId" class="space-y-1">
         <div class="flex items-start justify-between">
           <p class="font-heading text-lg text-foreground">{{ session.dayName ?? "Freeform Workout" }}</p>
-          <span v-if="session.durationMinutes" class="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+          <span v-if="session.loggedRetroactively" class="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+            Logged later
+          </span>
+          <span v-else-if="session.durationMinutes" class="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
             {{ Math.round(session.durationMinutes) }}m
           </span>
         </div>
