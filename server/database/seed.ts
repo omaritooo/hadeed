@@ -142,9 +142,9 @@ const main = async () => {
   console.log('Seeding starter achievements...')
   const achievements = new AchievementRepository(db)
   const starterAchievements = [
-    { key: 'week_streak', name: '7-Day Streak', description: 'Hit every scheduled day for a week straight.', icon: '🔥', criteriaType: 'streak_length' as const, criteriaValue: { days: 7 }, isPublished: true },
-    { key: 'month_streak', name: '30-Day Streak', description: 'A full month of hitting every scheduled day.', icon: '🏆', criteriaType: 'streak_length' as const, criteriaValue: { days: 30 }, isPublished: true },
-    { key: 'iron_will', name: '100-Day Streak', description: 'Trained every scheduled day for 100 days straight.', icon: '⚡', criteriaType: 'streak_length' as const, criteriaValue: { days: 100 }, isPublished: true },
+    { key: 'week_streak', name: 'First Full Week', description: 'Hit your training week: every scheduled session, give or take one.', icon: '🔥', criteriaType: 'streak_length' as const, criteriaValue: { weeks: 1 }, isPublished: true },
+    { key: 'month_streak', name: 'Four Weeks Strong', description: 'Four training weeks in a row.', icon: '🏆', criteriaType: 'streak_length' as const, criteriaValue: { weeks: 4 }, isPublished: true },
+    { key: 'iron_will', name: 'Iron Quarter', description: 'Twelve training weeks in a row.', icon: '⚡', criteriaType: 'streak_length' as const, criteriaValue: { weeks: 12 }, isPublished: true },
     { key: 'first_session', name: 'First Session Logged', description: 'Logged your first workout session.', icon: '🎉', criteriaType: 'session_count' as const, criteriaValue: { count: 1 }, isPublished: true },
     { key: 'ten_sessions', name: 'Regular', description: 'Completed 10 workout sessions.', icon: '💪', criteriaType: 'session_count' as const, criteriaValue: { count: 10 }, isPublished: true },
     { key: 'fifty_sessions', name: 'Gym Rat', description: 'Completed 50 workout sessions.', icon: '🐀', criteriaType: 'session_count' as const, criteriaValue: { count: 50 }, isPublished: true },
