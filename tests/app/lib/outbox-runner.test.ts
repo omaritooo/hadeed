@@ -65,6 +65,8 @@ interface HarnessOptions {
   onLoad?: () => Promise<void>
   /** Stands in for a store that cannot be read at all (private browsing, a blocked upgrade). */
   loadFails?: boolean
+  /** Stands in for a store that accepts no writes -- a quota wall, or a blocked upgrade. */
+  saveFails?: boolean
 }
 
 const harness = (options: HarnessOptions = {}) => {
@@ -81,7 +83,10 @@ const harness = (options: HarnessOptions = {}) => {
       await options.onLoad?.()
       return snapshot
     },
-    save: async (ops) => { disk = structuredClone(ops) },
+    save: async (ops) => {
+      if (options.saveFails) throw new Error('QuotaExceededError')
+      disk = structuredClone(ops)
+    },
     send: async (op) => {
       sends.push({ op: structuredClone(op), diskAtSend: structuredClone(disk) })
       return options.send ? options.send(op) : {}
@@ -386,6 +391,22 @@ describe('add', () => {
     await h.runner.add({ sessionId: 's1', kind: 'log_set', payload: { id: 'set-1', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, isWarmup: false, loggedAt: '2026-09-14T10:00:00.000Z' } })
     await h.runner.flush()
     expect(h.kinds).toEqual(['log_set'])
+  })
+
+  // Why the mutation composables surface a rejected `add` instead of swallowing it: the op does
+  // survive in memory, but only until the next pass, which begins by reloading the queue from a
+  // disk that never received it. "It will sync anyway" holds when the store cannot be *read*
+  // (the test above); it does not hold when the store simply refuses writes.
+  it('loses an op the store refused, on the next pass', async () => {
+    const h = harness({ saveFails: true })
+    await h.runner.start()
+    await expect(h.runner.add({ sessionId: 's1', kind: 'log_set', payload: { id: 'set-1', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, isWarmup: false, loggedAt: '2026-09-14T10:00:00.000Z' } })).rejects.toThrow()
+    expect(h.runner.state.ops.map(o => o.kind)).toEqual(['log_set'])
+    expect(h.kinds).toEqual([])
+    // The reload at the top of the pass overwrites the unpersisted op, and it is never sent.
+    await h.runner.flush()
+    expect(h.runner.state.ops).toEqual([])
+    expect(h.kinds).toEqual([])
   })
 
   it('enqueues a new op and flushes it', async () => {

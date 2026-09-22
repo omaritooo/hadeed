@@ -9,6 +9,8 @@ const route = useRoute();
 const sessionId = computed(() => route.params.id as string);
 
 const { data: session, refetch, isLoading } = useSession(sessionId);
+// Client-only: the outbox plugin isn't registered during SSR, and this page does render there.
+const outbox = import.meta.client ? useOutbox() : null;
 const logSet = useLogSet();
 const completeSession = useCompleteSession();
 const editSetLog = useEditSetLog();
@@ -340,10 +342,18 @@ const logSameAsLast = async (exerciseLogId: string) => {
   await logNextSet(exerciseLogId);
 };
 
-// Set once completeSession succeeds; its presence swaps the whole page over to the post-workout
-// summary takeover below, replacing the logging view rather than navigating away immediately —
-// the user reviews volume/duration/PRs/streak and taps "Done" to leave.
+// Set once the completion reaches the server; its presence swaps the whole page over to the
+// post-workout summary takeover below, replacing the logging view rather than navigating away
+// immediately — the user reviews volume/duration/PRs/streak and taps "Done" to leave.
 const completionSummary = ref<SessionCompletionSummary | null>(null);
+
+// The summary is computed server-side, so it can only arrive once the queued completion has
+// actually been sent — milliseconds later online, and not at all until there is signal. The
+// outbox holds it for us; Task 7 covers what the page shows in the meantime.
+watch(
+  () => (outbox ? outbox.serverSummaries[sessionId.value] : undefined),
+  (summary) => { if (summary) completionSummary.value = summary; },
+);
 
 // A preview of what the lifter will be asked for next time, run over the session they just
 // finished. Display only -- the real suggestion is computed and snapshotted when that session
@@ -378,8 +388,8 @@ const finish = async () => {
   if (hasSkippedExercises && !confirm("Some exercises have no logged sets. Finish anyway?")) return;
   finishError.value = null;
   try {
-    const result = await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
-    completionSummary.value = result.summary;
+    // Resolves as soon as the completion is queued; the summary lands through the watcher above.
+    await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
   } catch (err) {
     const statusCode = (err as { statusCode?: number } | null)?.statusCode;
     if (statusCode === 409) {

@@ -1,5 +1,4 @@
-import type { FetchError } from 'ofetch'
-import { useMutation, useQueryCache } from '@pinia/colada'
+import { useMutation } from '@pinia/colada'
 
 export interface DeleteSetLogPayload {
   sessionId: string
@@ -7,17 +6,15 @@ export interface DeleteSetLogPayload {
 }
 
 export const useDeleteSetLog = () => {
-  const { $api } = useNuxtApp()
-  const queryCache = useQueryCache()
+  const outbox = useOutbox()
 
-  return useMutation<{ success: boolean }, DeleteSetLogPayload, FetchError<{ statusMessage: string }>>({
-    mutation: ({ sessionId, setLogId }) => $api<{ success: boolean }>(`/api/sessions/${sessionId}/sets/${setLogId}`, {
-      method: 'DELETE',
-    }),
-    // A deleted set also affects volumeKgInRange's weekly sum on home.
-    onSuccess: (_result, { sessionId }) => Promise.allSettled([
-      queryCache.invalidateQueries({ key: queryKeys.session(sessionId) }),
-      queryCache.invalidateQueries({ key: queryKeys.home() }),
-    ]),
+  return useMutation<{ success: boolean }, DeleteSetLogPayload>({
+    mutation: async ({ sessionId, setLogId }) => {
+      // Deleting a set whose insert is still queued cancels both (see `enqueue`), so this often
+      // costs no request at all.
+      // Rejects if the store refuses the op -- see useLogSet for why that is surfaced.
+      await outbox.add({ kind: 'delete_set', sessionId, payload: { setLogId } })
+      return { success: true }
+    },
   })
 }
