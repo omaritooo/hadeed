@@ -80,9 +80,9 @@
      apply the family; pair with a --text-* token below for size/weight/
      leading/tracking, e.g. class="font-heading text-display-stat". Actual
      font files are self-hosted via @nuxt/fonts (see nuxt.config.ts). */
-  --font-heading: "Anybody", sans-serif;
-  --font-sans: "Inter", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-heading: "Anybody", "Noto Kufi Arabic", sans-serif;
+  --font-sans: "Inter", "IBM Plex Sans Arabic", sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Sans Arabic", monospace;
 
   /* Named text styles from the design system's typography scale. */
   --text-display-stat: 48px;
@@ -262,4 +262,26 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/*
+ * Arabic is cursive: letter-spacing pulls joined letters apart into something close to
+ * unreadable, and there is no uppercase to transform to. The app's label style
+ * (`font-mono uppercase tracking-[1.2px]`) is on roughly 80 elements across nearly every screen,
+ * so both are reset for Arabic here instead of at each call site. `lang` is inherited, so
+ * `<html lang="ar">` puts every element in scope.
+ *
+ * That includes Latin runs inside an Arabic page -- exercise names stay English by design -- which
+ * lose their tracking and uppercase too. The escape hatch is `lang="en"` on the element holding
+ * the Latin text: `:lang(ar)` matches an element's *computed* language, so a `lang="en"` subtree
+ * stops matching and keeps the label style. Marking those runs up is extraction work, not a CSS
+ * problem, and `lang="en"` is what a screen reader needs on them anyway.
+ *
+ * `!important` rather than relying on this rule being unlayered (and so beating Tailwind's
+ * `@layer utilities`): that ordering is invisible to anyone editing this file, and a future move
+ * of the rule into `@layer base` would silently stop it working.
+ */
+:lang(ar) {
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }

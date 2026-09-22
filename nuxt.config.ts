@@ -43,7 +43,12 @@ export default defineNuxtConfig({
     srcDir: '.',
     filename: 'sw.ts',
     injectManifest: {
-      globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+      // The locale messages get a pattern of their own rather than widening the glob to every
+      // `.json`. The only other JSON in `.output/public` is Nuxt's app manifest, which
+      // @vite-pwa/nuxt already adds on its own terms -- it rewrites `latest.json`'s revision so a
+      // deploy is still noticed -- and a blanket `json` would silently adopt whatever future
+      // build step drops a JSON file in there.
+      globPatterns: ['**/*.{js,css,html,png,svg,ico}', '_i18n/**/*.json'],
     },
     manifest: {
       name: 'Hadeed',
@@ -87,6 +92,15 @@ export default defineNuxtConfig({
     // options (`redirectOn`, `alwaysRedirect`) are deliberately absent: they only gate localized
     // routes, and `no_prefix` has none.
     detectBrowserLanguage: { useCookie: true, cookieKey: 'i18n_locale', fallbackLocale: 'en' },
+    experimental: {
+      // v10 bundles the locale messages into the Nitro server and serves them on demand from
+      // `/_i18n/<build-hash>/<locale>/messages.json`, so nothing lands in `.output/public` for the
+      // service worker to precache. Prerendering that route emits it as a static file instead,
+      // which the `_i18n/**/*.json` glob above then precaches -- so switching to Arabic works on a
+      // phone that has never fetched Arabic while online. The URL carries the build hash, so a
+      // deploy invalidates it for free.
+      prerenderMessages: true,
+    },
   },
 
   fonts: {
@@ -94,6 +108,21 @@ export default defineNuxtConfig({
       { name: 'Anybody', provider: 'google', weights: [600, 700, 800] },
       { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] },
       { name: 'JetBrains Mono', provider: 'google', weights: [700] },
+      // Arabic faces. Two flags here are load-bearing, and both were verified against the built
+      // CSS rather than assumed:
+      //
+      // `global` -- @nuxt/fonts resolves only the *first* family of each stack and treats the
+      // rest as names to hang fallback metrics off, so the Arabic families, which sit after
+      // Inter/Anybody in app/assets/css/index.css, are never downloaded on their own. `global`
+      // emits their `@font-face` regardless of where they appear.
+      //
+      // `subsets` -- the default is Latin/Greek/Cyrillic/Vietnamese, and every other subset is
+      // filtered out of Google's stylesheet, so without this the faces would carry no Arabic
+      // glyphs at all. Arabic-only is also what keeps this free for English users: the emitted
+      // `unicode-range` covers Arabic alone, so the browser fetches these files only once Arabic
+      // text is on screen, and @nuxt/fonts skips preloading a subsetted face.
+      { name: 'IBM Plex Sans Arabic', provider: 'google', weights: [400, 500, 600, 700], subsets: ['arabic'], global: true },
+      { name: 'Noto Kufi Arabic', provider: 'google', weights: [600, 700, 800], subsets: ['arabic'], global: true },
     ],
   },
 
