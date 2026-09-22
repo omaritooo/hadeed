@@ -71,6 +71,24 @@ export default defineNuxtConfig({
     },
   },
 
+  i18n: {
+    // No `/ar` URL prefix: the locale lives on the profile and in a cookie, so every
+    // `navigateTo`/`NuxtLink` and the PWA `start_url` stay as they are.
+    strategy: 'no_prefix',
+    defaultLocale: 'en',
+    // `file` resolves under `i18n/locales`, and each locale's messages are loaded on demand.
+    locales: [
+      { code: 'en', language: 'en', dir: 'ltr', file: 'en.json', name: 'English' },
+      { code: 'ar', language: 'ar', dir: 'rtl', file: 'ar.json', name: 'العربية' },
+    ],
+    vueI18n: './i18n.config.ts',
+    // Cookie first, then Accept-Language, so the login page -- which is rendered before there is
+    // a profile to read a locale from -- is already in the visitor's language. The redirect
+    // options (`redirectOn`, `alwaysRedirect`) are deliberately absent: they only gate localized
+    // routes, and `no_prefix` has none.
+    detectBrowserLanguage: { useCookie: true, cookieKey: 'i18n_locale', fallbackLocale: 'en' },
+  },
+
   fonts: {
     families: [
       { name: 'Anybody', provider: 'google', weights: [600, 700, 800] },
