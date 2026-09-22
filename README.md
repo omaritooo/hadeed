@@ -96,8 +96,12 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
 - **Snapshotted prescriptions** — set type, targets, rest, format, and rounds are copied
   onto the session at start time, so later edits to a split don't retroactively rewrite
   what a past session says it prescribed.
-- **Offline-ready writes** — sessions, exercise logs, and set logs use client-generated
-  UUID primary keys, so a write can be created before it reaches the server.
+- **Offline session logging** — sets, edits, deletes and finishing a workout queue in
+  IndexedDB and replay in order when back online, so a session started with signal can be
+  logged to the end without it. Each set records when it was performed rather than when it
+  synced, replays are idempotent, and the session page and its reads are cached by the
+  service worker, so a workout survives a reload in a basement gym. Client-generated UUID
+  primary keys are what make a queued write safe to retry.
 - **Optimistic concurrency** — mutations that can race (session complete, set patch) take
   an `expectedVersion` and return `409` on a stale write instead of silently overwriting.
   A `sync_conflicts` table records the server and proposed values.
