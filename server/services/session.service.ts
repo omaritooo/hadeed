@@ -149,10 +149,11 @@ export class SessionService extends BaseService {
   async completeSession(
     sessionId: string,
     expectedVersion: number,
+    completedAt: string | null = null,
   ): Promise<{ conflict: true } | { conflict: false, session: WorkoutSession, summary: SessionCompletionSummary }> {
     await this.requireOwnedSession(sessionId)
 
-    const result = await this.sessions.completeSession(sessionId, expectedVersion)
+    const result = await this.sessions.completeSession(sessionId, expectedVersion, completedAt)
     if (result.conflict) return result
 
     // Nothing to measure here any more: the streak is derived from session history on read, so
@@ -171,6 +172,8 @@ export class SessionService extends BaseService {
 
     // completedAt is guaranteed set: this branch is only reached when the completeSession update
     // above actually applied (result.conflict === false), which sets it in the same statement.
+    // It may be the lifter's own offline clock, but the repository clamped it to at least
+    // started_at, so the duration can't come out negative.
     const durationMinutes = result.session.completedAt
       ? Math.max(0, Math.round(
           (fromSqliteDatetime(result.session.completedAt).getTime() - fromSqliteDatetime(result.session.startedAt).getTime()) / 60000,

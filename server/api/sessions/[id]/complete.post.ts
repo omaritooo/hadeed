@@ -1,5 +1,6 @@
 import { createError, getRouterParam, readBody } from 'h3'
 import { useSessionService } from '~~/server/utils/session-service'
+import { parseClientTimestamp } from '~~/server/utils/date'
 
 defineRouteMeta({
   openAPI: {
@@ -16,6 +17,7 @@ defineRouteMeta({
             required: ['expectedVersion'],
             properties: {
               expectedVersion: { type: 'number' },
+              completedAt: { type: 'string', format: 'date-time', description: 'When the workout actually finished. Clamped to [session.started_at, now]; ignored if unparseable.' },
             },
           },
         },
@@ -30,10 +32,12 @@ defineRouteMeta({
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
-  const body = await readBody(event) as { expectedVersion: number }
+  const body = await readBody(event) as { expectedVersion: number, completedAt?: string }
   const service = await useSessionService(event)
 
-  const result = await service.completeSession(id, body.expectedVersion)
+  // A workout finished offline and synced later must record when the lifter stopped, not when the
+  // outbox drained; an unreadable value falls back to the server clock.
+  const result = await service.completeSession(id, body.expectedVersion, parseClientTimestamp(body.completedAt))
   if (result.conflict) {
     throw createError({ statusCode: 409, statusMessage: 'Session was modified elsewhere; check sync conflicts' })
   }

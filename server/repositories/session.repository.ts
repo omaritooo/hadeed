@@ -59,6 +59,9 @@ export interface LogSetInput {
   reps: number | null
   rpe: number | null
   isWarmup?: boolean
+  // SQLite datetime from the client, clamped to the session window on insert; null uses the
+  // server clock.
+  loggedAt?: string | null
 }
 
 export interface AddFreeformExerciseInput {
@@ -291,15 +294,19 @@ export class SessionRepository {
     return this.insertIdempotent({
       selectSql: 'SELECT * FROM set_logs WHERE id = ?',
       selectArgs: [input.id],
-      insertSql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe, is_warmup)
-                  SELECT ?, ?, ?, ?, ?, ?, ?
-                  WHERE EXISTS (
-                    SELECT 1 FROM exercise_logs
-                    JOIN workout_sessions ON workout_sessions.id = exercise_logs.session_id
-                    WHERE exercise_logs.id = ? AND workout_sessions.status = 'in_progress'
-                  )
+      // Joined rather than a WHERE EXISTS so the clamp can read the session's started_at in the
+      // same statement. datetime(?) normalises the client value and yields NULL for anything
+      // SQLite can't parse, so an unparseable timestamp falls back to now instead of landing in
+      // the column; MAX/MIN then pin it inside [started_at, now] so a client can neither backdate
+      // a set out of its session nor post-date one into the future.
+      insertSql: `INSERT INTO set_logs (id, exercise_log_id, set_number, weight_kg, reps, rpe, is_warmup, logged_at)
+                  SELECT ?, ?, ?, ?, ?, ?, ?,
+                         MIN(MAX(COALESCE(datetime(?), datetime('now')), ws.started_at), datetime('now'))
+                  FROM exercise_logs el
+                  JOIN workout_sessions ws ON ws.id = el.session_id
+                  WHERE el.id = ? AND ws.status = 'in_progress'
                   RETURNING *`,
-      insertArgs: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.isWarmup ? 1 : 0, input.exerciseLogId],
+      insertArgs: [input.id, input.exerciseLogId, input.setNumber, input.weightKg, input.reps, input.rpe, input.isWarmup ? 1 : 0, input.loggedAt ?? null, input.exerciseLogId],
       scopeField: 'exercise_log_id',
       scopeValue: input.exerciseLogId,
       scopeErrorMessage: 'Set log id already exists under a different exercise log',
@@ -325,13 +332,18 @@ export class SessionRepository {
     })
   }
 
-  async completeSession(sessionId: string, expectedVersion: number): Promise<SessionCompleteResult | ConflictResult> {
+  // completedAt: a SQLite datetime from a client that finished the workout offline. Clamped the
+  // same way as logged_at -- below started_at it would make the duration negative, above now it
+  // would let a client fabricate a session in a future streak week.
+  async completeSession(sessionId: string, expectedVersion: number, completedAt: string | null = null): Promise<SessionCompleteResult | ConflictResult> {
     const result = await this.db.execute({
       sql: `UPDATE workout_sessions
-            SET status = 'completed', completed_at = datetime('now'), version = version + 1
+            SET status = 'completed',
+                completed_at = MIN(MAX(COALESCE(datetime(?), datetime('now')), started_at), datetime('now')),
+                version = version + 1
             WHERE id = ? AND version = ? AND status = 'in_progress'
             RETURNING *`,
-      args: [sessionId, expectedVersion],
+      args: [completedAt, sessionId, expectedVersion],
     })
     const row = result.rows[0]
     if (row) return { conflict: false, session: this.mapSession(row as unknown as Record<string, unknown>) }

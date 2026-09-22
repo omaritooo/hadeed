@@ -1185,3 +1185,85 @@ describe('SessionRepository past sessions', () => {
     expect(later.map(s => s.id)).toEqual(['past-2-set-1', 'past-2-set-2'])
   })
 })
+
+describe('SessionRepository client timestamps', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  const now = async () => (await db.execute("SELECT datetime('now') AS v")).rows[0]!.v as string
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await repo.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
+    await db.execute(`UPDATE workout_sessions SET started_at = '2026-09-14 10:00:00' WHERE id = 's1'`)
+    await repo.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+  })
+
+  it('stores a client loggedAt inside the session window', async () => {
+    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2026-09-14 10:20:00' })
+    expect(set.loggedAt).toBe('2026-09-14 10:20:00')
+  })
+
+  it('falls back to now when no loggedAt is supplied', async () => {
+    const before = await now()
+    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
+    expect(set.loggedAt >= before).toBe(true)
+    expect(set.loggedAt <= await now()).toBe(true)
+  })
+
+  it('clamps a loggedAt before the session started', async () => {
+    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2026-09-13 09:00:00' })
+    expect(set.loggedAt).toBe('2026-09-14 10:00:00')
+  })
+
+  it('clamps a loggedAt in the future to now', async () => {
+    const before = await now()
+    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2999-01-01 00:00:00' })
+    expect(set.loggedAt >= before).toBe(true)
+    expect(set.loggedAt <= await now()).toBe(true)
+  })
+
+  // Routes never pass unparsed input through, but the clamp is the last line of defence: a value
+  // SQLite can't read as a datetime must not reach the column, because everything downstream
+  // (PR ordering, streak weeks, history buckets) compares logged_at as a datetime string.
+  it('never writes an unparseable loggedAt into the column', async () => {
+    const before = await now()
+    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: 'not a date' })
+    expect(set.loggedAt >= before).toBe(true)
+    expect(set.loggedAt <= await now()).toBe(true)
+  })
+
+  it('stores a clamped client completedAt', async () => {
+    const result = await repo.completeSession('s1', 1, '2026-09-14 11:05:00')
+    expect(result.conflict).toBe(false)
+    if (!result.conflict) expect(result.session.completedAt).toBe('2026-09-14 11:05:00')
+  })
+
+  it('clamps a completedAt before the session started, so the duration can never go negative', async () => {
+    const result = await repo.completeSession('s1', 1, '2026-09-13 09:00:00')
+    expect(result.conflict).toBe(false)
+    if (!result.conflict) expect(result.session.completedAt).toBe('2026-09-14 10:00:00')
+  })
+
+  it('clamps a completedAt in the future to now', async () => {
+    const before = await now()
+    const result = await repo.completeSession('s1', 1, '2999-01-01 00:00:00')
+    expect(result.conflict).toBe(false)
+    if (!result.conflict) {
+      expect(result.session.completedAt! >= before).toBe(true)
+      expect(result.session.completedAt! <= await now()).toBe(true)
+    }
+  })
+
+  it('falls back to now when no completedAt is supplied', async () => {
+    const before = await now()
+    const result = await repo.completeSession('s1', 1)
+    expect(result.conflict).toBe(false)
+    if (!result.conflict) {
+      expect(result.session.completedAt! >= before).toBe(true)
+      expect(result.session.completedAt! <= await now()).toBe(true)
+    }
+  })
+})

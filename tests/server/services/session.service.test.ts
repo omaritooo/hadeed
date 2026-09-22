@@ -153,6 +153,21 @@ describe('SessionService', () => {
     expect(result.summary.durationMinutes).toBeGreaterThanOrEqual(0)
     expect(result.summary.currentStreak).toBe(3)
   })
+
+  // A session finished offline and synced later must be measured from when the lifter actually
+  // stopped, not from when the outbox drained.
+  it('measures the duration from a client completedAt rather than the sync time', async () => {
+    await seedUserWithActiveBlock(db, 1)
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute(`UPDATE workout_sessions SET started_at = '2026-09-14 10:00:00' WHERE id = 'session-1'`)
+
+    const result = await service.completeSession('session-1', 1, '2026-09-14 11:05:00')
+
+    expect(result.conflict).toBe(false)
+    if (result.conflict) return
+    expect(result.session.completedAt).toBe('2026-09-14 11:05:00')
+    expect(result.summary.durationMinutes).toBe(65)
+  })
 })
 
 describe('SessionService.startSession', () => {
