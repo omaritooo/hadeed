@@ -1133,3 +1133,33 @@ Record any failures as bugs against the relevant task before moving on.
    sets, edits, deletes and finishing a workout queue in IndexedDB and replay in order when
    back online; the session page and its reads are cached by the service worker."
 5. `git add README.md && git commit -m "docs: describe offline session logging"`.
+
+---
+
+### Task 10: Re-detect PRs for sets that arrive out of order (follow-up)
+
+**Not part of the offline build.** Surfaced while implementing Task 2, and it is a gap in
+Task 1's client-timestamp feature rather than in the outbox.
+
+**The problem.** A set delivered for the first time with a client `loggedAt` older than sets
+already stored — an offline session syncing after a later workout already landed from another
+device — gets the *right* PR verdict itself: `findWorkingSetsBefore` orders by
+`(logged_at, rowid)` and picks up its true predecessors. But the sets that came after it keep
+PRs they should no longer hold, because nothing re-evaluates them against a baseline that just
+gained a member.
+
+This is **not** a replay problem. `SessionRepository.logSet` goes through `insertIdempotent`,
+which returns the existing row without rewriting it, so a replayed set never moves in the
+ordering and its reward path re-runs against an identical baseline.
+
+**The fix.** `SessionService.rewardPastSession` already solves exactly this for backdated
+workouts, via a `findWorkingSetsAfter` teardown-and-re-detect sweep
+(`server/services/session.service.ts`). Run that same sweep from `SessionService.logSet` when
+the incoming set sorts before the newest stored set for that exercise.
+
+**Why it is deferred.** It changes the reward path of the ordinary log-a-set flow, which needs
+its own tests and its own risk budget, and it is orthogonal to making replays safe.
+
+Related: plan 1's Task 16 (stale PRs after editing an earlier set) is the same class of bug
+from a different direction — both are "a set's PR verdict went stale because the baseline
+around it changed". Worth fixing together, behind one shared re-detection helper.
