@@ -164,11 +164,18 @@ export class SessionService extends BaseService {
    * stays: those sets were still performed, only their PR bonus is re-decided.
    */
   private async redetectLaterPersonalRecords(exerciseId: string, setLogId: string): Promise<void> {
+    await this.redetectSets(exerciseId, await this.sessions.findWorkingSetsAfter(this.ctx.userId, exerciseId, setLogId))
+  }
+
+  // Split out for deleteSet, which has to read the affected sets *before* the row goes:
+  // findWorkingSetsAfter positions against the target set, so once it is deleted there is
+  // nothing left to position against and the sweep would silently find nobody.
+  private async redetectSets(exerciseId: string, sets: SetLog[]): Promise<void> {
     const userId = this.ctx.userId
-    for (const later of await this.sessions.findWorkingSetsAfter(userId, exerciseId, setLogId)) {
-      await this.personalRecords.deleteForSet(later.id)
-      await this.gamification.revokeSetRewards(userId, later.id, { includeSetXp: false })
-      await this.recordPersonalRecords(later, exerciseId)
+    for (const set of sets) {
+      await this.personalRecords.deleteForSet(set.id)
+      await this.gamification.revokeSetRewards(userId, set.id, { includeSetXp: false })
+      await this.recordPersonalRecords(set, exerciseId)
     }
   }
 
@@ -176,9 +183,26 @@ export class SessionService extends BaseService {
   // that no longer exists is worse than failing the delete, which the client can retry.
   async deleteSet(setLogId: string): Promise<void> {
     await this.requireOwnedSet(setLogId)
+    // Read while the row is still there, for the sweep below.
+    const exerciseId = await this.sessions.findExerciseIdForSet(setLogId)
+    const later = exerciseId ? await this.sessions.findWorkingSetsAfter(this.ctx.userId, exerciseId, setLogId) : []
+
     await this.personalRecords.deleteForSet(setLogId)
     await this.gamification.revokeSetRewards(this.ctx.userId, setLogId, { includeSetXp: true })
     await this.sessions.deleteSetLog(setLogId)
+
+    // Swallowed, unlike the teardown above, and for the same reason it is not: that teardown must
+    // succeed or the delete fails, because rewards left behind for a set that no longer exists are
+    // wrong. This sweep is the opposite case -- the set is already gone and its own rewards with
+    // it, so a failure here only leaves later sets holding PRs judged against it, which is the
+    // staleness the next edit or log of that exercise clears anyway.
+    if (exerciseId && later.length > 0) {
+      try {
+        await this.redetectSets(exerciseId, later)
+      } catch (error) {
+        console.error('SessionService.deleteSet: PR re-detection failed after set deleted', { setLogId, error })
+      }
+    }
   }
 
   // exerciseId is passed in by the callers that already resolved it -- they need it for the

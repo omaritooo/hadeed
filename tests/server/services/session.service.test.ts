@@ -518,6 +518,48 @@ describe('SessionService PR re-detection around a changed baseline', () => {
     expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(2)
   })
 
+  // Three sets, because deleting the *only* earlier set leaves the later one as the first working
+  // set of that exercise, which establishes the baseline rather than scoring against it.
+  it('gives a later set the PR it now deserves when the set above it is deleted', async () => {
+    await log('set-1', 100, 8, 150)
+    await log('set-2', 60, 8, 120)
+    await log('set-3', 80, 8, 60)
+    // set-1 at 100kg denies set-3 both a weight and an e1RM PR.
+    expect(await prTypesFor('set-3')).toEqual([])
+
+    await service.deleteSet('set-1')
+
+    // 80kg now beats everything that remains beneath it.
+    expect(await prTypesFor('set-3')).toEqual(['e1rm', 'weight'])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(1)
+    // The deleted set loses its own set XP; the two that remain keep theirs.
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(2)
+  })
+
+  it('strips a later set\'s PR when the only set beneath it is deleted', async () => {
+    await log('set-1', 60, 8, 120)
+    await log('set-2', 80, 8, 60)
+    expect(await prTypesFor('set-2')).toEqual(['e1rm', 'weight'])
+
+    await service.deleteSet('set-1')
+
+    // set-2 is now the first working set of this exercise, and a first set sets the baseline
+    // rather than scoring against it.
+    expect(await prTypesFor('set-2')).toEqual([])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+  })
+
+  it('leaves earlier sets alone when the last set is deleted', async () => {
+    await log('set-1', 60, 8, 120)
+    await log('set-2', 80, 8, 60)
+    const before = await prRows()
+
+    await service.deleteSet('set-2')
+
+    // Nothing sorts after set-2, so no row is touched -- set-1 keeps the rows it already had.
+    expect(await prRows()).toEqual(before.filter(row => row.set_log_id !== 'set-2'))
+  })
+
   it('strips a later set\'s PR when an earlier set is edited up past it', async () => {
     const first = await log('set-1', 60, 8, 120)
     await log('set-2', 80, 8, 60)

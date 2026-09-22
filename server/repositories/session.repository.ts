@@ -479,6 +479,20 @@ export class SessionRepository {
     return row ? (row.exercise_id as string) : null
   }
 
+  // The exercise a set belongs to, in one hop. deleteSet needs this while the row still exists,
+  // to find the sets whose baseline it is about to leave.
+  async findExerciseIdForSet(setLogId: string): Promise<string | null> {
+    const result = await this.db.execute({
+      sql: `SELECT el.exercise_id
+            FROM set_logs sl
+            JOIN exercise_logs el ON el.id = sl.exercise_log_id
+            WHERE sl.id = ?`,
+      args: [setLogId],
+    })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? (row.exercise_id as string) : null
+  }
+
   // Excludes warm-up sets: a light warm-up rep should never establish (or beat) the PR baseline.
   async findBestWeightForExercise(userId: string, exerciseId: string): Promise<number | null> {
     const result = await this.db.execute({
