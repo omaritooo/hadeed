@@ -51,11 +51,15 @@ registerRoute(new NavigationRoute(new NetworkFirst({
 })))
 
 // Everything the session page reads: the session itself, the exercises it names (`by-ids`, the
-// detail route and its history), and the profile for units. `/api/auth/me` is here so a
-// client-side navigation between two cached pages does not wait on it; the route middleware
-// covers the case where it is not cached, and its answer is only ever read as signed-in or not.
-// Anchored so the writes underneath a session (`/sets`, `/complete`) cannot match.
-const OFFLINE_READS = [/^\/api\/sessions\/[^/]+$/, /^\/api\/exercises\//, /^\/api\/profile$/, /^\/api\/auth\/me$/]
+// detail route and its history), and the profile for units. Anchored so the writes underneath a
+// session (`/sets`, `/complete`) cannot match.
+//
+// Deliberately *not* `/api/auth/me`. It answers 200 with a null userId when signed out, so it is
+// cacheable, and NetworkFirst serves the cached identity whenever the network misses the timeout
+// -- which on a slow-but-working connection bounces a signed-out lifter off /login as though they
+// were still signed in. The `hadeed:last-user` marker already covers the offline case the route
+// middleware needs, so caching this buys nothing and costs that.
+const OFFLINE_READS = [/^\/api\/sessions\/[^/]+$/, /^\/api\/exercises\//, /^\/api\/profile$/]
 
 registerRoute(
   ({ url, request }) => request.method === 'GET'
