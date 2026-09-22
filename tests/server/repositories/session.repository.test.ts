@@ -443,8 +443,11 @@ describe('SessionRepository.completeSession', () => {
     }
   })
 
-  it('reports a conflict, and records it, when the expected version is stale', async () => {
-    await repo.completeSession('session-1', 1)
+  // A session the 12h expiry already abandoned is a real conflict: the finish can never apply.
+  // A stale version on a session that is simply already *completed* is a replay, not a conflict --
+  // see the replay idempotency suite below.
+  it('reports a conflict, and records it, when the session is no longer in progress', async () => {
+    await db.execute(`UPDATE workout_sessions SET status = 'abandoned', version = 2 WHERE id = 'session-1'`)
 
     const result = await repo.completeSession('session-1', 1)
     expect(result.conflict).toBe(true)
@@ -515,6 +518,85 @@ describe('SessionRepository.editSetLog', () => {
     const unmarked = await repo.editSetLog('set-1', 2, { isWarmup: false })
     expect(unmarked.conflict).toBe(false)
     if (!unmarked.conflict) expect(unmarked.setLog.isWarmup).toBe(false)
+  })
+})
+
+// An op whose response was lost offline is retried with its original expectedVersion. Replaying
+// what the server already applied must read as success; someone else's different change must not.
+describe('SessionRepository replay idempotency', () => {
+  let db: Client
+  let repo: SessionRepository
+
+  const conflictCount = async () => {
+    const result = await db.execute('SELECT COUNT(*) AS count FROM sync_conflicts')
+    return result.rows[0]!.count as number
+  }
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await repo.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await repo.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+  })
+
+  it('treats a replayed edit whose values already match as success, without a conflict row', async () => {
+    await repo.editSetLog('set-1', 1, { weightKg: 62.5 })
+
+    const replay = await repo.editSetLog('set-1', 1, { weightKg: 62.5 })
+
+    expect(replay.conflict).toBe(false)
+    if (!replay.conflict) {
+      expect(replay.setLog.weightKg).toBe(62.5)
+      // The replay reports the stored row as-is: nothing was written, so the version is the one
+      // the first edit produced rather than a third.
+      expect(replay.setLog.version).toBe(2)
+    }
+    expect(await conflictCount()).toBe(0)
+  })
+
+  it('still reports a real conflict, records exactly one row, and leaves the stored value alone', async () => {
+    await repo.editSetLog('set-1', 1, { weightKg: 62.5 })
+
+    const result = await repo.editSetLog('set-1', 1, { weightKg: 65 })
+
+    expect(result.conflict).toBe(true)
+    const stored = await db.execute({ sql: 'SELECT weight_kg, version FROM set_logs WHERE id = ?', args: ['set-1'] })
+    expect(stored.rows[0]!.weight_kg).toBe(62.5)
+    expect(stored.rows[0]!.version).toBe(2)
+    expect(await conflictCount()).toBe(1)
+  })
+
+  // The whole correction has to match, not part of it: half a replay is a different set.
+  it('conflicts when only some of the replayed fields match', async () => {
+    await repo.editSetLog('set-1', 1, { weightKg: 62.5, reps: 6 })
+
+    const result = await repo.editSetLog('set-1', 1, { weightKg: 62.5, reps: 7 })
+
+    expect(result.conflict).toBe(true)
+    expect(await conflictCount()).toBe(1)
+  })
+
+  // Clearing a field writes NULL, so a replay of that same clear has to compare equal to it --
+  // whether the retry spells the cleared value `null` or leaves the key undefined, which is what
+  // the UPDATE itself does with either.
+  it('treats a replayed clear of a nullable field as already applied', async () => {
+    await repo.editSetLog('set-1', 1, { rpe: null })
+
+    expect((await repo.editSetLog('set-1', 1, { rpe: null })).conflict).toBe(false)
+    expect((await repo.editSetLog('set-1', 1, { rpe: undefined })).conflict).toBe(false)
+    expect(await conflictCount()).toBe(0)
+  })
+
+  it('reports an already-completed session as completed rather than conflicting', async () => {
+    await repo.completeSession('session-1', 1)
+
+    const replay = await repo.completeSession('session-1', 1)
+
+    expect(replay).toMatchObject({ conflict: false, alreadyCompleted: true })
+    if (!replay.conflict) expect(replay.session.version).toBe(2)
+    expect(await conflictCount()).toBe(0)
   })
 })
 

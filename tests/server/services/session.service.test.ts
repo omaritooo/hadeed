@@ -89,15 +89,27 @@ describe('SessionService', () => {
     expect(onSessionCompleted).toHaveBeenCalledWith('user-1', 'session-1')
   })
 
-  it('never calls GamificationService.onSessionCompleted when completion conflicts on a stale version', async () => {
+  // The lifter's phone never saw the first response, so it retries the finish. The workout is
+  // already banked: hand back the same session and summary, and don't pay the rewards twice.
+  it('returns the summary without re-running gamification when the session was already completed', async () => {
     await seedUserWithActiveBlock(db, 1)
     await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
-    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('plank', 'Plank', '[]')" })
-    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'plank', position: 0, setType: 'time' })
-    await sessions.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: null, reps: null, rpe: null })
-
     await service.completeSession('session-1', 1)
     onSessionCompleted.mockClear()
+
+    const result = await service.completeSession('session-1', 1)
+
+    expect(result.conflict).toBe(false)
+    if (result.conflict) return
+    expect(result.session.status).toBe('completed')
+    expect(result.summary.currentStreak).toBe(3)
+    expect(onSessionCompleted).not.toHaveBeenCalled()
+  })
+
+  it('still conflicts for an abandoned session', async () => {
+    await seedUserWithActiveBlock(db, 1)
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await db.execute(`UPDATE workout_sessions SET status = 'abandoned', version = 2 WHERE id = 'session-1'`)
 
     const result = await service.completeSession('session-1', 1)
 
@@ -300,6 +312,38 @@ describe('SessionService set logging', () => {
     await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
     const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, prs)
     await expect(other.logSet({ id: 'x', exerciseLogId: 'e1', setNumber: 1, weightKg: 1, reps: 1, rpe: null })).rejects.toThrow(/forbidden/i)
+  })
+})
+
+describe('SessionService replayed completion', () => {
+  let db: Client
+  let sessions: SessionRepository
+  let xp: XpRepository
+  let service: SessionService
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    xp = new XpRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, new BlockRepository(db))
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, new PersonalRecordRepository(db))
+  })
+
+  // Against the real GamificationService, not a mock: the completion bonus must be banked once no
+  // matter how many times a flaky connection resends the finish.
+  it('awards the session completion bonus exactly once across replays', async () => {
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+
+    await service.completeSession('session-1', 1)
+    await service.completeSession('session-1', 1)
+    await service.completeSession('session-1', 1)
+
+    const ledger = await db.execute({
+      sql: `SELECT COUNT(*) AS count FROM xp_ledger WHERE user_id = ? AND source_type = 'session_completed'`,
+      args: ['user-1'],
+    })
+    expect(ledger.rows[0]!.count).toBe(1)
   })
 })
 

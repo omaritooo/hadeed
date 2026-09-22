@@ -157,11 +157,15 @@ export class SessionService extends BaseService {
     if (result.conflict) return result
 
     // Nothing to measure here any more: the streak is derived from session history on read, so
-    // gamification only needs to know that this session finished.
-    try {
-      await this.gamification.onSessionCompleted(this.ctx.userId, sessionId)
-    } catch (error) {
-      console.error('GamificationService.onSessionCompleted failed after session completion', { sessionId, error })
+    // gamification only needs to know that this session finished. Skipped entirely on a replay of
+    // a completion that already applied -- the first call ran it, and the summary below is read
+    // back from stored state either way.
+    if (!result.alreadyCompleted) {
+      try {
+        await this.gamification.onSessionCompleted(this.ctx.userId, sessionId)
+      } catch (error) {
+        console.error('GamificationService.onSessionCompleted failed after session completion', { sessionId, error })
+      }
     }
 
     const [totalVolumeKg, prsHit, streak] = await Promise.all([

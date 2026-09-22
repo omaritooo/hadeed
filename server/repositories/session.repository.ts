@@ -78,6 +78,9 @@ export interface ConflictResult {
 export interface SessionCompleteResult {
   conflict: false
   session: WorkoutSession
+  // True when this call found the session already completed -- a replay rather than the write
+  // that completed it. Callers use it to skip the side effects the first call already ran.
+  alreadyCompleted?: boolean
 }
 
 export interface EditSetLogInput {
@@ -351,6 +354,11 @@ export class SessionRepository {
     const current = await this.findSessionById(sessionId)
     if (!current) throw new Error('Session not found')
 
+    // A replay of a completion that already applied (its response was lost offline) is success,
+    // not a conflict: the caller wanted this session completed, and it is. The stored completed_at
+    // stands -- the first call already recorded when the lifter stopped.
+    if (current.status === 'completed') return { conflict: false, session: current, alreadyCompleted: true }
+
     await this.db.execute({
       sql: `INSERT INTO sync_conflicts (user_id, entity_table, entity_id, server_value, proposed_value, base_version)
             VALUES (?, 'workout_sessions', ?, ?, ?, ?)`,
@@ -390,6 +398,18 @@ export class SessionRepository {
     const currentRow = currentResult.rows[0]
     if (!currentRow) throw new Error('Set log not found')
     const current = this.mapSetLog(currentRow as unknown as Record<string, unknown>)
+
+    // A replayed edit whose response was lost arrives with the pre-edit version but values the row
+    // already has. Treat it as applied rather than logging a spurious conflict. Each correction is
+    // normalised the way the UPDATE above writes it, so a cleared field spelled `null` or left
+    // undefined both compare equal to the stored NULL. Every field has to match: a correction that
+    // agrees on only some of them is a different edit, and still a conflict.
+    const normalise = (key: string, value: unknown) => (key === 'isWarmup' ? Boolean(value) : value ?? null)
+    const alreadyApplied = keys.every((key) => {
+      const k = key as keyof EditSetLogInput
+      return normalise(key, current[k]) === normalise(key, corrections[k])
+    })
+    if (alreadyApplied) return { conflict: false, setLog: current }
 
     const exerciseLogResult = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [current.exerciseLogId] })
     const exerciseLogRow = exerciseLogResult.rows[0] as unknown as Record<string, unknown> | undefined
