@@ -134,7 +134,7 @@ git commit -m "feat(i18n): configure English and Arabic locales with Arabic plur
 
 ---
 
-### Task 1b: Precache locale messages for offline Arabic (found during Task 1)
+### Task 1b: Precache locale messages for offline Arabic (found during Task 1) — DONE (`139ee8a`)
 
 **Not in the original plan.** The plan assumed lazy locale JSON is emitted as a client asset that
 `injectManifest.globPatterns` could precache by adding `json`. `@nuxtjs/i18n` v10 does not work
@@ -158,7 +158,11 @@ shipped, so a lifter in a basement gym is the normal case, not the edge one.
 - a workbox `registerRoute` for `/_i18n/`. `CacheFirst` is safe — the URL carries a build hash, so
   it is immutable.
 
-Do this alongside or after Task 2, which is the next task to touch app-level config.
+Done alongside Task 2 in `139ee8a`, via `prerenderMessages: true` plus a narrow
+`_i18n/**/*.json` glob (rather than a blanket `json`, which would adopt whatever future build
+step drops a JSON file into `.output/public`). Verified in the build output: both
+`.output/public/_i18n/<hash>/{en,ar}/messages.json` exist and both appear in `sw.js`'s precache
+manifest.
 
 ---
 
