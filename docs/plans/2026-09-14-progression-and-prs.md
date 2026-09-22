@@ -2091,8 +2091,19 @@ A replayed edit still returns before any of it, so PR rows are not churned.
 Not one transaction: the sweep reuses the existing per-set repository calls rather than a new
 batched statement, so it stays a plain replay of the detection path.
 
-**Still open:** `deleteSet` does not sweep. Removing a set also changes the baseline of
-everything after it, so a later set can keep a PR it no longer deserves, or miss one it now
-does. Unlike the other three paths, `deleteSet` deliberately does not swallow reward failures,
-so wiring the sweep in there needs its own decision about whether a re-detection failure may
-fail the delete.
+**Done** (`ee46213`): `deleteSet` sweeps too, closing the fourth path. Two details it needed
+that the other three did not:
+
+- The affected sets are read *before* the row is deleted. `findWorkingSetsAfter` positions
+  against the target set, so after the delete there is nothing to position against and the
+  sweep silently finds nobody. `SessionRepository.findExerciseIdForSet` resolves the exercise
+  in one hop while the row still exists.
+- The sweep **is** swallowed, even though `deleteSet`'s own reward teardown deliberately is
+  not. The distinction: that teardown must succeed or the delete fails, because XP or a PR
+  left behind for a set that no longer exists is wrong. The sweep is the opposite case — the
+  set and its rewards are already gone, and a failure leaves only staleness that the next edit
+  or log of that exercise clears.
+
+Note a deletion can also *remove* a PR rather than pass one down: deleting the only earlier set
+leaves the next one as the exercise's first working set, which establishes the baseline rather
+than scoring against it.
