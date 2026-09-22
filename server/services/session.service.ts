@@ -117,6 +117,11 @@ export class SessionService extends BaseService {
     await this.requireOwnedSet(setLogId)
     const result = await this.sessions.editSetLog(setLogId, expectedVersion, corrections)
     if (result.conflict) return result
+    // A replayed edit changed nothing, so the PRs derived from this set are already correct.
+    // Re-deriving them would tear down and rebuild identical rows, leaving a window where the
+    // set's PR is briefly missing from a concurrent read -- and replays are exactly what the
+    // offline outbox produces.
+    if (result.alreadyApplied) return result
     try {
       await this.personalRecords.deleteForSet(setLogId)
       await this.gamification.revokeSetRewards(this.ctx.userId, setLogId, { includeSetXp: false })

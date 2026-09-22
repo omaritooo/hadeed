@@ -345,6 +345,27 @@ describe('SessionService replayed completion', () => {
     })
     expect(ledger.rows[0]!.count).toBe(1)
   })
+
+  // A replayed edit changed nothing, so its PR row must survive untouched. Tearing it down and
+  // rebuilding it would leave a window where a concurrent read sees no PR for a set that has one.
+  it('leaves a replayed edit\'s personal records in place', async () => {
+    await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
+    await sessions.startSession('user-1', { id: 'session-1', splitDayId: null, exercises: [] })
+    await sessions.addFreeformExercise({ id: 'exlog-1', sessionId: 'session-1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+    await service.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
+    await service.logSet({ id: 'set-2', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: 80, reps: 8, rpe: null })
+
+    await service.editSet('set-2', 1, { weightKg: 85 })
+    const afterEdit = await db.execute({ sql: 'SELECT id, pr_type FROM personal_records WHERE set_log_id = ? ORDER BY pr_type', args: ['set-2'] })
+    expect(afterEdit.rows.length).toBeGreaterThan(0)
+
+    const replay = await service.editSet('set-2', 1, { weightKg: 85 })
+
+    expect(replay.conflict).toBe(false)
+    const afterReplay = await db.execute({ sql: 'SELECT id, pr_type FROM personal_records WHERE set_log_id = ? ORDER BY pr_type', args: ['set-2'] })
+    // Same rows, same ids -- not deleted and reinserted.
+    expect(afterReplay.rows).toEqual(afterEdit.rows)
+  })
 })
 
 describe('SessionService.logPastSession', () => {

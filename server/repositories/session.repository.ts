@@ -92,6 +92,8 @@ export interface EditSetLogInput {
 export interface SetLogEditResult {
   conflict: false
   setLog: SetLog
+  /** True when the row already held these values, i.e. a replayed edit whose response was lost. */
+  alreadyApplied?: boolean
 }
 
 export class SessionRepository {
@@ -409,7 +411,7 @@ export class SessionRepository {
       const k = key as keyof EditSetLogInput
       return normalise(key, current[k]) === normalise(key, corrections[k])
     })
-    if (alreadyApplied) return { conflict: false, setLog: current }
+    if (alreadyApplied) return { conflict: false, setLog: current, alreadyApplied: true }
 
     const exerciseLogResult = await this.db.execute({ sql: 'SELECT session_id FROM exercise_logs WHERE id = ?', args: [current.exerciseLogId] })
     const exerciseLogRow = exerciseLogResult.rows[0] as unknown as Record<string, unknown> | undefined
