@@ -177,6 +177,9 @@ describe('classify', () => {
     [{ ok: false, statusCode: 409 }, 'conflict'],
     [{ ok: false, statusCode: 404 }, 'fail'],
     [{ ok: false, statusCode: 400 }, 'fail'],
+    // The two 4xx that mean "send it again" rather than "this will never work".
+    [{ ok: false, statusCode: 408 }, 'retry'],
+    [{ ok: false, statusCode: 429 }, 'retry'],
   ] as const)('%o -> %s', (outcome, expected) => {
     expect(classify(outcome)).toBe(expected)
   })

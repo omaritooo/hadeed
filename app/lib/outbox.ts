@@ -157,6 +157,10 @@ export const classify = (outcome: { ok: true } | { ok: false, statusCode?: numbe
   if (statusCode === undefined || statusCode >= 500) return "retry"
   if (statusCode === 401) return "auth"
   if (statusCode === 409) return "conflict"
+  // 408 and 429 are the two 4xx the server is asking us to send again -- a timeout and a rate
+  // limit. Failing them would strand the op behind a manual Retry, which for a set logged in a
+  // basement gym means the lifter loses the set rather than its timestamp.
+  if (statusCode === 408 || statusCode === 429) return "retry"
   return "fail"
 }
 
