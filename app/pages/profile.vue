@@ -299,6 +299,12 @@ const onSaveLimitations = async () => {
 const { mutateAsync: logout, isLoading: loggingOut } = useLogout();
 
 const onLogout = async () => {
+  // Signing out clears the outbox along with everything else this account left on the phone, so
+  // anything still queued is gone for good -- and offline, with sets waiting to sync, is exactly
+  // when a lifter is most likely to be poking at settings. Read here rather than in useLogout
+  // because it is a question, not cleanup: answering "no" means no sign-out at all.
+  const unsynced = useOutbox().ops.value.length;
+  if (unsynced > 0 && !confirm(`You have ${unsynced} workout change${unsynced === 1 ? "" : "s"} that haven't synced. Sign out and lose them?`)) return;
   try {
     await logout();
   } catch {

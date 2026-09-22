@@ -2,7 +2,7 @@ import type { OutboxOp } from '~~/app/lib/outbox'
 import type { SessionCompletionSummary, SetLog } from '~~/shared/types/session.types'
 import { useQueryCache } from '@pinia/colada'
 import { createOutboxRunner } from '~~/app/lib/outbox-runner'
-import { loadOps, saveOps } from '~~/app/lib/outbox-store'
+import { clearOutbox, loadOps, saveOps } from '~~/app/lib/outbox-store'
 
 const LOCK_NAME = 'hadeed-outbox'
 
@@ -120,6 +120,19 @@ export default defineNuxtPlugin((nuxtApp) => {
         discard: runner.discard,
         resume: runner.resume,
         dismissNotices: runner.dismissNotices,
+        // Sign-out. Both halves matter and neither is enough alone: the store holds the queue and
+        // the session snapshots the departed account left on the phone, and the runner holds this
+        // tab's own copy of the queue, which the next write would save straight back over the
+        // cleared store. Cleared first, so a write racing in from a flush already in flight lands
+        // before the store is emptied rather than after it.
+        reset: async () => {
+          await runner.reset()
+          // The subscriber above merges summaries in with `Object.assign`, which can add a key but
+          // never remove one, so the completed workouts of the account that just left are dropped
+          // by hand here.
+          for (const sessionId of Object.keys(serverSummaries)) Reflect.deleteProperty(serverSummaries, sessionId)
+          await clearOutbox()
+        },
       },
     },
   }

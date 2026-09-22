@@ -340,13 +340,30 @@ export const createOutboxRunner = (deps: OutboxRunnerDeps) => {
     notify()
   }
 
+  /**
+   * Sign-out. `clearOutbox` empties the store, but this tab keeps its own copy of the queue, and
+   * every mutation here is a read-modify-write of that copy: the next `write` -- an enqueue, or a
+   * flush marking an op sending -- would save the departed account's ops straight back to disk,
+   * undoing the clear. So the in-memory queue is emptied through the same serialized chain, which
+   * also means it cannot interleave with a pass already in flight, and the wake is dropped so an
+   * empty queue leaves no timer ticking behind it.
+   */
+  const reset = async () => {
+    await write(() => [])
+    state.paused = false
+    state.notices = []
+    state.summaries = {}
+    notify()
+    deps.setTimer(null)
+  }
+
   const subscribe = (listener: (state: OutboxState) => void) => {
     listeners.add(listener)
     listener(state)
     return () => listeners.delete(listener)
   }
 
-  return { state, subscribe, start, flush, add, retry, discard, resume, reconnected, dismissNotices }
+  return { state, subscribe, start, flush, add, retry, discard, resume, reconnected, dismissNotices, reset }
 }
 
 export type OutboxRunner = ReturnType<typeof createOutboxRunner>

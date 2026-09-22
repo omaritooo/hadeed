@@ -1,7 +1,7 @@
 import type { UseStore } from "idb-keyval"
 import type { OutboxOp, OutboxStatus } from "~~/app/lib/outbox"
 import type { WorkoutSessionWithLogs } from "~~/shared/types/session.types"
-import { createStore, del, get, set } from "idb-keyval"
+import { clear, createStore, get, set } from "idb-keyval"
 
 const OPS_KEY = "ops"
 
@@ -79,6 +79,14 @@ export const saveSnapshot = async (session: WorkoutSessionWithLogs): Promise<voi
   await set(`session:${session.id}`, session, store())
 }
 
+/**
+ * Sign-out. Everything this store holds belongs to the account that wrote it: the queue, and the
+ * session snapshots `useSession` falls back to whenever the query has no data -- which is exactly
+ * a session the next account on the phone cannot fetch, so deleting only the queue would leave
+ * the previous user's workout to render for them (`loadSnapshot` is keyed by session id, not by
+ * user). The whole object store goes rather than a sweep of `session:` keys, so a key added here
+ * later is covered without anyone remembering to add it.
+ */
 export const clearOutbox = async (): Promise<void> => {
-  await del(OPS_KEY, store())
+  await clear(store())
 }

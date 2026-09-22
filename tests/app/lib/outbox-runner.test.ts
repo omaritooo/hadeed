@@ -443,3 +443,47 @@ describe('add', () => {
     expect(h.sends[0]!.op.opId).toEqual(expect.any(String))
   })
 })
+
+describe('reset', () => {
+  // A queue that cannot reach the server, which is the state a lifter signing out offline is in.
+  const stranded = (disk: OutboxOp[]) => harness({ disk, send: () => { throw networkError() } })
+
+  it('drops the queue this tab is holding, so the next write cannot save it back', async () => {
+    const h = stranded([logSet('set-1'), completeSession('s2')])
+    await h.runner.start()
+    expect(h.runner.state.ops).toHaveLength(2)
+
+    await h.runner.reset()
+
+    expect(h.runner.state.ops).toEqual([])
+    // The clear reaches disk too: leaving it to `clearOutbox` alone would let this write, made
+    // from the in-memory copy, put the departed account's ops straight back.
+    expect(h.disk).toEqual([])
+    // Nothing is waiting, so nothing is left ticking.
+    expect(h.timers.at(-1)).toBeNull()
+    // A second account's set enqueues into an empty queue, not behind the first account's.
+    await h.runner.add({ sessionId: 's9', kind: 'log_set', payload: { id: 'set-9', exerciseLogId: 'e9', setNumber: 1, weightKg: 60, reps: 8, rpe: null, isWarmup: false, loggedAt: '2026-09-14T10:00:00.000Z' } })
+    expect(h.disk.map(o => o.sessionId)).toEqual(['s9'])
+  })
+
+  it('clears the paused flag and the notices the previous account left behind', async () => {
+    const h = harness({ disk: [editSet('set-1')], send: () => { throw httpError(401) } })
+    await h.runner.start()
+    expect(h.runner.state.paused).toBe(true)
+
+    await h.runner.reset()
+
+    expect(h.runner.state.paused).toBe(false)
+    expect(h.runner.state.notices).toEqual([])
+    expect(h.runner.state.summaries).toEqual({})
+  })
+
+  it('leaves subscribers looking at the empty queue', async () => {
+    const h = stranded([logSet('set-1')])
+    const seen: number[] = []
+    h.runner.subscribe(state => seen.push(state.ops.length))
+    await h.runner.start()
+    await h.runner.reset()
+    expect(seen.at(-1)).toBe(0)
+  })
+})
