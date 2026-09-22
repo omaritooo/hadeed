@@ -134,6 +134,34 @@ git commit -m "feat(i18n): configure English and Arabic locales with Arabic plur
 
 ---
 
+### Task 1b: Precache locale messages for offline Arabic (found during Task 1)
+
+**Not in the original plan.** The plan assumed lazy locale JSON is emitted as a client asset that
+`injectManifest.globPatterns` could precache by adding `json`. `@nuxtjs/i18n` v10 does not work
+that way: messages are bundled into the Nitro server and served on demand from
+`/_i18n/<build-hash>/<locale>/messages.json`. No such file exists in `.output/public`, so widening
+the glob would precache nothing, and the service worker's `OFFLINE_READS` patterns don't match
+`/_i18n/` either.
+
+**What already works:** `experimental.stripMessagesPayload` defaults to `false`, so SSR-rendered
+messages ride along in the Nuxt payload. A page cached by the service worker while the user was in
+Arabic replays in Arabic offline.
+
+**The gap:** a cold client-side locale switch while offline, and any client-side load of a locale
+whose messages were never installed. Both fetch `/_i18n/...` and fail. Offline session logging
+shipped, so a lifter in a basement gym is the normal case, not the edge one.
+
+**Fix, either:**
+- `i18n.experimental.prerenderMessages: true`, which pushes the messages route into nitro's
+  prerender routes so it lands in `.output/public` as a static file, then add `json` to
+  `injectManifest.globPatterns`; or
+- a workbox `registerRoute` for `/_i18n/`. `CacheFirst` is safe — the URL carries a build hash, so
+  it is immutable.
+
+Do this alongside or after Task 2, which is the next task to touch app-level config.
+
+---
+
 ### Task 2: Direction, fonts, letter-spacing
 
 **Files:**
