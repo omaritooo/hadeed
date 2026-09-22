@@ -159,6 +159,11 @@ export const createOutboxRunner = (deps: OutboxRunnerDeps) => {
         notify()
       }
     }
+    // Refreshed *before* the op is dropped, and only when it is the last one for this session.
+    // applyPending stops covering the set the instant the op leaves the queue, while the query
+    // still holds the pre-write payload until the refetch lands -- dropping first makes a set the
+    // lifter just logged blink out for a round trip on every online write.
+    if (!state.ops.some(o => o.sessionId === op.sessionId && o.opId !== op.opId)) await refresh(op.sessionId)
     await write((ops) => {
       const remaining = ops.filter(o => o.opId !== op.opId)
       if (op.kind !== "edit_set") return remaining
@@ -170,7 +175,6 @@ export const createOutboxRunner = (deps: OutboxRunnerDeps) => {
         ? { ...o, payload: { ...o.payload, expectedVersion: version } }
         : o))
     })
-    if (!state.ops.some(o => o.sessionId === op.sessionId)) await refresh(op.sessionId)
   }
 
   /**

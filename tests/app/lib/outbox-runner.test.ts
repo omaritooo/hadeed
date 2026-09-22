@@ -67,6 +67,8 @@ interface HarnessOptions {
   loadFails?: boolean
   /** Stands in for a store that accepts no writes -- a quota wall, or a blocked upgrade. */
   saveFails?: boolean
+  /** Observes queue state at the moment a session is invalidated. */
+  onInvalidate?: (sessionId: string) => void
 }
 
 const harness = (options: HarnessOptions = {}) => {
@@ -91,7 +93,10 @@ const harness = (options: HarnessOptions = {}) => {
       sends.push({ op: structuredClone(op), diskAtSend: structuredClone(disk) })
       return options.send ? options.send(op) : {}
     },
-    invalidate: async (sessionId) => { invalidated.push(sessionId) },
+    invalidate: async (sessionId) => {
+      options.onInvalidate?.(sessionId)
+      invalidated.push(sessionId)
+    },
     withLock: run => run(),
     setTimer: (ms) => { timers.push(ms) },
     now: () => clock,
@@ -207,6 +212,26 @@ describe('flush ordering and persistence', () => {
     const h = harness({ disk: [logSet('a'), completeSession()] })
     await h.runner.start()
     expect(h.invalidated).toEqual(['s1'])
+  })
+
+  // The overlay stops covering a set the moment its op leaves the queue, but the query still
+  // holds the pre-write payload until the refetch lands. Dropping first makes the set blink out
+  // for a round trip on every online write, so the refresh has to happen while the op is still
+  // there to cover it.
+  it('refreshes while the last op is still queued, so the overlay never gaps', async () => {
+    const opsWhenInvalidated: string[][] = []
+    const h = harness({
+      disk: [logSet('a')],
+      onInvalidate: () => opsWhenInvalidated.push(h.runner.state.ops.map(op => op.opId)),
+    })
+
+    await h.runner.start()
+
+    expect(h.invalidated).toEqual(['s1'])
+    // Invalidated once, with the op it just sent still in the queue covering the set.
+    expect(opsWhenInvalidated).toHaveLength(1)
+    expect(opsWhenInvalidated[0]).toHaveLength(1)
+    expect(h.runner.state.ops).toEqual([])
   })
 
   it('rewrites the expected version of later edits to the same set', async () => {
