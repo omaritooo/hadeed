@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { localCompletionSummary } from "~~/app/lib/session-sync";
 import { prefillForSet, suggestProgression } from "~~/shared/lib/progression";
 import { describeSuggestion, formatLoad, formatPrTypes } from "~~/shared/lib/suggestion-copy";
 import type { ExerciseHistorySet, ExerciseLog, SessionCompletionSummary, SetLog } from "~~/shared/types/session.types";
@@ -8,7 +9,7 @@ import type { ExerciseHistorySet, ExerciseLog, SessionCompletionSummary, SetLog 
 const route = useRoute();
 const sessionId = computed(() => route.params.id as string);
 
-const { data: session, refetch, isLoading } = useSession(sessionId);
+const { data: session, isLoading } = useSession(sessionId);
 // Client-only: the outbox plugin isn't registered during SSR, and this page does render there.
 const outbox = import.meta.client ? useOutbox() : null;
 const logSet = useLogSet();
@@ -268,14 +269,11 @@ const saveEdit = async (set: SetLog) => {
       isWarmup: draft.isWarmup,
     });
     editingSetId.value = null;
-  } catch (err) {
-    const statusCode = (err as { statusCode?: number } | null)?.statusCode;
-    if (statusCode === 409) {
-      editError.value = "This set was updated elsewhere — refreshing.";
-      await refetch();
-    } else {
-      editError.value = "Couldn't save that correction. Please try again.";
-    }
+  } catch {
+    // The edit is queued, never sent from here, so the only way this rejects is IndexedDB
+    // refusing the op. A 409 is found when the op replays and comes back as a notice below the
+    // header — this branch can no longer see one.
+    editError.value = "Couldn't save that change on this device.";
   }
 };
 
@@ -350,9 +348,18 @@ const completionSummary = ref<SessionCompletionSummary | null>(null);
 // The summary is computed server-side, so it can only arrive once the queued completion has
 // actually been sent — milliseconds later online, and not at all until there is signal. The
 // outbox holds it for us; Task 7 covers what the page shows in the meantime.
+// True while the summary on screen was computed here rather than returned by the server: the
+// totals are right, but PRs and the streak are unknowable offline and are shown as pending
+// instead of as zero.
+const summaryIsLocal = ref(false);
+
 watch(
   () => (outbox ? outbox.serverSummaries[sessionId.value] : undefined),
-  (summary) => { if (summary) completionSummary.value = summary; },
+  (summary) => {
+    if (!summary) return;
+    completionSummary.value = summary;
+    summaryIsLocal.value = false;
+  },
 );
 
 // A preview of what the lifter will be asked for next time, run over the session they just
@@ -387,17 +394,26 @@ const finish = async () => {
   const hasSkippedExercises = session.value.exercises.some(exercise => exercise.sets.length === 0);
   if (hasSkippedExercises && !confirm("Some exercises have no logged sets. Finish anyway?")) return;
   finishError.value = null;
+  // Stamped once, here, and shared by the queued op and the summary below, so the duration the
+  // lifter sees is the one recorded -- and doesn't creep while the page sits open unsynced.
+  const finishedAt = new Date();
   try {
-    // Resolves as soon as the completion is queued; the summary lands through the watcher above.
-    await completeSession.mutateAsync({ sessionId: sessionId.value, expectedVersion: session.value.version });
-  } catch (err) {
-    const statusCode = (err as { statusCode?: number } | null)?.statusCode;
-    if (statusCode === 409) {
-      finishError.value = "This session was updated elsewhere — refreshing.";
-    } else {
-      finishError.value = "Something went wrong. Please try again.";
-    }
-    await refetch();
+    // Resolves as soon as the completion is queued; the server summary lands through the watcher
+    // above, whenever that op actually syncs.
+    await completeSession.mutateAsync({
+      sessionId: sessionId.value,
+      expectedVersion: session.value.version,
+      completedAt: finishedAt.toISOString(),
+    });
+    // Finishing is the payoff of the workout, so it resolves to a real summary immediately rather
+    // than a spinner that may have no network to resolve against. Everything derivable from this
+    // phone is exact; PRs and the streak need history it doesn't hold, and say so.
+    completionSummary.value = localCompletionSummary(session.value, finishedAt.getTime());
+    summaryIsLocal.value = true;
+  } catch {
+    // The completion is queued, never sent from here, so a rejection means IndexedDB refused it.
+    // A conflict is found when the op replays and arrives as a notice, not here.
+    finishError.value = "Couldn't finish on this device. Please try again.";
   }
 };
 
@@ -422,15 +438,23 @@ const doneWithSummary = () => navigateTo("/workouts");
       </UiCard>
       <UiCard class="space-y-1 text-center">
         <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Streak</p>
-        <p class="font-heading text-2xl text-foreground">
+        <p v-if="summaryIsLocal" class="font-heading text-sm text-muted-foreground">Once synced</p>
+        <p v-else class="font-heading text-2xl text-foreground">
           {{ completionSummary.currentStreak }} {{ completionSummary.currentStreak === 1 ? "week" : "weeks" }}
         </p>
       </UiCard>
       <UiCard class="space-y-1 text-center">
         <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">PRs</p>
-        <p class="font-heading text-2xl text-foreground">{{ completionSummary.prsHit.length }}</p>
+        <p v-if="summaryIsLocal" class="font-heading text-sm text-muted-foreground">Once synced</p>
+        <p v-else class="font-heading text-2xl text-foreground">{{ completionSummary.prsHit.length }}</p>
       </UiCard>
     </div>
+
+    <!-- The workout is saved on the phone the moment Finish is tapped; only the parts that need
+         the server are outstanding. Said plainly so leaving this screen doesn't feel risky. -->
+    <p v-if="summaryIsLocal" class="text-center text-xs text-muted-foreground">
+      Saved on this phone. Your streak and any PRs appear once it syncs.
+    </p>
 
     <UiCard v-if="completionSummary.prsHit.length > 0" class="space-y-2">
       <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Personal records</p>
@@ -473,7 +497,14 @@ const doneWithSummary = () => navigateTo("/workouts");
           {{ session.splitDayId ? "Workout" : "Freeform Workout" }}
         </h1>
       </div>
-      <Button :disabled="completeSession.isLoading.value" @click="finish">Finish</Button>
+      <div class="flex shrink-0 items-center gap-2">
+        <!-- Renders nothing at all while the queue is empty, which is every moment of a workout
+             logged with signal. The plugin is client-only, so it cannot render on the server. -->
+        <ClientOnly>
+          <SessionSyncStatus :session-id="sessionId" :unit-system="unitSystem" />
+        </ClientOnly>
+        <Button :disabled="completeSession.isLoading.value" @click="finish">Finish</Button>
+      </div>
     </div>
 
     <p v-if="finishError" class="text-sm text-destructive">{{ finishError }}</p>
