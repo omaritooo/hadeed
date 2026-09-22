@@ -1136,7 +1136,7 @@ Record any failures as bugs against the relevant task before moving on.
 
 ---
 
-### Task 10: Re-detect PRs for sets that arrive out of order (follow-up)
+### Task 10: Re-detect PRs for sets that arrive out of order (done)
 
 **Not part of the offline build.** Surfaced while implementing Task 2, and it is a gap in
 Task 1's client-timestamp feature rather than in the outbox.
@@ -1152,14 +1152,23 @@ This is **not** a replay problem. `SessionRepository.logSet` goes through `inser
 which returns the existing row without rewriting it, so a replayed set never moves in the
 ordering and its reward path re-runs against an identical baseline.
 
-**The fix.** `SessionService.rewardPastSession` already solves exactly this for backdated
-workouts, via a `findWorkingSetsAfter` teardown-and-re-detect sweep
-(`server/services/session.service.ts`). Run that same sweep from `SessionService.logSet` when
-the incoming set sorts before the newest stored set for that exercise.
+**Shipped** in `bc62d8e`, behind one shared helper with plan 1's Task 16 — both are "a
+set's PR verdict went stale because the baseline around it changed".
+`SessionService.rewardPastSession`'s sweep was extracted as
+`redetectLaterPersonalRecords(exerciseId, setLogId)` and is now called from `rewardPastSession`,
+`editSet` and `logSet` alike.
 
-**Why it is deferred.** It changes the reward path of the ordinary log-a-set flow, which needs
-its own tests and its own risk budget, and it is orthogonal to making replays safe.
+**Keeping it off the hot path.** `logSet` runs on every set mid-workout, so it only probes for
+later sets when one could exist. Three checks that cost nothing rule the probe out first:
 
-Related: plan 1's Task 16 (stale PRs after editing an earlier set) is the same class of bug
-from a different direction — both are "a set's PR verdict went stale because the baseline
-around it changed". Worth fixing together, behind one shared re-detection helper.
+- a replay stored no new row (`SessionRepository.logSet` now reports `alreadyLogged` the way
+  `editSetLog` reports `alreadyApplied`), so the first delivery already swept
+- a warm-up is filtered out of every PR baseline, so it changes no other set's verdict
+- with no client `loggedAt` the row is stamped `datetime('now')` and takes the highest rowid,
+  and nothing can be stored above now, so it sorts last by construction
+
+Past those, the probe is `findWorkingSetsAfter` itself: any cheaper test needs the same indexed
+lookup, and reusing it means a genuinely backdated set doesn't pay for it twice. The exercise id
+is resolved once per call and passed into `recordPersonalRecords`, so the sweep adds no lookup
+of its own. The app's own client always sends `loggedAt`, so in practice an ordinary set costs
+one extra query that comes back empty.

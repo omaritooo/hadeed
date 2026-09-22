@@ -2068,7 +2068,7 @@ imports it.
 
 ---
 
-### Task 16: Re-detect later PRs when an earlier set is edited (follow-up)
+### Task 16: Re-detect later PRs when an earlier set is edited (done)
 
 Found while implementing Task 9. `editSet` re-detects PRs for the edited set only, but
 `findWorkingSetsBefore` orders by `(logged_at, rowid)`, so any *later* set's PR was judged
@@ -2080,10 +2080,19 @@ against the edited set's old value.
 
 `pr_count` feeds achievement unlocks, so the ledger can drift permanently.
 
-**Approach:** after editing (or deleting) a set, re-detect every later working set of that
-exercise for that user: delete their `personal_records` rows, revoke their `pr` XP, and
-replay `detectPersonalRecords` in `(logged_at, rowid)` order. Keep it in one transaction if
-the row count allows. Add tests for both directions above, and for a delete.
+**Shipped** in `bc62d8e`, together with plan 2's Task 10 — the same bug from the other
+direction. `SessionService.redetectLaterPersonalRecords` is now the one sweep: for every later
+working set of that exercise it deletes the `personal_records` rows, revokes the `pr` XP
+(`includeSetXp: false`, so the 10 XP for the set survives) and replays `detectPersonalRecords`
+in `(logged_at, rowid)` order. `rewardPastSession`, `editSet` and `logSet` all call it. The
+edited set is re-detected first, so the later ones are judged against the corrected baseline.
+A replayed edit still returns before any of it, so PR rows are not churned.
 
-**Deferred because:** it needs a replay helper and a bounded-cost decision (how many later
-sets to touch), which is more than Task 9's scope.
+Not one transaction: the sweep reuses the existing per-set repository calls rather than a new
+batched statement, so it stays a plain replay of the detection path.
+
+**Still open:** `deleteSet` does not sweep. Removing a set also changes the baseline of
+everything after it, so a later set can keep a PR it no longer deserves, or miss one it now
+does. Unlike the other three paths, `deleteSet` deliberately does not swallow reward failures,
+so wiring the sweep in there needs its own decision about whether a re-detection failure may
+fail the delete.
