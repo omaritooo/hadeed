@@ -12,6 +12,7 @@ import { GamificationService } from '~~/server/services/gamification.service'
 import { SessionService } from '~~/server/services/session.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
 import type { PastSessionInput } from '~~/shared/types/session.types'
+import { toSqliteDatetime } from '~~/server/utils/date'
 
 function ctx(userId = 'user-1'): RequestContext {
   return { userId, roles: [], permissions: [] }
@@ -463,5 +464,154 @@ describe('SessionService.logPastSession', () => {
 
     const livePrSets = (await prs.findForSession('user-1', 'live')).map(hit => hit.weightKg)
     expect(livePrSets).toContain(65)
+  })
+})
+
+// Both bugs are the same shape: a set's PR verdict is judged against everything logged before it,
+// so changing what sits *before* a set -- by correcting an earlier one, or by a backdated set
+// arriving late -- leaves every later set of that exercise holding a stale verdict.
+describe('SessionService PR re-detection around a changed baseline', () => {
+  let db: Client
+  let sessions: SessionRepository
+  let xp: XpRepository
+  let prs: PersonalRecordRepository
+  let service: SessionService
+
+  const minutesAgo = (minutes: number) => toSqliteDatetime(new Date(Date.now() - minutes * 60_000))
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    sessions = new SessionRepository(db)
+    xp = new XpRepository(db)
+    prs = new PersonalRecordRepository(db)
+    await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-1', 'a@example.com'] })
+    await db.execute(`INSERT INTO exercises (id, name, instructions) VALUES ('bench-press', 'Bench Press', '[]')`)
+    const gamification = new GamificationService(xp, new AchievementRepository(db), sessions, new BlockRepository(db))
+    service = new SessionService(ctx(), sessions, new BlockRepository(db), gamification, prs)
+    await sessions.startSession('user-1', { id: 's1', splitDayId: null, exercises: [] })
+    // Opened three hours ago so the clamp accepts every loggedAt the tests below send.
+    await db.execute({ sql: 'UPDATE workout_sessions SET started_at = ? WHERE id = ?', args: [minutesAgo(180), 's1'] })
+    await sessions.addFreeformExercise({ id: 'e1', sessionId: 's1', exerciseId: 'bench-press', position: 0, setType: 'weight_reps' })
+  })
+
+  const log = (id: string, weightKg: number, reps: number, minutes: number) =>
+    service.logSet({ id, exerciseLogId: 'e1', setNumber: 1, weightKg, reps, rpe: null, loggedAt: minutesAgo(minutes) })
+
+  const prTypesFor = async (setLogId: string) => {
+    const result = await db.execute({ sql: 'SELECT pr_type FROM personal_records WHERE set_log_id = ? ORDER BY pr_type', args: [setLogId] })
+    return result.rows.map(row => row.pr_type as string)
+  }
+
+  // Includes the autoincrement id, so a row that was torn down and rebuilt reads as a different row.
+  const prRows = async () => (await db.execute('SELECT id, set_log_id, pr_type FROM personal_records ORDER BY id')).rows
+
+  it('gives a later set the PR it now deserves when an earlier set is edited down', async () => {
+    const first = await log('set-1', 100, 8, 120)
+    await log('set-2', 80, 8, 60)
+    expect(await prTypesFor('set-2')).toEqual([])
+
+    await service.editSet('set-1', first.version, { weightKg: 60 })
+
+    expect(await prTypesFor('set-2')).toEqual(['e1rm', 'weight'])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(1)
+    // The sweep revokes the PR bonus only: both sets were still performed.
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(2)
+  })
+
+  it('strips a later set\'s PR when an earlier set is edited up past it', async () => {
+    const first = await log('set-1', 60, 8, 120)
+    await log('set-2', 80, 8, 60)
+    expect(await prTypesFor('set-2')).toEqual(['e1rm', 'weight'])
+
+    await service.editSet('set-1', first.version, { weightKg: 100 })
+
+    expect(await prTypesFor('set-2')).toEqual([])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(2)
+  })
+
+  // An offline session syncing after a later workout already landed from another device.
+  it('strips a later set\'s PR when a heavier set arrives out of order beneath it', async () => {
+    await log('set-1', 60, 8, 60)
+    await log('set-2', 80, 8, 30)
+    expect(await prTypesFor('set-2')).toEqual(['e1rm', 'weight'])
+
+    await log('late-arrival', 100, 8, 90)
+
+    expect(await prTypesFor('set-2')).toEqual([])
+    expect(await prTypesFor('set-1')).toEqual([])
+    expect(await xp.countBySourceType('user-1', 'pr')).toBe(0)
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(3)
+  })
+
+  it('leaves later sets\' personal records in place when an out-of-order log is replayed', async () => {
+    await log('set-1', 60, 8, 60)
+    await log('set-2', 80, 8, 30)
+    await log('late-arrival', 50, 8, 90)
+    const afterFirstDelivery = await prRows()
+    expect(afterFirstDelivery.length).toBeGreaterThan(0)
+
+    await log('late-arrival', 50, 8, 90)
+
+    // Same rows, same ids -- not deleted and reinserted.
+    expect(await prRows()).toEqual(afterFirstDelivery)
+    expect(await xp.countBySourceType('user-1', 'set_logged')).toBe(3)
+  })
+
+  it('leaves later sets\' personal records in place when an edit is replayed', async () => {
+    const first = await log('set-1', 100, 8, 120)
+    await log('set-2', 80, 8, 60)
+    await service.editSet('set-1', first.version, { weightKg: 60 })
+    const afterEdit = await prRows()
+    expect(afterEdit.length).toBeGreaterThan(0)
+
+    const replay = await service.editSet('set-1', first.version, { weightKg: 60 })
+
+    expect(replay.conflict).toBe(false)
+    expect(await prRows()).toEqual(afterEdit)
+  })
+
+  // The mid-workout path. Nothing sorts after the new set, so no PR row may be touched -- and the
+  // whole path costs one ordering probe and one exercise lookup, not one of each per set touched.
+  it('does not tear down any personal record when a set is logged after everything else', async () => {
+    await log('set-1', 60, 8, 60)
+    await log('set-2', 80, 8, 30)
+    const before = await prRows()
+    const teardown = vi.spyOn(prs, 'deleteForSet')
+    const probe = vi.spyOn(sessions, 'findWorkingSetsAfter')
+    const exerciseLookup = vi.spyOn(sessions, 'findExerciseIdForLog')
+
+    await log('set-3', 70, 8, 5)
+
+    expect(teardown).not.toHaveBeenCalled()
+    expect(probe).toHaveBeenCalledTimes(1)
+    expect(exerciseLookup).toHaveBeenCalledTimes(1)
+    expect(await prRows()).toEqual(before)
+  })
+
+  // A warm-up is filtered out of every PR baseline, so it can never change another set's verdict
+  // -- not even a backdated one, and not even at a weight nothing else comes close to.
+  it('does not probe for later sets when the new set is a warm-up', async () => {
+    await log('set-1', 60, 8, 60)
+    await log('set-2', 80, 8, 30)
+    const before = await prRows()
+    const probe = vi.spyOn(sessions, 'findWorkingSetsAfter')
+
+    await service.logSet({ id: 'warmup', exerciseLogId: 'e1', setNumber: 3, weightKg: 200, reps: 1, rpe: null, isWarmup: true, loggedAt: minutesAgo(90) })
+
+    expect(probe).not.toHaveBeenCalled()
+    expect(await prRows()).toEqual(before)
+  })
+
+  // With no client timestamp the row is stamped datetime('now') and takes the highest rowid, so it
+  // sorts after every stored set by construction: the probe would always come back empty.
+  it('does not probe for later sets when the set carries no client timestamp', async () => {
+    await log('set-1', 60, 8, 60)
+    await log('set-2', 80, 8, 30)
+    const probe = vi.spyOn(sessions, 'findWorkingSetsAfter')
+
+    await service.logSet({ id: 'set-3', exerciseLogId: 'e1', setNumber: 3, weightKg: 70, reps: 8, rpe: null })
+
+    expect(probe).not.toHaveBeenCalled()
   })
 })

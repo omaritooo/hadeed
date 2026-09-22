@@ -96,6 +96,12 @@ export interface SetLogEditResult {
   alreadyApplied?: boolean
 }
 
+export interface SetLogInsertResult {
+  setLog: SetLog
+  /** True when the row was already stored, i.e. a replay whose response was lost. */
+  alreadyLogged: boolean
+}
+
 export class SessionRepository {
   constructor(private db: Client) {}
 
@@ -156,7 +162,7 @@ export class SessionRepository {
   }
 
   async startSession(userId: string, input: StartSessionInput): Promise<WorkoutSession> {
-    const session = await this.insertIdempotent({
+    const { value: session } = await this.insertIdempotent({
       selectSql: 'SELECT * FROM workout_sessions WHERE id = ?',
       selectArgs: [input.id],
       insertSql: 'INSERT INTO workout_sessions (id, user_id, split_day_id, format, rounds) VALUES (?, ?, ?, ?, ?) RETURNING *',
@@ -228,6 +234,8 @@ export class SessionRepository {
    * Idempotent insert-by-id: if a row with the given id already exists, validates it belongs
    * to the expected scope (owning user/session/exercise log) and returns it as-is; otherwise
    * inserts it, retrying the lookup once if a concurrent insert wins the unique-constraint race.
+   * `alreadyExisted` tells the caller it handled a replay rather than a first write, so side
+   * effects the first write already ran can be skipped.
    */
   private async insertIdempotent<T>(options: {
     selectSql: string
@@ -239,26 +247,26 @@ export class SessionRepository {
     scopeErrorMessage: string
     notFoundErrorMessage: string
     map: (row: Record<string, unknown>) => T
-  }): Promise<T> {
+  }): Promise<{ value: T, alreadyExisted: boolean }> {
     const existing = await this.db.execute({ sql: options.selectSql, args: options.selectArgs })
     const existingRow = existing.rows[0] as unknown as Record<string, unknown> | undefined
     if (existingRow) {
       if (existingRow[options.scopeField] !== options.scopeValue) throw new Error(options.scopeErrorMessage)
-      return options.map(existingRow)
+      return { value: options.map(existingRow), alreadyExisted: true }
     }
 
     try {
       const result = await this.db.execute({ sql: options.insertSql, args: options.insertArgs })
       const row = result.rows[0]
       if (!row) throw new Error(options.notFoundErrorMessage)
-      return options.map(row as unknown as Record<string, unknown>)
+      return { value: options.map(row as unknown as Record<string, unknown>), alreadyExisted: false }
     } catch (err) {
       if (!this.isUniqueConstraintError(err)) throw err
       const retry = await this.db.execute({ sql: options.selectSql, args: options.selectArgs })
       const retryRow = retry.rows[0] as unknown as Record<string, unknown> | undefined
       if (!retryRow) throw err
       if (retryRow[options.scopeField] !== options.scopeValue) throw new Error(options.scopeErrorMessage, { cause: err })
-      return options.map(retryRow)
+      return { value: options.map(retryRow), alreadyExisted: true }
     }
   }
 
@@ -295,8 +303,8 @@ export class SessionRepository {
     return { ...session, exercises }
   }
 
-  async logSet(input: LogSetInput): Promise<SetLog> {
-    return this.insertIdempotent({
+  async logSet(input: LogSetInput): Promise<SetLogInsertResult> {
+    const { value, alreadyExisted } = await this.insertIdempotent({
       selectSql: 'SELECT * FROM set_logs WHERE id = ?',
       selectArgs: [input.id],
       // Joined rather than a WHERE EXISTS so the clamp can read the session's started_at in the
@@ -318,10 +326,11 @@ export class SessionRepository {
       notFoundErrorMessage: 'Cannot log a set: exercise log not found or session is not in progress',
       map: row => this.mapSetLog(row),
     })
+    return { setLog: value, alreadyLogged: alreadyExisted }
   }
 
   async addFreeformExercise(input: AddFreeformExerciseInput): Promise<ExerciseLog> {
-    return this.insertIdempotent({
+    const { value } = await this.insertIdempotent({
       selectSql: 'SELECT * FROM exercise_logs WHERE id = ?',
       selectArgs: [input.id],
       insertSql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds)
@@ -335,6 +344,7 @@ export class SessionRepository {
       notFoundErrorMessage: 'Cannot add exercise: session not found or session is not in progress',
       map: row => this.mapExerciseLog(row),
     })
+    return value
   }
 
   // completedAt: a SQLite datetime from a client that finished the workout offline. Clamped the

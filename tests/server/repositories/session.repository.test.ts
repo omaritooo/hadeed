@@ -213,8 +213,9 @@ describe('SessionRepository logging', () => {
   })
 
   it('logs a set against an existing exercise log', async () => {
-    const set = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
-    expect(set.version).toBe(1)
+    const { setLog, alreadyLogged } = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
+    expect(setLog.version).toBe(1)
+    expect(alreadyLogged).toBe(false)
 
     const withLogs = await repo.findWithLogs('session-1')
     expect(withLogs?.exercises[0].sets).toHaveLength(1)
@@ -280,7 +281,9 @@ describe('SessionRepository idempotent replay', () => {
 
     const replay = await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 999, reps: 1, rpe: 1 })
 
-    expect(replay.weightKg).toBe(original.weightKg)
+    expect(replay.setLog.weightKg).toBe(original.setLog.weightKg)
+    // Reported so the caller can skip the side effects the first delivery already ran.
+    expect(replay.alreadyLogged).toBe(true)
     const sets = await db.execute({ sql: 'SELECT COUNT(*) as count FROM set_logs WHERE id = ?', args: ['set-1'] })
     expect(sets.rows[0]!.count).toBe(1)
   })
@@ -398,8 +401,8 @@ describe('SessionRepository idempotent replay', () => {
     const call = () => repo.logSet({ id: 'race-set', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: 7 })
 
     const [first, second] = await Promise.all([call(), call()])
-    expect(first.weightKg).toBe(60)
-    expect(second.weightKg).toBe(60)
+    expect(first.setLog.weightKg).toBe(60)
+    expect(second.setLog.weightKg).toBe(60)
 
     const count = await db.execute({ sql: 'SELECT COUNT(*) as count FROM set_logs WHERE id = ?', args: ['race-set'] })
     expect(count.rows[0]!.count).toBe(1)
@@ -933,7 +936,7 @@ describe('SessionRepository warm-up exclusion from PR baseline and history', () 
 
   it('a heavy warm-up set does not become the PR baseline, so a subsequent lighter working set still registers as a PR', async () => {
     // A warm-up at 100kg would be a PR if it counted - it should not raise the baseline at all.
-    const warmup = await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 6, isWarmup: true })
+    const { setLog: warmup } = await repo.logSet({ id: 'set-warmup', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 100, reps: 5, rpe: 6, isWarmup: true })
     expect(warmup.isWarmup).toBe(true)
 
     const baselineAfterWarmup = await repo.findBestWeightForExercise('user-1', 'bench-press')
@@ -946,7 +949,7 @@ describe('SessionRepository warm-up exclusion from PR baseline and history', () 
     const isNewPr = workingWeight != null && (baselineAfterWarmup === null || workingWeight > baselineAfterWarmup)
     expect(isNewPr).toBe(true)
 
-    const working = await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: workingWeight, reps: 8, rpe: 8, isWarmup: false })
+    const { setLog: working } = await repo.logSet({ id: 'set-working', exerciseLogId: 'exlog-1', setNumber: 2, weightKg: workingWeight, reps: 8, rpe: 8, isWarmup: false })
     expect(working.isWarmup).toBe(false)
 
     // The working set now establishes the real baseline; the warm-up is still excluded.
@@ -1284,25 +1287,25 @@ describe('SessionRepository client timestamps', () => {
   })
 
   it('stores a client loggedAt inside the session window', async () => {
-    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2026-09-14 10:20:00' })
+    const { setLog: set } = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2026-09-14 10:20:00' })
     expect(set.loggedAt).toBe('2026-09-14 10:20:00')
   })
 
   it('falls back to now when no loggedAt is supplied', async () => {
     const before = await now()
-    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
+    const { setLog: set } = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
     expect(set.loggedAt >= before).toBe(true)
     expect(set.loggedAt <= await now()).toBe(true)
   })
 
   it('clamps a loggedAt before the session started', async () => {
-    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2026-09-13 09:00:00' })
+    const { setLog: set } = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2026-09-13 09:00:00' })
     expect(set.loggedAt).toBe('2026-09-14 10:00:00')
   })
 
   it('clamps a loggedAt in the future to now', async () => {
     const before = await now()
-    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2999-01-01 00:00:00' })
+    const { setLog: set } = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: '2999-01-01 00:00:00' })
     expect(set.loggedAt >= before).toBe(true)
     expect(set.loggedAt <= await now()).toBe(true)
   })
@@ -1312,7 +1315,7 @@ describe('SessionRepository client timestamps', () => {
   // (PR ordering, streak weeks, history buckets) compares logged_at as a datetime string.
   it('never writes an unparseable loggedAt into the column', async () => {
     const before = await now()
-    const set = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: 'not a date' })
+    const { setLog: set } = await repo.logSet({ id: 'a', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null, loggedAt: 'not a date' })
     expect(set.loggedAt >= before).toBe(true)
     expect(set.loggedAt <= await now()).toBe(true)
   })

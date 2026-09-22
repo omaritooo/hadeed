@@ -100,14 +100,35 @@ export class SessionService extends BaseService {
   // they run, and a failure there shouldn't fail the request mid-workout.
   async logSet(input: LogSetInput): Promise<SetLog> {
     await this.requireOwnedExerciseLog(input.exerciseLogId)
-    const setLog = await this.sessions.logSet(input)
+    const { setLog, alreadyLogged } = await this.sessions.logSet(input)
     try {
       await this.gamification.onSetLogged(this.ctx.userId, setLog.id)
-      await this.recordPersonalRecords(setLog)
+      const exerciseId = await this.sessions.findExerciseIdForLog(setLog.exerciseLogId)
+      await this.recordPersonalRecords(setLog, exerciseId)
+      if (exerciseId && this.mayHaveLandedOutOfOrder(input, alreadyLogged)) {
+        await this.redetectLaterPersonalRecords(exerciseId, setLog.id)
+      }
     } catch (error) {
       console.error('SessionService.logSet: rewards/PR detection failed after set logged', { setLogId: setLog.id, error })
     }
     return setLog
+  }
+
+  /**
+   * Whether this set is worth probing for later sets whose baseline it just joined. The probe
+   * itself is a query, and the mid-workout case -- a set logged after everything else -- has
+   * nothing to find, so three checks that cost nothing rule it out first:
+   *
+   * - a replay stored no new row, so the ordering is exactly what the first delivery already swept
+   * - a warm-up is filtered out of every PR baseline, so it changes no other set's verdict
+   * - with no client timestamp the row is stamped `datetime('now')` and takes the highest rowid,
+   *   and nothing can be stored above now, so it sorts last by construction
+   *
+   * Past those, the probe is `findWorkingSetsAfter` itself: any cheaper test needs the same
+   * indexed lookup, and reusing it means a genuinely backdated set doesn't pay for it twice.
+   */
+  private mayHaveLandedOutOfOrder(input: LogSetInput, alreadyLogged: boolean): boolean {
+    return !alreadyLogged && !input.isWarmup && Boolean(input.loggedAt)
   }
 
   // A correction can turn a PR into a non-PR (or the reverse), so the set's PRs are torn down and
@@ -123,13 +144,32 @@ export class SessionService extends BaseService {
     // offline outbox produces.
     if (result.alreadyApplied) return result
     try {
+      const exerciseId = await this.sessions.findExerciseIdForLog(result.setLog.exerciseLogId)
       await this.personalRecords.deleteForSet(setLogId)
       await this.gamification.revokeSetRewards(this.ctx.userId, setLogId, { includeSetXp: false })
-      await this.recordPersonalRecords(result.setLog)
+      // The corrected set first, so the later sets are judged against the baseline it now sets.
+      await this.recordPersonalRecords(result.setLog, exerciseId)
+      if (exerciseId) await this.redetectLaterPersonalRecords(exerciseId, setLogId)
     } catch (error) {
       console.error('SessionService.editSet: PR re-detection failed after set edited', { setLogId, error })
     }
     return result
+  }
+
+  /**
+   * Every set's PR verdict is judged against the working sets logged before it, so a set that
+   * joins or changes that baseline -- a correction, a backdated workout, an offline set arriving
+   * after a later one already synced -- leaves every later set of the same exercise holding a
+   * stale verdict. Tear those down and re-detect them in (logged_at, rowid) order. The set XP
+   * stays: those sets were still performed, only their PR bonus is re-decided.
+   */
+  private async redetectLaterPersonalRecords(exerciseId: string, setLogId: string): Promise<void> {
+    const userId = this.ctx.userId
+    for (const later of await this.sessions.findWorkingSetsAfter(userId, exerciseId, setLogId)) {
+      await this.personalRecords.deleteForSet(later.id)
+      await this.gamification.revokeSetRewards(userId, later.id, { includeSetXp: false })
+      await this.recordPersonalRecords(later, exerciseId)
+    }
   }
 
   // Unlike logSet, the reward teardown is *not* swallowed: leaving XP or a PR behind for a set
@@ -141,8 +181,10 @@ export class SessionService extends BaseService {
     await this.sessions.deleteSetLog(setLogId)
   }
 
-  private async recordPersonalRecords(setLog: SetLog): Promise<void> {
-    const exerciseId = await this.sessions.findExerciseIdForLog(setLog.exerciseLogId)
+  // exerciseId is passed in by the callers that already resolved it -- they need it for the
+  // later-set sweep anyway -- so the lookup isn't repeated for every set of a past session.
+  private async recordPersonalRecords(setLog: SetLog, knownExerciseId?: string | null): Promise<void> {
+    const exerciseId = knownExerciseId ?? await this.sessions.findExerciseIdForLog(setLog.exerciseLogId)
     if (!exerciseId) return
     const prior = await this.sessions.findWorkingSetsBefore(this.ctx.userId, exerciseId, setLog.id)
     const prs = detectPersonalRecords(setLog, prior)
@@ -258,20 +300,17 @@ export class SessionService extends BaseService {
     for (const exercise of exercises) {
       for (const set of exercise.sets) {
         await this.gamification.onSetLogged(userId, set.id)
-        await this.recordPersonalRecords({ ...set, exerciseLogId: exercise.id, rpe: null, isWarmup: false, version: 1 })
+        await this.recordPersonalRecords({ ...set, exerciseLogId: exercise.id, rpe: null, isWarmup: false, version: 1 }, exercise.exerciseId)
       }
     }
 
-    // The backdated sets joined the baseline of everything logged after them, so those sets' PRs
-    // are torn down and re-detected, the same way editSet handles a corrected set.
+    // The backdated sets joined the baseline of everything logged after them. Sweeping from the
+    // exercise's last set covers the lot: the earlier ones are followed by sets of this same
+    // session, which were just detected in order above.
     for (const exercise of exercises) {
       const lastSet = exercise.sets.at(-1)
       if (!lastSet) continue
-      for (const later of await this.sessions.findWorkingSetsAfter(userId, exercise.exerciseId, lastSet.id)) {
-        await this.personalRecords.deleteForSet(later.id)
-        await this.gamification.revokeSetRewards(userId, later.id, { includeSetXp: false })
-        await this.recordPersonalRecords(later)
-      }
+      await this.redetectLaterPersonalRecords(exercise.exerciseId, lastSet.id)
     }
 
     await this.gamification.onPastSessionLogged(userId, sessionId)
