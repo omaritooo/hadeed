@@ -96,9 +96,12 @@ Staged so each step is reviewable and behavior-preserving:
 
 ## RTL styling
 
-- Convert the ~30 physical-direction Tailwind classes to logical ones: `ml/mr → ms/me`,
-  `pl/pr → ps/pe`, `left/right → inset-s/inset-e`, `text-left/right → text-start/end`,
-  `rounded-l/r → rounded-s/e`, `border-l/r → border-s/e`.
+- Convert the physical-direction Tailwind classes to logical ones: `ml/mr → ms/me`,
+  `pl/pr → ps/pe`, `left/right → start/end`, `text-left/right → text-start/end`,
+  `rounded-l/r → rounded-s/e`, `border-l/r → border-s/e`. (`inset-s-*`/`inset-e-*` compiles
+  too on Tailwind 4.3, but `start-*`/`end-*` is the documented spelling and the older one.)
+  It came to 54 classes across 24 files, not ~30 — the count missed `cva()` maps in
+  `app/components/ui/**/index.ts` and classes sitting behind bracketed variants.
 - `npm run lint:rtl`: a grep check failing on physical-direction classes, run in the lint
   step.
 - Directional icons (chevrons, arrows, back buttons) get `rtl:-scale-x-100`.

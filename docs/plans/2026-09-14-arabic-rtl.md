@@ -240,99 +240,115 @@ git commit -m "feat(i18n): set document direction and add Arabic font fallbacks"
 
 ---
 
-### Task 3: RTL class lint and logical-property conversion
+### Task 3: RTL class lint and logical-property conversion — DONE (`e5f520a`)
 
 **Files:**
 - Create: `scripts/lint-rtl.ts`, `tests/scripts/lint-rtl.test.ts`
 - Modify: `package.json` (scripts)
-- Modify: every `.vue` file the lint reports
+- Modify: every `.vue`/`.ts` file the lint reports
+
+> **Corrections made while implementing.** The original draft of this task is kept honest
+> below; three things in it were wrong or too narrow.
+>
+> 1. **`inset-s-*` was not the class to standardise on.** It does exist — Tailwind 4.3.3
+>    registers `inset-s`/`inset-e` next to `inset-x`/`inset-y`, and `inset-s-1` compiles to
+>    `inset-inline-start: var(--spacing)` — so the draft was not producing dead classes. But
+>    `start-*`/`end-*` is the spelling Tailwind documents, and it has existed since v3.3 where
+>    `inset-s-*` is recent, so a downgrade would silently kill it. The table below uses
+>    `start-*`/`end-*`. Everything else in the table was verified against the installed
+>    Tailwind by compiling each candidate and reading the generated rule:
+>    `rounded-ss`/`se`/`es`/`ee` → `border-start-start-radius` etc., `border-s`/`border-e` →
+>    `border-inline-start-width`, `text-start`/`text-end` → `text-align: start|end`.
+> 2. **`app/**/*.vue` misses real hits.** `app/components/ui/input-group/index.ts` holds a
+>    `cva()` map with `pl-3` and `has-[>button]:ml-[-0.45rem]` in it. The lint globs
+>    `app/**/*.{vue,ts,css}` (`.css` so an `@apply` cannot smuggle one in).
+> 3. **The draft regex missed several real classes.** It could not see variant chains with
+>    brackets in them (`**:data-[slot=native-select-icon]:right-1`,
+>    `has-[>[data-align=inline-start]]:[&>input]:pl-2`), arbitrary values with a negative
+>    inside (`ml-[-0.45rem]`), or `float-*`/`clear-*`/`scroll-m*`/`scroll-p*` at all. Those
+>    four blind spots accounted for 4 of the 54 hits, and a missed class is an unmirrored
+>    layout that nothing downstream catches.
 
 **Step 1: Write the failing test**
 
-```ts
-// tests/scripts/lint-rtl.test.ts
-import { describe, expect, it } from 'vitest'
-import { findPhysicalDirectionClasses } from '~~/scripts/lint-rtl'
-
-describe('findPhysicalDirectionClasses', () => {
-  it('finds physical margin, padding, inset, text-align, rounded and border classes', () => {
-    const source = `<div class="ml-4 pr-2 left-1 -right-3 text-left rounded-l-lg border-r sm:pl-6 hover:mr-auto">`
-    expect(findPhysicalDirectionClasses(source)).toEqual(['ml-4', 'pr-2', 'left-1', '-right-3', 'text-left', 'rounded-l-lg', 'border-r', 'sm:pl-6', 'hover:mr-auto'])
-  })
-
-  it('ignores logical classes and look-alike words', () => {
-    const source = `<div class="ms-4 pe-2 inset-s-1 text-start rounded-s-lg border-e"> pr-history printer left-handed`
-    expect(findPhysicalDirectionClasses(source)).toEqual([])
-  })
-})
-```
-
-Run → FAIL.
+`tests/scripts/lint-rtl.test.ts` covers, beyond the obvious cases: negative, fractional,
+arbitrary and `(--var)` values; stacked, arbitrary, container-query, `group-*`/`peer-*`,
+`has-[...]`, `*:`/`**:` variants; both spellings of the important marker; every corner-radius
+and border side; classes in `:class` object/array/ternary syntax, in `<script>` blocks and in
+`@apply`; `--spacing-*` theme names; and the escape-hatch markers. It also pins the
+false-positive side, which matters as much here: this codebase is full of `pr` (personal
+record), `pl`, `profile`, `preset` and the words "left"/"right" in prose, and a lint that
+cried wolf would push someone into a wrong conversion.
 
 **Step 2: Implement**
 
-```ts
-// scripts/lint-rtl.ts
-import { globSync, readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+`scripts/lint-rtl.ts` exports `scanSource` (hits with line numbers),
+`findPhysicalDirectionClasses` (the class names) and `themeSpacingNames` (reads `--spacing-*`
+keys out of `app/assets/css/index.css`, so `pl-edge-margin` cannot slip past a hand-kept value
+list). Word-shaped values are a closed list on purpose — opening them to `[a-z]+` matches
+`pr-history` and `left-handed`.
 
-// Physical-direction Tailwind utilities that break in RTL; each has a logical equivalent
-// (ms/me, ps/pe, inset-s/inset-e, text-start/end, rounded-s/e, border-s/e).
-const PATTERN = /(?<![\w-])((?:[a-z0-9]+:)*-?(?:(?:m|p)[lr]-(?:\d[\d.]*|px|auto|\[[^\]]+\])|(?:left|right)-(?:\d[\d.]*|px|full|auto|\[[^\]]+\]|1\/2)|text-(?:left|right)|rounded-(?:l|r|tl|tr|bl|br)(?:-[a-z0-9]+)?|border-(?:l|r)(?:-\d+)?))(?![\w-])/g
+It walks with `readdirSync(..., { recursive: true })` rather than `fs.globSync`, which is still
+experimental on Node 22 and prints a warning over otherwise clean lint output.
 
-export const findPhysicalDirectionClasses = (source: string): string[] =>
-  [...source.matchAll(PATTERN)].map(match => match[1]!)
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  let failures = 0
-  for (const file of globSync('app/**/*.vue')) {
-    const found = findPhysicalDirectionClasses(readFileSync(file, 'utf-8'))
-    if (found.length) {
-      failures += found.length
-      console.error(`${file}: ${[...new Set(found)].join(', ')}`)
-    }
-  }
-  if (failures) {
-    console.error(`\n${failures} physical-direction class(es). Use ms/me, ps/pe, inset-s/inset-e, text-start/end, rounded-s/e, border-s/e.`)
-    process.exit(1)
-  }
-}
-```
-
-(`fs.globSync` needs Node 22+, which the README already requires.)
-
-Run → PASS. If a case fails, fix the regex, not the test.
+**Escape hatch.** Some physical classes are right, so the lint takes
+`lint-rtl-ignore-next-line` and `lint-rtl-ignore-line` markers (spelled like ESLint's, so a
+reader never has to guess which line one covers), each expected to carry a reason.
 
 **Step 3: Wire and convert**
 
 `package.json`: `"lint:rtl": "tsx scripts/lint-rtl.ts"`.
 
-Run `npm run lint:rtl` and convert every hit:
-
 | Physical | Logical |
 | --- | --- |
 | `ml-*` / `mr-*` | `ms-*` / `me-*` |
 | `pl-*` / `pr-*` | `ps-*` / `pe-*` |
-| `left-*` / `right-*` | `inset-s-*` / `inset-e-*` |
+| `left-*` / `right-*` | `start-*` / `end-*` |
 | `text-left` / `text-right` | `text-start` / `text-end` |
 | `rounded-l*` / `rounded-r*` | `rounded-s*` / `rounded-e*` |
 | `rounded-tl` / `tr` / `bl` / `br` | `rounded-ss` / `se` / `es` / `ee` |
 | `border-l` / `border-r` | `border-s` / `border-e` |
+| `float-left` / `float-right` | `float-start` / `float-end` |
+| `clear-left` / `clear-right` | `clear-start` / `clear-end` |
+| `scroll-ml-*` / `scroll-mr-*` | `scroll-ms-*` / `scroll-me-*` |
+| `scroll-pl-*` / `scroll-pr-*` | `scroll-ps-*` / `scroll-pe-*` |
 
-Leave `app/components/ui/chart/*` recharts selectors alone if they appear. Charts stay LTR (Task 4).
+54 hits across 24 files. Three did not convert one-for-one:
 
-Also give directional icons a mirror: for every `ChevronLeft*`, `ChevronRight*`, `ArrowLeft*`,
-`ArrowRight*` icon (`grep -rn "Chevron\(Left\|Right\)\|Arrow\(Left\|Right\)" app`), add
-`class="rtl:-scale-x-100"` (merged into any existing class). `ArrowLeftRightIcon` is symmetric; skip it.
+- **Centring pairs.** `left-1/2` paired with `-translate-x-1/2` cannot be half-converted: a
+  translate has no logical form, so mirroring only the inset moves the element off centre.
+  The carousel's vertical buttons and the radio dot use `inset-x-0 mx-auto` instead, which
+  centres with nothing physical left to mirror.
+- **Physically-keyed APIs.** `DrawerContent`'s `data-[swipe-direction=right]:right-0` is keyed
+  to Reka's physical `direction` prop, which also drives the swipe gesture and the
+  `slide-in-from-right` animation. `end-0` would park a right-swiping drawer against the left
+  edge in Arabic while it still slid in from the right. Both stay physical, marked.
+- **Paired translates.** The nutrition log/check pill sat at `left-1` and slid with
+  `translate-x-full`; the grid reverses in Arabic, so it needs `start-1` *and*
+  `rtl:-translate-x-full`.
+
+`app/components/ui/chart/*` holds no physical-direction classes (this project charts with
+unovis, not recharts), so nothing there needed excluding. Charts stay LTR — Task 4.
+
+Directional icons get `class="rtl:-scale-x-100"` — 15 sites (step nav, calendar month arrows,
+carousel arrows, nutrition day nav, and the "Back"/"Continue" arrows). `ArrowLeftRightIcon` is
+symmetric; skipped.
 
 **Step 4: Verify**
 
-`npm run lint:rtl` exits 0. `npm run dev` in English looks identical to before.
+`npm run lint:rtl` exits 0. Because the lint only looks for *physical* classes, a typo'd
+logical class would pass it silently, so the check that actually matters is the built
+stylesheet: after `npm run build`, every logical class introduced by the diff appears as a real
+rule in `.output/public/_nuxt/*.css` (32 of 32, `rtl:-scale-x-100` and
+`rtl:-translate-x-full` included).
+
+What only a human at a browser can confirm: that the mirrored layout reads right in Arabic,
+and that English is pixel-identical to before.
 
 **Step 5: Commit**
 
 ```bash
-git add scripts/lint-rtl.ts tests/scripts/lint-rtl.test.ts package.json app
+git add scripts/lint-rtl.ts tests/scripts/lint-rtl.test.ts package.json <each app file>
 git commit -m "feat(i18n): use logical direction classes and lint against physical ones"
 ```
 
