@@ -63,7 +63,7 @@ const plateHeightPx = (plate: number) => 24 + Math.min(plate, 25) * 1.6;
         <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Plates / side</p>
         <label class="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
           Bar
-          <Input v-model="barWeightInput" type="number" class="h-6 w-14 px-1.5 text-right text-xs" />
+          <Input v-model="barWeightInput" type="number" class="h-6 w-14 px-1.5 text-end text-xs" />
           {{ unitLabel }}
         </label>
       </div>

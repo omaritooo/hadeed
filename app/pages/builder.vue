@@ -105,7 +105,7 @@ const submit = async () => {
 <template>
   <main class="mx-auto flex max-w-xl flex-col gap-y-4 p-4">
     <button v-if="step !== 'mode'" class="flex items-center gap-1 text-sm text-muted-foreground" @click="goBack">
-      <ArrowLeftIcon class="size-4" /> Back
+      <ArrowLeftIcon class="size-4 rtl:-scale-x-100" /> Back
     </button>
 
     <h1 class="font-heading text-2xl uppercase text-foreground">Build Your Split</h1>

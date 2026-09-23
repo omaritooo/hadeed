@@ -36,14 +36,14 @@ defineProps<{
         </div>
       </div>
     </div>
-    <p v-if="hint" class="pl-8 font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">{{ hint }}</p>
-    <div class="flex flex-wrap items-center gap-2 pl-8">
+    <p v-if="hint" class="ps-8 font-mono text-[10px] uppercase tracking-[1px] text-muted-foreground">{{ hint }}</p>
+    <div class="flex flex-wrap items-center gap-2 ps-8">
       <Input v-model="rpe" type="number" placeholder="RPE" aria-label="RPE" class="h-9 w-16 shrink-0 px-2 py-0 text-center text-sm" />
       <label class="flex items-center gap-1.5 text-xs text-muted-foreground">
         <UiCheckbox :model-value="isWarmup" @update:model-value="(value) => (isWarmup = !!value)" />
         Warm-up
       </label>
-      <div class="ml-auto flex shrink-0 items-center gap-2">
+      <div class="ms-auto flex shrink-0 items-center gap-2">
         <slot name="actions" />
       </div>
     </div>

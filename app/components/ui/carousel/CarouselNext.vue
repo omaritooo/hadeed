@@ -24,9 +24,13 @@ const { orientation, canScrollNext, scrollNext } = useCarousel()
     :disabled="!canScrollNext"
     :class="cn(
       'absolute size-8 rounded-full',
+      // The horizontal buttons flank the track, so they follow the reading direction. The
+      // vertical pair only centres itself: `inset-x-0 mx-auto` does that without a physical
+      // class, where the usual inset-plus-translate centring could not be mirrored (a translate
+      // has no logical form, so flipping only the inset would push the button off centre).
       orientation === 'horizontal'
-        ? 'top-1/2 -right-12 -translate-y-1/2'
-        : '-bottom-12 left-1/2 -translate-x-1/2 rotate-90',
+        ? 'top-1/2 -end-12 -translate-y-1/2'
+        : '-bottom-12 inset-x-0 mx-auto rotate-90',
       props.class,
     )"
     :variant="variant"
@@ -34,7 +38,7 @@ const { orientation, canScrollNext, scrollNext } = useCarousel()
     @click="scrollNext"
   >
     <slot>
-      <ArrowRight />
+      <ArrowRight class="rtl:-scale-x-100" />
       <span class="sr-only">Next Slide</span>
     </slot>
   </Button>

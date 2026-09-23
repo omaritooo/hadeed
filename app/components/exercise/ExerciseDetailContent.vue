@@ -312,7 +312,7 @@ const formatHistoryDate = (dateString: string): string => {
         <div
           class="flex size-8 shrink-0 items-center justify-center rounded-full bg-popover"
         >
-          <ChevronRightIcon class="size-4 text-muted-foreground" />
+          <ChevronRightIcon class="size-4 text-muted-foreground rtl:-scale-x-100" />
         </div>
       </div>
     </div>

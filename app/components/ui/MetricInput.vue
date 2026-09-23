@@ -33,7 +33,7 @@ const emit = defineEmits<{
            field, leaving the number itself a few pixels wide. -->
       <!-- Capped so a long count label like "can (~185g)" truncates instead of collapsing the
            input to zero width (which made those ingredients impossible to add to a meal). -->
-      <div class="border-l border-input flex h-full min-w-0 max-w-[55%] shrink-0 items-center px-3 sm:px-5" :title="unit">
+      <div class="border-s border-input flex h-full min-w-0 max-w-[55%] shrink-0 items-center px-3 sm:px-5" :title="unit">
         <span class="text-peach truncate whitespace-nowrap font-mono text-xs sm:text-sm">{{ unit }}</span>
       </div>
     </div>

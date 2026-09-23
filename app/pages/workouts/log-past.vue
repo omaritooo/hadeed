@@ -138,7 +138,7 @@ const save = async () => {
 <template>
   <div v-if="!isLoading" class="flex flex-col gap-y-4 px-4 py-4">
     <NuxtLink to="/workouts" class="flex items-center gap-1 text-sm text-muted-foreground">
-      <ArrowLeftIcon class="size-4" /> Workouts
+      <ArrowLeftIcon class="size-4 rtl:-scale-x-100" /> Workouts
     </NuxtLink>
     <h1 class="font-heading text-3xl font-semibold text-foreground">Log a past workout</h1>
 

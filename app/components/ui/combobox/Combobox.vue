@@ -53,7 +53,7 @@ const selectedLabel = computed(() => props.items.find((item) => item.value === m
           type="button"
           :class="
             cn(
-              'border-input bg-surface-strong flex h-14 w-full items-center justify-between gap-2 rounded-lg border px-4 text-left outline-none transition-transform duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+              'border-input bg-surface-strong flex h-14 w-full items-center justify-between gap-2 rounded-lg border px-4 text-start outline-none transition-transform duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
               'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3',
               props.class,
             )

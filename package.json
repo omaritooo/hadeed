@@ -13,7 +13,8 @@
     "db:classify-exercises": "tsx --env-file=.env server/database/classify-exercises.ts",
     "db:backfill-rep-ranges": "tsx --env-file=.env server/database/backfill-rep-ranges.ts",
     "db:backfill-prs": "tsx --env-file=.env server/database/backfill-personal-records.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint:rtl": "tsx scripts/lint-rtl.ts"
   },
   "dependencies": {
     "@artmizu/nuxt-prometheus": "^3.0.4",

@@ -486,7 +486,7 @@ const continueWorkout = async () => {
               >
                 +{{ preset }}
               </Button>
-              <div class="ml-auto flex items-center gap-x-1">
+              <div class="ms-auto flex items-center gap-x-1">
                 <Input
                   v-model="customHydrationAmount"
                   type="number"
@@ -607,7 +607,7 @@ const continueWorkout = async () => {
               </span>
             </span>
           </div>
-          <p v-if="pr.prTypes.length > 0" class="text-right font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
+          <p v-if="pr.prTypes.length > 0" class="text-end font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
             {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
           </p>
         </div>

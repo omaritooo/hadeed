@@ -53,7 +53,7 @@ watch(open, (isOpen) => {
             v-for="exercise in alternatives"
             :key="exercise.id"
             type="button"
-            class="flex items-center gap-3 rounded-xl border border-surface-strong bg-card p-3 text-left"
+            class="flex items-center gap-3 rounded-xl border border-surface-strong bg-card p-3 text-start"
             @click="previewExercise = exercise"
           >
             <div class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-popover">
@@ -73,7 +73,7 @@ watch(open, (isOpen) => {
         </template>
         <template v-else>
           <button type="button" class="flex items-center gap-1 text-sm text-muted-foreground" @click="backToList">
-            <ArrowLeftIcon class="size-4" /> Back
+            <ArrowLeftIcon class="size-4 rtl:-scale-x-100" /> Back
           </button>
           <ExerciseDetailContent :exercise-id="previewExercise.id" />
           <UiDrawerFooter>

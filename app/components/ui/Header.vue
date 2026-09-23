@@ -15,7 +15,7 @@ const { data: stats } = useHomeStats();
 
     <UiLogo />
 
-    <div class="flex items-center gap-1.5 rounded-full bg-popover py-1 pl-2 pr-3">
+    <div class="flex items-center gap-1.5 rounded-full bg-popover py-1 ps-2 pe-3">
       <ZapIcon class="size-3.5 text-primary" />
       <span
         class="font-mono text-xs flex gap-x-1 font-bold [font-variant-numeric:tabular-nums]"

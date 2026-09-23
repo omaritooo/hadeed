@@ -336,7 +336,7 @@ watch(logDrawerOpen, (open) => {
           aria-label="Previous day"
           @click="goToPreviousDay"
         >
-          <ChevronLeftIcon class="size-4.5 text-muted-foreground" />
+          <ChevronLeftIcon class="size-4.5 text-muted-foreground rtl:-scale-x-100" />
         </button>
         <span class="font-mono text-xs uppercase tracking-[1px] text-muted-foreground">{{ macrosSectionLabel }}</span>
         <button
@@ -345,7 +345,7 @@ watch(logDrawerOpen, (open) => {
           :disabled="isViewingToday"
           @click="goToNextDay"
         >
-          <ChevronRightIcon class="size-4.5 text-muted-foreground" />
+          <ChevronRightIcon class="size-4.5 text-muted-foreground rtl:-scale-x-100" />
         </button>
       </div>
 
@@ -450,9 +450,11 @@ watch(logDrawerOpen, (open) => {
           </UiDrawerHeader>
           <div class="space-y-6 overflow-y-auto px-4 pb-4">
             <div v-if="editingMealLogId === null" class="relative grid grid-cols-2 rounded-lg bg-popover p-1">
+              <!-- The grid reverses in Arabic, so the pill has to travel the other way: the
+                   inset follows the direction and `rtl:-translate-x-full` flips the slide. -->
               <div
-                class="absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-surface-strong transition-transform duration-200 ease-out"
-                :class="drawerMode === 'check' && 'translate-x-full'"
+                class="absolute inset-y-1 start-1 w-[calc(50%-0.25rem)] rounded-md bg-surface-strong transition-transform duration-200 ease-out"
+                :class="drawerMode === 'check' && 'translate-x-full rtl:-translate-x-full'"
               />
               <button
                 v-for="mode in (['log', 'check'] as const)"
@@ -486,7 +488,7 @@ watch(logDrawerOpen, (open) => {
                 <button
                   v-for="preset in presetMeals"
                   :key="preset.id"
-                  class="flex flex-col items-start gap-0.5 rounded-xl border border-surface-strong bg-card px-4 py-2.5 text-left transition-transform active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+                  class="flex flex-col items-start gap-0.5 rounded-xl border border-surface-strong bg-card px-4 py-2.5 text-start transition-transform active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
                   :disabled="logPresetMeal.isLoading.value"
                   @click="onQuickLogPreset(preset.id)"
                 >

@@ -29,8 +29,11 @@ const forwardedProps = useForwardProps(delegatedProps);
       class="relative flex items-center justify-center"
     >
       <slot>
+        <!-- Centred with `inset-x-0 mx-auto` rather than an inset-plus-translate pair, which
+             has no logical form. The old pair also sat the dot on the indicator's leading edge
+             rather than its middle, because it anchored the wrong side before translating. -->
         <CircleIcon
-          class="fill-primary absolute top-1/2 right-1/2 size-2 -translate-x-1/2 -translate-y-1/2"
+          class="fill-primary absolute top-1/2 inset-x-0 mx-auto size-2 -translate-y-1/2"
         />
       </slot>
     </RadioGroupIndicator>

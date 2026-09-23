@@ -464,7 +464,7 @@ const doneWithSummary = () => navigateTo("/workouts");
         class="flex items-start justify-between gap-3 text-sm"
       >
         <span class="min-w-0 text-foreground">{{ pr.exerciseName }}</span>
-        <span class="shrink-0 text-right">
+        <span class="shrink-0 text-end">
           <span class="block text-muted-foreground">{{ formatLoad(pr.weightKg, unitSystem) }} × {{ pr.reps }}</span>
           <span v-if="pr.prTypes.length > 0" class="block font-mono text-[10px] uppercase leading-tight tracking-[1px] text-muted-foreground">
             {{ formatPrTypes(pr.prTypes, pr.e1rmKg, unitSystem) }}
@@ -477,7 +477,7 @@ const doneWithSummary = () => navigateTo("/workouts");
       <p class="font-mono text-xs uppercase tracking-[1.2px] text-muted-foreground">Next time</p>
       <div v-for="entry in nextTime" :key="entry.name" class="flex items-start justify-between gap-3 text-sm">
         <span class="min-w-0 text-foreground">{{ entry.name }}</span>
-        <span class="shrink-0 text-right text-muted-foreground">&rarr; {{ entry.load }}</span>
+        <span class="shrink-0 text-end text-muted-foreground">&rarr; {{ entry.load }}</span>
       </div>
     </UiCard>
 
@@ -539,7 +539,7 @@ const doneWithSummary = () => navigateTo("/workouts");
         <template v-if="exercise.suggestionInfo && exercise.suggestion?.action !== 'first_time'">
           <button
             type="button"
-            class="block py-0.5 text-left font-mono text-xs uppercase tracking-[1.2px] text-foreground underline decoration-dotted underline-offset-4"
+            class="block py-0.5 text-start font-mono text-xs uppercase tracking-[1.2px] text-foreground underline decoration-dotted underline-offset-4"
             :aria-expanded="expandedReason[exercise.id] === true"
             @click="expandedReason[exercise.id] = !expandedReason[exercise.id]"
           >
@@ -569,7 +569,7 @@ const doneWithSummary = () => navigateTo("/workouts");
           </div>
           <div v-else class="flex w-full items-center gap-1">
             <button
-              class="flex flex-1 items-center gap-2 text-left text-sm"
+              class="flex flex-1 items-center gap-2 text-start text-sm"
               :class="set.isWarmup ? 'text-muted-foreground/50' : 'text-muted-foreground'"
               @click="startEdit(set)"
             >
@@ -581,8 +581,8 @@ const doneWithSummary = () => navigateTo("/workouts");
                 W
               </UiBadge>
               <span class="flex min-w-0 flex-1 items-center justify-end gap-1 [font-variant-numeric:tabular-nums]">
-                <span class="min-w-0 whitespace-nowrap text-right text-foreground">{{ set.weightKg ?? "–" }}kg × {{ set.reps ?? "–" }}</span>
-                <span class="w-14 shrink-0 whitespace-nowrap text-right">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
+                <span class="min-w-0 whitespace-nowrap text-end text-foreground">{{ set.weightKg ?? "–" }}kg × {{ set.reps ?? "–" }}</span>
+                <span class="w-14 shrink-0 whitespace-nowrap text-end">{{ set.rpe ? `RPE ${set.rpe}` : "RPE –" }}</span>
               </span>
             </button>
             <button
@@ -602,7 +602,7 @@ const doneWithSummary = () => navigateTo("/workouts");
       <div class="border-t border-surface-strong pt-3">
         <button
           v-if="exercise.sets.length > 0"
-          class="mb-2 block w-full text-right text-xs text-muted-foreground underline"
+          class="mb-2 block w-full text-end text-xs text-muted-foreground underline"
           :disabled="logSet.isLoading.value"
           @click="logSameAsLast(exercise.id)"
         >
@@ -675,7 +675,7 @@ const doneWithSummary = () => navigateTo("/workouts");
             <button
               v-if="exercise.suggestionInfo && exercise.suggestion?.action !== 'first_time'"
               type="button"
-              class="mt-1 block py-0.5 text-left font-mono text-xs uppercase tracking-[1.2px] text-foreground underline decoration-dotted underline-offset-4"
+              class="mt-1 block py-0.5 text-start font-mono text-xs uppercase tracking-[1.2px] text-foreground underline decoration-dotted underline-offset-4"
               :aria-expanded="expandedReason[exercise.id] === true"
               @click="expandedReason[exercise.id] = !expandedReason[exercise.id]"
             >

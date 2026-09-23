@@ -99,7 +99,7 @@ const handleSubmit = async () => {
       </p>
       <Button class="w-full" size="lg" :disabled="isLoading" @click="handleSubmit">
         Log In
-        <ArrowRightIcon class="size-4" />
+        <ArrowRightIcon class="size-4 rtl:-scale-x-100" />
       </Button>
 
       <p class="text-center text-sm text-muted-foreground">

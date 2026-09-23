@@ -113,7 +113,7 @@ const submit = async () => {
 <template>
   <main class="mx-auto flex max-w-xl flex-col gap-y-4 p-4">
     <NuxtLink to="/workouts" class="flex items-center gap-1 text-sm text-muted-foreground">
-      <ArrowLeftIcon class="size-4" /> Back
+      <ArrowLeftIcon class="size-4 rtl:-scale-x-100" /> Back
     </NuxtLink>
 
     <h1 class="font-heading text-2xl uppercase text-foreground">Edit Your Split</h1>

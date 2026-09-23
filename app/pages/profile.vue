@@ -459,7 +459,7 @@ const onLogout = async () => {
         >
           <div
             v-if="!card.unlocked"
-            class="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-popover"
+            class="absolute end-3 top-3 flex size-5 items-center justify-center rounded-full bg-popover"
           >
             <LockIcon class="size-3 text-muted-foreground" />
           </div>
@@ -470,7 +470,7 @@ const onLogout = async () => {
             {{ card.icon }}
           </div>
           <div class="space-y-0.5">
-            <p class="break-words pr-5 text-sm font-semibold text-foreground">{{ card.name }}</p>
+            <p class="break-words pe-5 text-sm font-semibold text-foreground">{{ card.name }}</p>
             <p class="text-xs leading-4 text-muted-foreground">{{ card.description }}</p>
           </div>
           <div v-if="!card.unlocked && card.progress" class="mt-1 space-y-1">

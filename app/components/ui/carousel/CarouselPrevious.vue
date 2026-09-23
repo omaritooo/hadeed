@@ -24,9 +24,11 @@ const { orientation, canScrollPrev, scrollPrev } = useCarousel()
     :disabled="!canScrollPrev"
     :class="cn(
       'absolute size-8 rounded-full',
+      // See CarouselNext: the horizontal pair follows the reading direction, the vertical one
+      // is centred with `inset-x-0 mx-auto` so nothing physical is left to mirror.
       orientation === 'horizontal'
-        ? 'top-1/2 -left-12 -translate-y-1/2'
-        : '-top-12 left-1/2 -translate-x-1/2 rotate-90',
+        ? 'top-1/2 -start-12 -translate-y-1/2'
+        : '-top-12 inset-x-0 mx-auto rotate-90',
       props.class,
     )"
     :variant="variant"
@@ -34,7 +36,7 @@ const { orientation, canScrollPrev, scrollPrev } = useCarousel()
     @click="scrollPrev"
   >
     <slot>
-      <ArrowLeft />
+      <ArrowLeft class="rtl:-scale-x-100" />
       <span class="sr-only">Previous Slide</span>
     </slot>
   </Button>

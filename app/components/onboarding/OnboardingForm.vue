@@ -215,7 +215,7 @@ const handleContinue = async () => {
       </p>
       <Button class="w-full" size="lg" :disabled="isLoading" @click="handleContinue">
         Continue
-        <ArrowRightIcon class="size-4" />
+        <ArrowRightIcon class="size-4 rtl:-scale-x-100" />
       </Button>
     </div>
   </div>
