@@ -9,7 +9,7 @@ import type { PersonalRecordRepository } from '~~/server/repositories/personal-r
 import { repRangeArgs } from '~~/server/repositories/rep-range-columns'
 import type { GamificationService } from '~~/server/services/gamification.service'
 import type { RequestContext } from '~~/shared/types/rbac.types'
-import type { PastSessionInput, PastSessionResult, SessionCompletionSummary, SetLog, WorkoutSession } from '~~/shared/types/session.types'
+import type { ExerciseLog, PastSessionInput, PastSessionResult, SessionCompletionSummary, SetLog, WorkoutSession } from '~~/shared/types/session.types'
 import { detectPersonalRecords } from '~~/shared/lib/personal-records'
 import { pastSessionTimestamps, validatePastSession } from '~~/shared/lib/past-session'
 import { suggestProgression } from '~~/shared/lib/progression'
@@ -75,6 +75,22 @@ export class SessionService extends BaseService {
       console.error('SessionService.withSuggestions failed; starting session without suggestions', { error })
       return exercises
     }
+  }
+
+  // Switches an exercise to its planned alternative before any set is logged on it. The
+  // suggestion is recomputed for the exercise now being performed, from that exercise's own
+  // history, with the same prescription.
+  async swapExercise(sessionId: string, exerciseLogId: string, toExerciseId: string): Promise<ExerciseLog> {
+    await this.requireOwnedSession(sessionId)
+    const exercise = await this.sessions.findExerciseLog(exerciseLogId)
+    if (!exercise || exercise.sessionId !== sessionId) throw createError({ statusCode: 404, statusMessage: 'Exercise log not found' })
+
+    const [withSuggestion] = await this.withSuggestions([{ ...exercise, exerciseId: toExerciseId, suggestion: null }])
+    const result = await this.sessions.swapExercise(exerciseLogId, toExerciseId, withSuggestion?.suggestion ?? null)
+    if (result.status === 'conflict') {
+      throw createError({ statusCode: 409, statusMessage: 'This exercise can no longer be swapped' })
+    }
+    return result.exercise
   }
 
   private async requireOwnedSession(sessionId: string) {

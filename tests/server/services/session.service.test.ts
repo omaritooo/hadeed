@@ -239,6 +239,55 @@ describe('SessionService.startSession', () => {
     expect((await sessions.findWithLogs('s1'))!.exercises[0]!.suggestion).toMatchObject({ action: 'first_time', repsMin: 8, repsMax: 8 })
   })
 
+  describe('swapExercise', () => {
+    beforeEach(async () => {
+      await db.execute(`INSERT INTO exercises (id, name, equipment, movement_pattern, instructions) VALUES ('db-bench', 'Dumbbell Bench Press', 'dumbbell', 'horizontal_push', '[]')`)
+    })
+
+    it('swaps to the alternative with a suggestion computed from its own history', async () => {
+      // A previous session of the alternative at the top of the range, so its suggestion is an increase.
+      await service.startSession({ id: 's0', splitDayId: null, exercises: [{ ...exercise('e0'), exerciseId: 'db-bench' }] })
+      for (const n of [1, 2, 3]) await sessions.logSet({ id: `set-${n}`, exerciseLogId: 'e0', setNumber: n, weightKg: 20, reps: 10, rpe: null })
+      await sessions.completeSession('s0', 1)
+
+      await service.startSession({ id: 's1', splitDayId: null, exercises: [{ ...exercise('e1'), alternativeExerciseId: 'db-bench' }] })
+      const swapped = await service.swapExercise('s1', 'e1', 'db-bench')
+
+      expect(swapped).toMatchObject({ exerciseId: 'db-bench', alternativeExerciseId: 'bench-press' })
+      expect(swapped.suggestion).toMatchObject({ action: 'increase' })
+    })
+
+    it('returns the log unchanged for a replayed swap', async () => {
+      await service.startSession({ id: 's1', splitDayId: null, exercises: [{ ...exercise('e1'), alternativeExerciseId: 'db-bench' }] })
+      await service.swapExercise('s1', 'e1', 'db-bench')
+
+      expect((await service.swapExercise('s1', 'e1', 'db-bench')).exerciseId).toBe('db-bench')
+    })
+
+    it('rejects with 409 once a set is logged', async () => {
+      await service.startSession({ id: 's1', splitDayId: null, exercises: [{ ...exercise('e1'), alternativeExerciseId: 'db-bench' }] })
+      await sessions.logSet({ id: 'set-1', exerciseLogId: 'e1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
+
+      await expect(service.swapExercise('s1', 'e1', 'db-bench')).rejects.toMatchObject({ statusCode: 409 })
+    })
+
+    it('rejects with 404 for an exercise log from another session', async () => {
+      await service.startSession({ id: 's1', splitDayId: null, exercises: [{ ...exercise('e1'), alternativeExerciseId: 'db-bench' }] })
+      await sessions.completeSession('s1', 1)
+      await service.startSession({ id: 's2', splitDayId: null, exercises: [exercise('e2')] })
+
+      await expect(service.swapExercise('s2', 'e1', 'db-bench')).rejects.toMatchObject({ statusCode: 404 })
+    })
+
+    it("rejects another user's session", async () => {
+      await service.startSession({ id: 's1', splitDayId: null, exercises: [{ ...exercise('e1'), alternativeExerciseId: 'db-bench' }] })
+      await db.execute({ sql: 'INSERT INTO users (id, email) VALUES (?, ?)', args: ['user-2', 'b@example.com'] })
+      const other = new SessionService(ctx('user-2'), sessions, new BlockRepository(db), {} as never, new PersonalRecordRepository(db))
+
+      await expect(other.swapExercise('s1', 'e1', 'db-bench')).rejects.toMatchObject({ statusCode: 403 })
+    })
+  })
+
   it('still starts the session when loading history throws', async () => {
     vi.spyOn(sessions, 'findRecentWorkingSets').mockRejectedValueOnce(new Error('db down'))
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
