@@ -5,7 +5,8 @@ import type { Exercise } from "~~/shared/types/exercise.types";
 
 // Mount one shared instance and toggle exerciseId/open — same pattern as
 // ExerciseDetailDrawer — do not mount per-row in a list (queries fire eagerly on mount).
-const props = defineProps<{ exerciseId: string; equipmentTiers: string[] }>();
+// `title` lets the builder reuse this sheet to pick a row's alternative rather than replace it.
+const props = withDefaults(defineProps<{ exerciseId: string; equipmentTiers: string[]; title?: string }>(), { title: "Swap Exercise" });
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ select: [exercise: Exercise] }>();
 
@@ -43,7 +44,7 @@ watch(open, (isOpen) => {
     <UiDrawerContent>
       <div class="flex flex-col gap-4 overflow-y-auto p-5 pt-6">
         <template v-if="!previewExercise">
-          <UiDrawerTitle class="font-heading text-2xl uppercase text-foreground">Swap Exercise</UiDrawerTitle>
+          <UiDrawerTitle class="font-heading text-2xl uppercase text-foreground">{{ title }}</UiDrawerTitle>
 
           <p v-if="isLoading" class="text-sm text-muted-foreground">Finding alternatives…</p>
           <p v-else-if="error" class="text-sm text-muted-foreground">Couldn't load alternatives.</p>

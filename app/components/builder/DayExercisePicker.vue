@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeftRightIcon, TrashIcon } from "@lucide/vue";
+import { ArrowLeftRightIcon, TrashIcon, XIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
@@ -119,14 +119,22 @@ const removeExercise = (index: number) => {
 // would shift indices) can happen while the sheet is open. If the drawer ever becomes
 // non-modal, this needs a defensive check instead (e.g. confirming
 // exercises.value[index]?.exerciseId === swapExerciseId.value before applying).
+// The same sheet also picks a row's alternative (its planned backup, swappable to mid-workout):
+// the suggestions are the same either way, only what happens on select differs.
 const swapSheetOpen = ref(false);
 const swapRowIndex = ref<number | null>(null);
 const swapExerciseId = ref("");
+const swapMode = ref<"replace" | "alternative">("replace");
 
-const openSwapSheet = (index: number) => {
+const openSwapSheet = (index: number, mode: "replace" | "alternative" = "replace") => {
   swapRowIndex.value = index;
   swapExerciseId.value = exercises.value[index]!.exerciseId;
+  swapMode.value = mode;
   swapSheetOpen.value = true;
+};
+
+const removeAlternative = (index: number) => {
+  exercises.value = exercises.value.map((item, i) => (i === index ? { ...item, alternativeExerciseId: null } : item));
 };
 
 // Keeps min <= max as either end moves, rather than rejecting the edit: raising min past max
@@ -147,8 +155,13 @@ const setRepsMax = (exercise: CreateSplitExerciseInput, value: string | number) 
 const onSwapSelect = (exercise: Exercise) => {
   const index = swapRowIndex.value;
   if (index === null) return;
-  // Replace exerciseId in place — targetSets/targetRepsMin/targetRepsMax/position on the row are untouched.
-  exercises.value = exercises.value.map((item, i) => (i === index ? { ...item, exerciseId: exercise.id } : item));
+  exercises.value = exercises.value.map((item, i) => {
+    if (i !== index) return item;
+    if (swapMode.value === "alternative") return { ...item, alternativeExerciseId: exercise.id };
+    // Replace exerciseId in place — targetSets/targetRepsMin/targetRepsMax/position on the row are
+    // untouched. Swapping onto the row's own alternative leaves nothing to fall back to, so it's cleared.
+    return { ...item, exerciseId: exercise.id, alternativeExerciseId: item.alternativeExerciseId === exercise.id ? null : item.alternativeExerciseId };
+  });
   exerciseNames.value[exercise.id] = exercise.name;
   exerciseCatalogCache.value.set(exercise.id, exercise);
   swapRowIndex.value = null;
@@ -178,6 +191,32 @@ const onSwapSelect = (exercise: Exercise) => {
         <ArrowLeftRightIcon class="size-4 text-muted-foreground" />
       </button>
       <button aria-label="Remove exercise" @click="removeExercise(index)"><TrashIcon class="size-4 text-muted-foreground" /></button>
+      <!-- The planned backup for when this exercise isn't possible on the day, swappable to from
+           the workout screen. Needs equipment for the same reason the swap button does. -->
+      <div class="col-span-3 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <template v-if="exercise.alternativeExerciseId">
+          <button
+            class="min-w-0 truncate text-start disabled:pointer-events-none"
+            :disabled="!!pendingSubstitution || fallbackEquipmentValues.length === 0"
+            aria-label="Change alternative"
+            @click="openSwapSheet(index, 'alternative')"
+          >
+            Alt: <span class="text-foreground">{{ exerciseName(exercise.alternativeExerciseId) }}</span>
+          </button>
+          <button aria-label="Remove alternative" class="shrink-0" @click="removeAlternative(index)">
+            <XIcon class="size-3.5" />
+          </button>
+        </template>
+        <button
+          v-else
+          class="underline underline-offset-4 disabled:pointer-events-none disabled:opacity-50"
+          :disabled="!!pendingSubstitution || fallbackEquipmentValues.length === 0"
+          :title="fallbackEquipmentValues.length === 0 ? 'Set your equipment in your profile to pick an alternative' : undefined"
+          @click="openSwapSheet(index, 'alternative')"
+        >
+          + Alternative
+        </button>
+      </div>
       <div class="col-span-3 flex items-center gap-2 text-xs text-muted-foreground">
         <Input
           :model-value="exercise.targetSets ?? ''"
@@ -252,6 +291,7 @@ const onSwapSelect = (exercise: Exercise) => {
       v-model:open="swapSheetOpen"
       :exercise-id="swapExerciseId"
       :equipment-tiers="fallbackEquipmentValues"
+      :title="swapMode === 'alternative' ? 'Pick Alternative' : 'Swap Exercise'"
       @select="onSwapSelect"
     />
 

@@ -26,7 +26,10 @@ const exerciseIds = computed(() => {
   if (!block.value) return [];
   const ids = new Set<string>();
   for (const day of block.value.days) {
-    for (const exercise of day.exercises) ids.add(exercise.exerciseId);
+    for (const exercise of day.exercises) {
+      ids.add(exercise.exerciseId);
+      if (exercise.alternativeExerciseId) ids.add(exercise.alternativeExerciseId);
+    }
   }
   return [...ids];
 });
@@ -68,6 +71,7 @@ watch(block, (loaded) => {
       targetRepsMax: exercise.targetRepsMax,
       targetRpe: exercise.targetRpe,
       restSeconds: exercise.restSeconds,
+      alternativeExerciseId: exercise.alternativeExerciseId,
     })),
   }));
   confirmName.value = loaded.name;
