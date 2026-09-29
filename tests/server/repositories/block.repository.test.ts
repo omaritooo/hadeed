@@ -41,6 +41,35 @@ describe('BlockRepository', () => {
     expect(full?.days[0]?.exercises[0]?.exerciseId).toBe('bench-press')
   })
 
+  it('stores an optional alternative exercise per split exercise', async () => {
+    await db.execute({
+      sql: `INSERT INTO exercises (id, name, category, equipment, force, level, mechanic, instructions)
+            VALUES ('db-bench', 'Dumbbell Bench Press', 'strength', 'dumbbell', 'push', 'beginner', 'compound', '[]')`,
+    })
+    const block = await repo.createWithDays('user-1', {
+      programId: null,
+      name: 'Push',
+      startDate: '2026-08-18',
+      endDate: null,
+      trainingDayMacroTarget: null,
+      restDayMacroTarget: null,
+      days: [
+        {
+          name: 'Push',
+          dayOfWeek: 1,
+          location: 'gym',
+          exercises: [
+            { exerciseId: 'bench-press', alternativeExerciseId: 'db-bench', position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
+            { exerciseId: 'db-bench', position: 1, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
+          ],
+        },
+      ],
+    })
+
+    const exercises = (await repo.findWithDays(block.id))?.days[0]?.exercises
+    expect(exercises?.map(e => e.alternativeExerciseId)).toEqual(['db-bench', null])
+  })
+
   it('creates a circuit day with rounds and a per-exercise rest_seconds', async () => {
     const block = await repo.createWithDays('user-1', {
       programId: null,

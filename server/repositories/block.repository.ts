@@ -12,6 +12,7 @@ export interface CreateSplitExerciseInput {
   targetRepsMax: number | null
   targetRpe: number | null
   restSeconds?: number | null
+  alternativeExerciseId?: string | null
 }
 
 export interface CreateSplitDayInput {
@@ -94,9 +95,9 @@ export class BlockRepository {
 
       for (const exercise of day.exercises) {
         await this.db.execute({
-          sql: `INSERT INTO split_exercises (split_day_id, exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [dayId, exercise.exerciseId, exercise.position, exercise.setType, exercise.targetSets ?? null, ...repRangeArgs(exercise), exercise.targetRpe ?? null, exercise.restSeconds ?? null],
+          sql: `INSERT INTO split_exercises (split_day_id, exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds, alternative_exercise_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [dayId, exercise.exerciseId, exercise.position, exercise.setType, exercise.targetSets ?? null, ...repRangeArgs(exercise), exercise.targetRpe ?? null, exercise.restSeconds ?? null, exercise.alternativeExerciseId ?? null],
         })
       }
     }
@@ -147,6 +148,7 @@ export class BlockRepository {
             ...repRangeFromRow(ex),
             targetRpe: ex.target_rpe as number | null,
             restSeconds: ex.rest_seconds as number | null,
+            alternativeExerciseId: ex.alternative_exercise_id as string | null,
           }
         })
         return {

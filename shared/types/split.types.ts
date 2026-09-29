@@ -50,4 +50,6 @@ export interface SplitExercise {
   targetReps?: number | null
   targetRpe: number | null
   restSeconds: number | null
+  // Optional planned backup, swappable to mid-session. See split_exercises.alternative_exercise_id.
+  alternativeExerciseId: string | null
 }

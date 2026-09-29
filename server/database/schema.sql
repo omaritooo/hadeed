@@ -208,6 +208,10 @@ CREATE TABLE IF NOT EXISTS split_exercises (
 
 ALTER TABLE split_exercises ADD COLUMN rest_seconds INTEGER;
 
+-- The lifter's planned backup for this exercise (bench taken, machine broken). Snapshotted onto
+-- exercise_logs at session start (see exercise_logs.alternative_exercise_id).
+ALTER TABLE split_exercises ADD COLUMN alternative_exercise_id TEXT REFERENCES exercises(id);
+
 -- Preset splits: admin-managed catalog, independent of any user's Block.
 
 CREATE TABLE IF NOT EXISTS preset_splits (
@@ -354,6 +358,12 @@ ALTER TABLE exercise_logs ADD COLUMN suggested_reps_min INTEGER;
 ALTER TABLE exercise_logs ADD COLUMN suggested_reps_max INTEGER;
 ALTER TABLE exercise_logs ADD COLUMN suggestion_action TEXT CHECK (suggestion_action IN ('increase','hold','reduce','first_time'));
 ALTER TABLE exercise_logs ADD COLUMN suggestion_reason TEXT;
+
+-- Snapshotted from split_exercises.alternative_exercise_id at session start, so the session page
+-- knows it offline and a later split edit doesn't change a running session. A mid-session swap
+-- exchanges this with exercise_id, so exercise_id is always what was actually performed and
+-- history, PRs and volume need no special case. Swapping again restores the original.
+ALTER TABLE exercise_logs ADD COLUMN alternative_exercise_id TEXT REFERENCES exercises(id);
 
 CREATE TABLE IF NOT EXISTS set_logs (
   id               TEXT PRIMARY KEY,
