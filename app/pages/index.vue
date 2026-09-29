@@ -219,6 +219,7 @@ const startTodaysWorkout = async () => {
         targetRepsMax: exercise.targetRepsMax,
         targetRpe: exercise.targetRpe,
         restSeconds: exercise.restSeconds,
+        alternativeExerciseId: exercise.alternativeExerciseId,
       })),
     });
     await navigateTo(`/workouts/session/${session.id}`);

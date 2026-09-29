@@ -86,6 +86,23 @@ describe('WorkoutsService', () => {
     })
   })
 
+  it("passes each exercise's alternative through todaysWorkout", async () => {
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('goblet-squat', 'Goblet Squat', '[]')" })
+    await blocks.createWithDays('user-1', {
+      programId: null, name: 'Block', startDate: '2020-01-01', endDate: null,
+      trainingDayMacroTarget: null, restDayMacroTarget: null,
+      days: [
+        { name: 'Legs', dayOfWeek: 0, location: 'gym', exercises: [
+          { exerciseId: 'squat', alternativeExerciseId: 'goblet-squat', position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 5, targetRepsMax: 5, targetRpe: null },
+          { exerciseId: 'goblet-squat', position: 1, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
+        ] },
+      ],
+    })
+
+    const exercises = (await service.getSummary()).todaysWorkout?.exercises
+    expect(exercises?.map(e => e.alternativeExerciseId)).toEqual(['goblet-squat', null])
+  })
+
   it('enriches todaysWorkout exercises with catalog details and last-performed history', async () => {
     const muscles = new MuscleRepository(db)
     const chest = await muscles.getOrCreate('chest')

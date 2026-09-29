@@ -15,6 +15,7 @@ export interface TodaysWorkoutExercise {
   targetReps?: number | null
   targetRpe: number | null
   restSeconds: number | null
+  alternativeExerciseId: string | null
   thumbnailUrl: string | null
   primaryMuscle: string | null
   lastPerformed: { weightKg: number, reps: number, date: string } | null

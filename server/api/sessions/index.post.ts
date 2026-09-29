@@ -34,6 +34,7 @@ defineRouteMeta({
                     targetReps: { type: 'number', nullable: true, deprecated: true, description: 'Accepted for older app builds only. Used as both targetRepsMin and targetRepsMax when those are absent.' },
                     targetRpe: { type: 'number', nullable: true },
                     restSeconds: { type: 'number', nullable: true },
+                    alternativeExerciseId: { type: 'string', nullable: true, description: 'The planned backup, swappable to via POST /api/sessions/{id}/exercises/{logId}/swap until a set is logged.' },
                   },
                 },
               },
