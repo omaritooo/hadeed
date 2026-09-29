@@ -245,6 +245,74 @@ describe('SessionRepository logging', () => {
   })
 })
 
+describe('SessionRepository exercise alternatives', () => {
+  let db: Client
+  let repo: SessionRepository
+  const increase = { action: 'increase', reason: 'all_sets_top_of_range', weightKg: 25, repsMin: 8, repsMax: 10 } as const
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    repo = new SessionRepository(db)
+    await seedUserAndBlock(db)
+    await db.execute({ sql: "INSERT INTO exercises (id, name, instructions) VALUES ('db-bench', 'Dumbbell Bench Press', '[]')" })
+    await repo.startSession('user-1', {
+      id: 'session-1',
+      splitDayId: 1,
+      exercises: [
+        { id: 'exlog-1', exerciseId: 'bench-press', alternativeExerciseId: 'db-bench', splitExerciseId: 1, position: 0, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
+        { id: 'exlog-2', exerciseId: 'db-bench', splitExerciseId: null, position: 1, setType: 'weight_reps', targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null },
+      ],
+    })
+  })
+
+  it('snapshots the alternative and reads its name', async () => {
+    const [withAlt, withoutAlt] = (await repo.findWithLogs('session-1'))!.exercises
+    expect(withAlt).toMatchObject({ alternativeExerciseId: 'db-bench', alternativeExerciseName: 'Dumbbell Bench Press' })
+    expect(withoutAlt).toMatchObject({ alternativeExerciseId: null, alternativeExerciseName: null })
+  })
+
+  it('swaps by exchanging the exercise and its alternative, and re-snapshots the suggestion', async () => {
+    const result = await repo.swapExercise('exlog-1', 'db-bench', increase)
+    expect(result.status).toBe('swapped')
+    const exercise = (await repo.findWithLogs('session-1'))!.exercises[0]
+    expect(exercise).toMatchObject({
+      exerciseId: 'db-bench',
+      exerciseName: 'Dumbbell Bench Press',
+      alternativeExerciseId: 'bench-press',
+      alternativeExerciseName: 'Bench Press',
+      suggestion: increase,
+    })
+  })
+
+  it('swaps back to the original, clearing a suggestion that no longer applies', async () => {
+    await repo.swapExercise('exlog-1', 'db-bench', increase)
+    await repo.swapExercise('exlog-1', 'bench-press', null)
+    const exercise = (await repo.findWithLogs('session-1'))!.exercises[0]
+    expect(exercise).toMatchObject({ exerciseId: 'bench-press', alternativeExerciseId: 'db-bench', suggestion: null })
+  })
+
+  it('treats a replayed swap as already done', async () => {
+    await repo.swapExercise('exlog-1', 'db-bench', increase)
+    const replay = await repo.swapExercise('exlog-1', 'db-bench', increase)
+    expect(replay.status).toBe('unchanged')
+    expect((await repo.findWithLogs('session-1'))!.exercises[0]!.exerciseId).toBe('db-bench')
+  })
+
+  it('refuses once a set is logged on the exercise', async () => {
+    await repo.logSet({ id: 'set-1', exerciseLogId: 'exlog-1', setNumber: 1, weightKg: 60, reps: 8, rpe: null })
+    expect((await repo.swapExercise('exlog-1', 'db-bench', null)).status).toBe('conflict')
+  })
+
+  it('refuses an exercise that is not the alternative', async () => {
+    expect((await repo.swapExercise('exlog-2', 'bench-press', null)).status).toBe('conflict')
+  })
+
+  it('refuses once the session is no longer in progress', async () => {
+    await repo.completeSession('session-1', 1)
+    expect((await repo.swapExercise('exlog-1', 'db-bench', null)).status).toBe('conflict')
+  })
+})
+
 describe('SessionRepository idempotent replay', () => {
   let db: Client
   let repo: SessionRepository

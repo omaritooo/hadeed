@@ -14,6 +14,16 @@ import type { ProgressionSuggestion, SuggestionAction, SuggestionReason, Working
 
 const ABANDON_AFTER_HOURS = 12
 
+// An exercise log with the display names of both its exercise and its alternative.
+const EXERCISE_LOG_SELECT = `SELECT exercise_logs.*, exercises.name AS exercise_name, alt.name AS alternative_exercise_name
+            FROM exercise_logs
+            LEFT JOIN exercises ON exercises.id = exercise_logs.exercise_id
+            LEFT JOIN exercises alt ON alt.id = exercise_logs.alternative_exercise_id`
+
+export type SwapExerciseResult =
+  | { status: 'swapped' | 'unchanged', exercise: ExerciseLog }
+  | { status: 'conflict' }
+
 export interface StartSessionExerciseInput {
   id: string
   exerciseId: string
@@ -25,6 +35,8 @@ export interface StartSessionExerciseInput {
   targetRepsMax: number | null
   targetRpe: number | null
   restSeconds?: number | null
+  // The split exercise's planned backup, snapshotted like restSeconds. See exercise_logs.alternative_exercise_id.
+  alternativeExerciseId?: string | null
   // Snapshotted as-suggested at session start, same as restSeconds. Older app builds don't send
   // it, so the columns stay null and the log reports no suggestion.
   suggestion?: ProgressionSuggestion | null
@@ -133,6 +145,8 @@ export class SessionRepository {
       ...repRangeFromRow(row),
       targetRpe: row.target_rpe as number | null,
       restSeconds: row.rest_seconds as number | null,
+      alternativeExerciseId: (row.alternative_exercise_id as string | null | undefined) ?? null,
+      alternativeExerciseName: (row.alternative_exercise_name as string | undefined) ?? null,
       // suggestion_action is the presence flag: it and the rep ends are always written together,
       // so a row without an action was logged before/without a suggestion rather than partially.
       suggestion: row.suggestion_action
@@ -192,8 +206,8 @@ export class SessionRepository {
     const suggestion = exercise.suggestion
     try {
       const inserted = await this.db.execute({
-        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds, suggested_weight_kg, suggested_reps_min, suggested_reps_max, suggestion_action, suggestion_reason)
-              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        sql: `INSERT INTO exercise_logs (id, session_id, exercise_id, split_exercise_id, position, set_type, target_sets, target_reps, target_reps_min, target_reps_max, target_rpe, rest_seconds, suggested_weight_kg, suggested_reps_min, suggested_reps_max, suggestion_action, suggestion_reason, alternative_exercise_id)
+              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
               WHERE EXISTS (SELECT 1 FROM workout_sessions WHERE id = ? AND status = 'in_progress')
               RETURNING id`,
         args: [
@@ -212,6 +226,7 @@ export class SessionRepository {
           suggestion?.repsMax ?? null,
           suggestion?.action ?? null,
           suggestion?.reason ?? null,
+          exercise.alternativeExerciseId ?? null,
           session.id,
         ],
       })
@@ -281,9 +296,7 @@ export class SessionRepository {
     if (!session) return null
 
     const exercisesResult = await this.db.execute({
-      sql: `SELECT exercise_logs.*, exercises.name AS exercise_name
-            FROM exercise_logs
-            LEFT JOIN exercises ON exercises.id = exercise_logs.exercise_id
+      sql: `${EXERCISE_LOG_SELECT}
             WHERE exercise_logs.session_id = ?
             ORDER BY exercise_logs.position`,
       args: [sessionId],
@@ -327,6 +340,48 @@ export class SessionRepository {
       map: row => this.mapSetLog(row),
     })
     return { setLog: value, alreadyLogged: alreadyExisted }
+  }
+
+  async findExerciseLog(exerciseLogId: string): Promise<ExerciseLog | null> {
+    const result = await this.db.execute({ sql: `${EXERCISE_LOG_SELECT} WHERE exercise_logs.id = ?`, args: [exerciseLogId] })
+    const row = result.rows[0] as unknown as Record<string, unknown> | undefined
+    return row ? this.mapExerciseLog(row) : null
+  }
+
+  /**
+   * Switches an exercise log to its planned alternative by exchanging exercise_id with
+   * alternative_exercise_id -- SQLite evaluates every SET right-hand side against the pre-update
+   * row -- so swapping again restores the original. Only while nothing is logged against it and
+   * its session is running: a log holding sets of two exercises would corrupt history and PRs.
+   * The suggestion is re-snapshotted, since the old one was computed for the other exercise.
+   */
+  async swapExercise(exerciseLogId: string, toExerciseId: string, suggestion: ProgressionSuggestion | null): Promise<SwapExerciseResult> {
+    const updated = await this.db.execute({
+      sql: `UPDATE exercise_logs
+            SET exercise_id = alternative_exercise_id,
+                alternative_exercise_id = exercise_id,
+                suggested_weight_kg = ?, suggested_reps_min = ?, suggested_reps_max = ?, suggestion_action = ?, suggestion_reason = ?
+            WHERE id = ?
+              AND alternative_exercise_id = ?
+              AND NOT EXISTS (SELECT 1 FROM set_logs WHERE exercise_log_id = exercise_logs.id)
+              AND EXISTS (SELECT 1 FROM workout_sessions WHERE id = exercise_logs.session_id AND status = 'in_progress')
+            RETURNING id`,
+      args: [
+        suggestion?.weightKg ?? null,
+        suggestion?.repsMin ?? null,
+        suggestion?.repsMax ?? null,
+        suggestion?.action ?? null,
+        suggestion?.reason ?? null,
+        exerciseLogId,
+        toExerciseId,
+      ],
+    })
+    const exercise = await this.findExerciseLog(exerciseLogId)
+    if (!exercise) return { status: 'conflict' }
+    if (updated.rows.length > 0) return { status: 'swapped', exercise }
+    // A replay of a swap that already landed (its first response was lost) is a success, not a
+    // conflict: the log is on the exercise the lifter asked for.
+    return exercise.exerciseId === toExerciseId ? { status: 'unchanged', exercise } : { status: 'conflict' }
   }
 
   async addFreeformExercise(input: AddFreeformExerciseInput): Promise<ExerciseLog> {

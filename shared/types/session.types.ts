@@ -33,6 +33,10 @@ export interface ExerciseLog {
   targetReps?: number | null
   targetRpe: number | null
   restSeconds: number | null
+  // The planned backup, swappable to until a set is logged. A swap exchanges it with exerciseId,
+  // so exerciseId is always what was performed.
+  alternativeExerciseId: string | null
+  alternativeExerciseName: string | null
   // What progression suggested for this exercise when the session started, snapshotted so a
   // past session still shows the advice it was logged against.
   suggestion: ProgressionSuggestion | null
