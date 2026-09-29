@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
+import { ArrowLeftRightIcon, CheckIcon, InfoIcon, Trash2Icon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { localCompletionSummary } from "~~/app/lib/session-sync";
 import { prefillForSet, suggestProgression } from "~~/shared/lib/progression";
@@ -16,6 +16,7 @@ const logSet = useLogSet();
 const completeSession = useCompleteSession();
 const editSetLog = useEditSetLog();
 const deleteSetLog = useDeleteSetLog();
+const swapExercise = useSwapExercise();
 
 const { data: profile } = useProfile();
 const unitSystem = computed(() => profile.value?.profile?.unitSystem ?? "metric");
@@ -288,6 +289,26 @@ const deleteSet = async (set: SetLog) => {
   }
 };
 
+// Offered only before a set is logged on the exercise (pending sets included), matching the
+// server, which refuses to mix two exercises' sets in one log.
+const canSwap = (exercise: SetsByExercise) => !!exercise.alternativeExerciseId && exercise.sets.length === 0;
+
+const swapErrors = reactive<Record<string, string | null>>({});
+const swapToAlternative = async (exercise: SetsByExercise) => {
+  if (!exercise.alternativeExerciseId) return;
+  swapErrors[exercise.id] = null;
+  try {
+    await swapExercise.mutateAsync({ sessionId: sessionId.value, exerciseLogId: exercise.id, toExerciseId: exercise.alternativeExerciseId });
+    // The draft was seeded from the other exercise's history. Emptying it lets the seeding
+    // watcher refill it from the new exercise's once that history loads.
+    drafts[exercise.id] = { weightKg: "", reps: "", rpe: "", isWarmup: false };
+    seededDrafts.delete(exercise.id);
+  } catch {
+    // Queued, never sent from here, so only IndexedDB refusing the op lands here.
+    swapErrors[exercise.id] = "Couldn't swap on this device. Please try again.";
+  }
+};
+
 const submitSet = async (exerciseLogId: string, values: { weightKg: string, reps: string, rpe: string, isWarmup: boolean }) => {
   const exercise = session.value?.exercises.find(e => e.id === exerciseLogId);
   if (!exercise) return false;
@@ -547,6 +568,17 @@ const doneWithSummary = () => navigateTo("/workouts");
           </button>
           <p v-if="expandedReason[exercise.id]" class="text-xs text-muted-foreground">{{ exercise.suggestionInfo.reason }}</p>
         </template>
+        <button
+          v-if="canSwap(exercise)"
+          type="button"
+          class="flex items-center gap-1.5 py-0.5 text-start text-xs text-muted-foreground underline underline-offset-4"
+          :disabled="swapExercise.isLoading.value"
+          @click="swapToAlternative(exercise)"
+        >
+          <ArrowLeftRightIcon class="size-3.5 shrink-0" />
+          Swap to {{ exercise.alternativeExerciseName ?? exercise.alternativeExerciseId }}
+        </button>
+        <p v-if="swapErrors[exercise.id]" class="text-sm text-destructive">{{ swapErrors[exercise.id] }}</p>
       </div>
 
       <div class="space-y-2">
@@ -684,6 +716,17 @@ const doneWithSummary = () => navigateTo("/workouts");
             <p v-if="exercise.suggestionInfo && expandedReason[exercise.id]" class="mt-1 text-xs text-muted-foreground">
               {{ exercise.suggestionInfo.reason }}
             </p>
+            <button
+              v-if="canSwap(exercise)"
+              type="button"
+              class="mt-1 flex items-center gap-1.5 py-0.5 text-start text-xs text-muted-foreground underline underline-offset-4"
+              :disabled="swapExercise.isLoading.value"
+              @click="swapToAlternative(exercise)"
+            >
+              <ArrowLeftRightIcon class="size-3.5 shrink-0" />
+              Swap to {{ exercise.alternativeExerciseName ?? exercise.alternativeExerciseId }}
+            </button>
+            <p v-if="swapErrors[exercise.id]" class="mt-1 text-sm text-destructive">{{ swapErrors[exercise.id] }}</p>
 
             <div v-if="!circuitComplete && index === circuitCurrentExerciseIndex" class="mt-3 border-t border-surface-strong pt-3">
               <SessionSetFields

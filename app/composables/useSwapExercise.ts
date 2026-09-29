@@ -12,8 +12,8 @@ export interface SwapExercisePayload {
 export const useSwapExercise = () => {
   const outbox = useOutbox()
 
-  return useMutation<void, SwapExercisePayload>({
-    mutation: async ({ sessionId, ...payload }) => {
+  return useMutation({
+    mutation: async ({ sessionId, ...payload }: SwapExercisePayload) => {
       await outbox.add({ kind: 'swap_exercise', sessionId, payload })
     },
   })

@@ -14,7 +14,7 @@ const session = (): WorkoutSessionWithLogs => ({
   exercises: [{
     id: 'e1', sessionId: 's1', exerciseId: 'bench', exerciseName: 'Bench', splitExerciseId: null, position: 0, setType: 'weight_reps',
     targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null, restSeconds: null, alternativeExerciseId: 'db-bench', alternativeExerciseName: 'DB Bench',
-    suggestion: { action: 'hold', reason: 'in_range', weightKg: 50, repsMin: 8, repsMax: 10 },
+    suggestion: { action: 'hold', reason: 'building_reps', weightKg: 50, repsMin: 8, repsMax: 10 },
     sets: [{ id: 'synced', exerciseLogId: 'e1', setNumber: 2, weightKg: 50, reps: 8, rpe: null, isWarmup: false, loggedAt: '2026-09-14 10:01:00', version: 3 }],
   }],
 })
