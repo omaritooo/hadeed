@@ -97,9 +97,10 @@ describe('describeOp', () => {
     expect(describeOp(editSet({ isWarmup: true }), 'metric')).toBe('Set correction')
   })
 
-  it('names deletes and completions', () => {
+  it('names deletes, completions and swaps', () => {
     expect(describeOp(deleteSet(), 'metric')).toBe('Deleted set')
     expect(describeOp(completion(), 'metric')).toBe('Finish workout')
+    expect(describeOp({ ...base(), kind: 'swap_exercise', payload: { exerciseLogId: 'e1', toExerciseId: 'db-bench' } } as OutboxOp, 'metric')).toBe('Swapped exercise')
   })
 })
 

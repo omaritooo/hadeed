@@ -1,5 +1,5 @@
 import type { OutboxOp } from '~~/app/lib/outbox'
-import type { SessionCompletionSummary, SetLog } from '~~/shared/types/session.types'
+import type { ExerciseLog, SessionCompletionSummary, SetLog } from '~~/shared/types/session.types'
 import { useQueryCache } from '@pinia/colada'
 import { createOutboxRunner } from '~~/app/lib/outbox-runner'
 import { clearOutbox, loadOps, saveOps } from '~~/app/lib/outbox-store'
@@ -45,6 +45,8 @@ export default defineNuxtPlugin((nuxtApp) => {
         return $api(`${base}/sets/${op.payload.setLogId}`, { method: 'DELETE' })
       case 'complete_session':
         return $api<{ summary: SessionCompletionSummary }>(`${base}/complete`, { method: 'POST', body: op.payload })
+      case 'swap_exercise':
+        return $api<ExerciseLog>(`${base}/exercises/${op.payload.exerciseLogId}/swap`, { method: 'POST', body: { toExerciseId: op.payload.toExerciseId } })
     }
   }
 

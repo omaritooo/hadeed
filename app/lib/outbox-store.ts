@@ -15,7 +15,7 @@ const store = () => (connection ??= createStore("hadeed", "outbox"))
 // behaves identically -- the cap only exists to keep the arithmetic finite.
 const MAX_ATTEMPTS = 40
 
-const KINDS = new Set(["log_set", "edit_set", "delete_set", "complete_session"])
+const KINDS = new Set(["log_set", "edit_set", "delete_set", "complete_session", "swap_exercise"])
 const STATUSES = new Set<unknown>(["pending", "sending", "failed"] satisfies OutboxStatus[])
 
 /**

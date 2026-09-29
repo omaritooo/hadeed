@@ -34,6 +34,9 @@ export type OutboxOp =
   | (OpBase & { kind: "edit_set", payload: { setLogId: string, expectedVersion: number, corrections: EditSetLogInput } })
   | (OpBase & { kind: "delete_set", payload: { setLogId: string } })
   | (OpBase & { kind: "complete_session", payload: { expectedVersion: number, completedAt: string } })
+  // Switches an exercise log to its planned alternative. Names the target rather than toggling,
+  // so a replay of a swap that already landed is a no-op server-side instead of a swap back.
+  | (OpBase & { kind: "swap_exercise", payload: { exerciseLogId: string, toExerciseId: string } })
 
 // A set the server hasn't confirmed yet. `syncState` is absent on every set that came back from
 // the server, so the UI can tell "logged" from "logged, still in the queue" without a second list.
@@ -94,6 +97,13 @@ export const enqueue = (ops: OutboxOp[], op: OutboxOp): OutboxOp[] => {
     return [...kept, op]
   }
 
+  if (op.kind === "swap_exercise") {
+    // A log holds exactly two exercises, so a second swap always undoes the first. If the first
+    // hasn't gone out yet, neither needs to.
+    const pendingSwap = next.find(o => o.kind === "swap_exercise" && o.status === "pending" && o.payload.exerciseLogId === op.payload.exerciseLogId)
+    if (pendingSwap) return next.filter(o => o !== pendingSwap)
+  }
+
   return [...next, op]
 }
 
@@ -134,6 +144,21 @@ export const applyPending = (session: WorkoutSessionWithLogs, ops: OutboxOp[]): 
       }
       case "delete_set": {
         for (const exercise of result.exercises) exercise.sets = exercise.sets.filter(s => s.id !== op.payload.setLogId)
+        break
+      }
+      case "swap_exercise": {
+        const exercise = result.exercises.find(e => e.id === op.payload.exerciseLogId)
+        // Only while the log still has the target as its alternative: once the server has applied
+        // the swap, the refetched log already names the target and exchanging again would undo it.
+        if (!exercise || exercise.alternativeExerciseId !== op.payload.toExerciseId) break
+        Object.assign(exercise, {
+          exerciseId: exercise.alternativeExerciseId,
+          exerciseName: exercise.alternativeExerciseName,
+          alternativeExerciseId: exercise.exerciseId,
+          alternativeExerciseName: exercise.exerciseName,
+          // Computed for the other exercise. The server recomputes it on sync.
+          suggestion: null,
+        })
         break
       }
       case "complete_session": {

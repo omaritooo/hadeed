@@ -109,6 +109,8 @@ export const describeOp = (op: OutboxOp, unitSystem: UnitSystem): string => {
       return "Deleted set"
     case "complete_session":
       return "Finish workout"
+    case "swap_exercise":
+      return "Swapped exercise"
   }
 }
 

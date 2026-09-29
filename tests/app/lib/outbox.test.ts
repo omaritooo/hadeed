@@ -7,12 +7,14 @@ const base = (sessionId = 's1') => ({ opId: `op-${++n}`, sessionId, createdAt: '
 const logSet = (id: string, weightKg = 60, reps = 8, setNumber = 1): OutboxOp => ({ ...base(), kind: 'log_set', payload: { id, exerciseLogId: 'e1', setNumber, weightKg, reps, rpe: null, isWarmup: false, loggedAt: '2026-09-14T10:00:00.000Z' } })
 const editSet = (setLogId: string, corrections: Record<string, unknown>, expectedVersion = 1): OutboxOp => ({ ...base(), kind: 'edit_set', payload: { setLogId, expectedVersion, corrections } })
 const deleteSet = (setLogId: string): OutboxOp => ({ ...base(), kind: 'delete_set', payload: { setLogId } })
+const swap = (toExerciseId: string, exerciseLogId = 'e1'): OutboxOp => ({ ...base(), kind: 'swap_exercise', payload: { exerciseLogId, toExerciseId } })
 
 const session = (): WorkoutSessionWithLogs => ({
   id: 's1', userId: 'u', splitDayId: null, status: 'in_progress', startedAt: '2026-09-14 10:00:00', completedAt: null, version: 1, format: 'straight_sets', rounds: 1, loggedRetroactively: false,
   exercises: [{
     id: 'e1', sessionId: 's1', exerciseId: 'bench', exerciseName: 'Bench', splitExerciseId: null, position: 0, setType: 'weight_reps',
-    targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null, restSeconds: null, suggestion: null,
+    targetSets: 3, targetRepsMin: 8, targetRepsMax: 10, targetRpe: null, restSeconds: null, alternativeExerciseId: 'db-bench', alternativeExerciseName: 'DB Bench',
+    suggestion: { action: 'hold', reason: 'in_range', weightKg: 50, repsMin: 8, repsMax: 10 },
     sets: [{ id: 'synced', exerciseLogId: 'e1', setNumber: 2, weightKg: 50, reps: 8, rpe: null, isWarmup: false, loggedAt: '2026-09-14 10:01:00', version: 3 }],
   }],
 })
@@ -71,6 +73,21 @@ describe('enqueue (compaction)', () => {
     const snapshot = structuredClone(existing)
     enqueue(existing, editSet('a', { reps: 10 }))
     expect(existing).toEqual(snapshot)
+  })
+})
+
+describe('enqueue (swaps)', () => {
+  it('cancels a pending swap with the swap back', () => {
+    expect(enqueue(enqueue([logSet('other')], swap('db-bench')), swap('bench')).map(o => o.kind)).toEqual(['log_set'])
+  })
+
+  it('keeps both when the first swap is already sending', () => {
+    const sending = { ...swap('db-bench'), status: 'sending' as const }
+    expect(enqueue([sending], swap('bench'))).toHaveLength(2)
+  })
+
+  it('does not cancel a swap of a different exercise', () => {
+    expect(enqueue([swap('db-bench', 'e1')], swap('x', 'e2'))).toHaveLength(2)
   })
 })
 
@@ -165,6 +182,21 @@ describe('applyPending', () => {
     const input = session()
     applyPending(input, [logSet('a'), editSet('synced', { reps: 12 }, 3)])
     expect(input).toEqual(session())
+  })
+})
+
+describe('applyPending (swaps)', () => {
+  it('exchanges the exercise with its alternative and hides the stale suggestion', () => {
+    const [exercise] = applyPending(session(), [swap('db-bench')]).exercises
+    expect(exercise).toMatchObject({
+      exerciseId: 'db-bench', exerciseName: 'DB Bench', alternativeExerciseId: 'bench', alternativeExerciseName: 'Bench', suggestion: null,
+    })
+  })
+
+  it('leaves a swap the server already applied alone', () => {
+    const synced = session()
+    Object.assign(synced.exercises[0]!, { exerciseId: 'db-bench', exerciseName: 'DB Bench', alternativeExerciseId: 'bench', alternativeExerciseName: 'Bench' })
+    expect(applyPending(synced, [swap('db-bench')]).exercises[0]).toMatchObject({ exerciseId: 'db-bench', alternativeExerciseId: 'bench' })
   })
 })
 
