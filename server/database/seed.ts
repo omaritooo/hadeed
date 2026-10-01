@@ -10,6 +10,7 @@ import { migrateUserProfilesGoalTiers } from './migrations/goal-tiers'
 import { migrateRepRanges } from './migrations/rep-ranges'
 import { presetRepRange } from './preset-rep-range'
 import { upsertExercises, replaceExerciseAliases, type RawExercise, type RawExerciseAlias } from './seed-exercises'
+import { upsertPresetFoods, type RawPresetFood } from './seed-foods'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -26,16 +27,6 @@ const db = createClient({ url, authToken })
 // Presets are authored with a single rep target. reps() widens it into a range: +2 up to 10 reps,
 // +3 from 11 to 15, +5 above 15. See preset-rep-range.ts, which the rep-ranges migration shares.
 const reps = presetRepRange
-
-interface RawPresetFood {
-  name: string
-  unitType: 'weight_100g' | 'count'
-  unitLabel: string | null
-  calories: number
-  proteinG: number
-  carbsG: number
-  fatG: number
-}
 
 // SQLite can't relax a NOT NULL constraint via ALTER TABLE, so a database created
 // before ingredients.user_id became nullable (for global preset foods) needs its
@@ -107,29 +98,7 @@ const main = async () => {
 
   console.log(`Seeding ${foods.length} preset foods...`)
 
-  for (const food of foods) {
-    // Presets have no natural stable id (unlike exercises' slug), so upsert by
-    // name among the global rows (user_id IS NULL) to stay idempotent across reseeds.
-    const existing = await db.execute({
-      sql: 'SELECT id FROM ingredients WHERE user_id IS NULL AND name = ?',
-      args: [food.name],
-    })
-    const args = [food.name, food.unitType, food.unitLabel, food.calories, food.proteinG, food.carbsG, food.fatG]
-    const existingId = existing.rows[0]?.id as number | undefined
-    if (existingId) {
-      await db.execute({
-        sql: `UPDATE ingredients SET name = ?, unit_type = ?, unit_label = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?
-              WHERE id = ?`,
-        args: [...args, existingId],
-      })
-    } else {
-      await db.execute({
-        sql: `INSERT INTO ingredients (user_id, name, unit_type, unit_label, calories, protein_g, carbs_g, fat_g)
-              VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)`,
-        args,
-      })
-    }
-  }
+  await upsertPresetFoods(db, foods)
 
   console.log('Seeding roles...')
   const roles = new RoleRepository(db)

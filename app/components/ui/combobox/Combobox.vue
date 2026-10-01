@@ -6,9 +6,11 @@ import {
   ComboboxAnchor,
   ComboboxContent,
   ComboboxEmpty,
+  ComboboxGroup,
   ComboboxInput,
   ComboboxItem,
   ComboboxItemIndicator,
+  ComboboxLabel,
   ComboboxPortal,
   ComboboxRoot,
   ComboboxTrigger,
@@ -35,6 +37,17 @@ const model = defineModel<AcceptableValue>();
 const searchTerm = defineModel<string>("searchTerm", { default: "" });
 
 const selectedLabel = computed(() => props.items.find((item) => item.value === model.value)?.label);
+
+// Consecutive runs of the same `group` become one section; ungrouped items share a heading-less one.
+const sections = computed(() => {
+  const result: { name?: string; items: ComboboxOption[] }[] = [];
+  for (const item of props.items) {
+    const last = result.at(-1);
+    if (last && last.name === item.group) last.items.push(item);
+    else result.push({ name: item.group, items: [item] });
+  }
+  return result;
+});
 </script>
 
 <template>
@@ -89,22 +102,36 @@ const selectedLabel = computed(() => props.items.find((item) => item.value === m
           <ComboboxEmpty class="text-muted-foreground py-6 text-center text-sm">
             {{ emptyText ?? 'No results found.' }}
           </ComboboxEmpty>
-          <ComboboxItem
-            v-for="item in items"
-            :key="String(item.value)"
-            :value="item.value"
-            :text-value="item.label"
-            :disabled="item.disabled"
-            class="data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-sm text-foreground outline-none select-none"
+          <ComboboxGroup
+            v-for="section in sections"
+            :key="section.name ?? ''"
           >
-            <!-- Optional per-item content; the default is the bare label. -->
-            <slot name="item" :item="item">
-              <span class="truncate">{{ item.label }}</span>
-            </slot>
-            <ComboboxItemIndicator>
-              <CheckIcon class="text-primary size-4 shrink-0" />
-            </ComboboxItemIndicator>
-          </ComboboxItem>
+            <ComboboxLabel
+              v-if="section.name"
+              class="text-muted-foreground px-3 pt-3 pb-1 text-xs font-medium tracking-wide uppercase"
+            >
+              {{ section.name }}
+            </ComboboxLabel>
+            <ComboboxItem
+              v-for="item in section.items"
+              :key="String(item.value)"
+              :value="item.value"
+              :text-value="item.searchText ?? item.label"
+              :disabled="item.disabled"
+              class="data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground flex cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-sm text-foreground outline-none select-none"
+            >
+              <!-- Optional per-item content; the default is the label with its hint underneath. -->
+              <slot name="item" :item="item">
+                <span class="flex min-w-0 flex-col">
+                  <span class="truncate">{{ item.label }}</span>
+                  <span v-if="item.hint" class="text-muted-foreground truncate text-xs" dir="auto">{{ item.hint }}</span>
+                </span>
+              </slot>
+              <ComboboxItemIndicator>
+                <CheckIcon class="text-primary size-4 shrink-0" />
+              </ComboboxItemIndicator>
+            </ComboboxItem>
+          </ComboboxGroup>
         </ComboboxViewport>
       </ComboboxContent>
     </ComboboxPortal>

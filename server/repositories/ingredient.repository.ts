@@ -1,5 +1,6 @@
 import type { Client } from '@libsql/client'
 import type { Ingredient, IngredientUnitType } from '~~/shared/types/nutrition.types'
+import type { FoodCategory } from '~~/shared/lib/food-categories'
 
 export interface CreateIngredientInput {
   name: string
@@ -31,6 +32,9 @@ export class IngredientRepository {
       id: row.id as number,
       userId: row.user_id as string | null,
       name: row.name as string,
+      nameAr: (row.name_ar as string | null) ?? null,
+      category: (row.category as FoodCategory | null) ?? null,
+      keywords: (row.keywords as string | null) ?? null,
       unitType: row.unit_type as IngredientUnitType,
       unitLabel: row.unit_label as string | null,
       calories: row.calories as number,

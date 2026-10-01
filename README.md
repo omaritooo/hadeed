@@ -108,9 +108,14 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
 
 ### Nutrition
 
-- **Personal ingredient catalog** — per-user ingredients plus **51 global preset foods**,
-  stored per-100g or per-count with a unit label (cup, can, scoop). Global rows are visible
-  to everyone but only editable by their owner.
+- **Personal ingredient catalog** — per-user ingredients plus **340 global preset foods**
+  focused on what's sold in Egypt: 136 branded products (Juhayna, Domty, Rich Bake, Almarai,
+  Lamar, Chipsy and more, from Open Food Facts labels) and raw and generic ingredients from
+  USDA FoodData Central. Stored per-100g or per-count with a unit label (cup, can, scoop).
+  Global rows are visible to everyone but only editable by their owner.
+- **Bilingual search** — preset foods carry an Arabic name, a category and alternative
+  spellings, so "كشري", "koshari" and "koshary" find the same food. The picker groups foods
+  by category, with the user's own foods first.
 - **Meal logging** — build a meal from ingredient lines with quantities; macros roll up
   from the lines. Meal type is inferred from the hour of day when not given.
 - **Check mode** — weigh a draft meal against what's left of the day's target *without*

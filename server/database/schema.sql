@@ -435,6 +435,13 @@ CREATE TABLE IF NOT EXISTS ingredients (
   fat_g       REAL NOT NULL
 );
 
+-- Searchable presentation fields. name_ar and keywords (alternative spellings such as "koshary,
+-- kushari") feed the food picker's search, category groups it (keys in shared/lib/food-categories.ts).
+-- All nullable: a user's own ingredients usually have none of them.
+ALTER TABLE ingredients ADD COLUMN name_ar TEXT;
+ALTER TABLE ingredients ADD COLUMN category TEXT;
+ALTER TABLE ingredients ADD COLUMN keywords TEXT;
+
 CREATE TABLE IF NOT EXISTS meal_logs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

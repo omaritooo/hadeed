@@ -100,8 +100,15 @@ const { data: ingredients } = useIngredients();
 const { mutateAsync: createIngredientAsync, isLoading: creatingIngredient } = useCreateIngredient();
 const deleteIngredient = useDeleteIngredient();
 
-const ingredientOptions = computed<ComboboxOption[]>(() => {
-  return (ingredients.value ?? []).map((ingredient) => ({ value: ingredient.id, label: ingredient.name }));
+const foodOptions = computed<ComboboxOption[]>(() => ingredientOptions(ingredients.value ?? []));
+
+// The Ingredients tab lists every food, presets included, so it gets the same search the picker has.
+const ingredientSearch = ref("");
+const visibleIngredients = computed(() => {
+  const query = ingredientSearch.value.trim().toLowerCase();
+  if (!query) return ingredients.value ?? [];
+  const matching = new Set(foodOptions.value.filter((option) => option.searchText?.toLowerCase().includes(query)).map((option) => option.value));
+  return (ingredients.value ?? []).filter((ingredient) => matching.has(ingredient.id));
 });
 const ingredientMacros = (ingredient: { unitType: string, unitLabel: string | null, calories: number, proteinG: number, carbsG: number, fatG: number }, quantity: number) => {
   const scale = ingredient.unitType === "weight_100g" ? quantity / 100 : quantity;
@@ -510,7 +517,7 @@ watch(logDrawerOpen, (open) => {
               <div class="space-y-2">
                 <UiCombobox
                   v-model="draftIngredientId"
-                  :items="ingredientOptions"
+                  :items="foodOptions"
                   placeholder="Pick an ingredient"
                   search-placeholder="Search ingredients…"
                   empty-text="No ingredients found."
@@ -626,13 +633,15 @@ watch(logDrawerOpen, (open) => {
     </section>
 
     <section v-if="tab === 'ingredients'" class="space-y-4">
+      <UiInput v-model="ingredientSearch" type="search" placeholder="Search foods (English or عربي)" aria-label="Search foods" />
       <TransitionGroup tag="div" name="row" class="space-y-2">
-        <div v-for="ingredient in ingredients ?? []" :key="ingredient.id" class="flex items-center gap-3 rounded-xl border border-surface-strong bg-card p-4">
+        <div v-for="ingredient in visibleIngredients" :key="ingredient.id" class="flex items-center gap-3 rounded-xl border border-surface-strong bg-card p-4">
           <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-popover">
             <AppleIcon class="size-4.5 text-lime" />
           </div>
           <div class="min-w-0 flex-1 space-y-1">
             <p class="break-words font-heading text-base text-foreground">{{ ingredient.name }}</p>
+            <p v-if="ingredient.nameAr" class="text-sm text-muted-foreground" dir="rtl" lang="ar">{{ ingredient.nameAr }}</p>
             <div class="flex flex-wrap items-center gap-1.5">
               <span class="font-mono text-[10px] text-muted-foreground">
                 {{ ingredient.calories }}cal / {{ ingredient.unitType === 'weight_100g' ? '100g' : `1 ${ingredient.unitLabel}` }}

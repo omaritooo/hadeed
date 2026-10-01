@@ -1,5 +1,6 @@
 import type { MacroTarget } from '~~/shared/types/split.types'
 import type { TdeeEstimate } from '~~/shared/lib/adaptive-tdee'
+import type { FoodCategory } from '~~/shared/lib/food-categories'
 
 export type IngredientUnitType = 'weight_100g' | 'count'
 
@@ -9,6 +10,10 @@ export interface Ingredient {
   id: number
   userId: string | null
   name: string
+  // Set on preset foods; a user's own ingredients usually leave them null.
+  nameAr: string | null
+  category: FoodCategory | null
+  keywords: string | null
   unitType: IngredientUnitType
   unitLabel: string | null
   calories: number

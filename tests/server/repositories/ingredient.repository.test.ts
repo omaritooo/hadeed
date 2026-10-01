@@ -41,6 +41,19 @@ describe('IngredientRepository', () => {
     expect(list.map(i => i.name)).toEqual(['Chicken breast', 'Rice'])
   })
 
+  it('returns a preset food\'s Arabic name, category and keywords, and nulls for a user\'s own', async () => {
+    await db.execute({
+      sql: `INSERT INTO ingredients (user_id, name, name_ar, category, keywords, unit_type, calories, protein_g, carbs_g, fat_g)
+            VALUES (NULL, 'Koshari', 'كشري', 'grains', 'koshary', 'weight_100g', 153, 4.7, 23, 4.8)`,
+      args: [],
+    })
+    await repo.create('user-1', chicken)
+
+    const list = await repo.findAllForUser('user-1')
+    expect(list.find(i => i.name === 'Koshari')).toMatchObject({ nameAr: 'كشري', category: 'grains', keywords: 'koshary' })
+    expect(list.find(i => i.name === 'Chicken breast')).toMatchObject({ nameAr: null, category: null, keywords: null })
+  })
+
   it('does not find another user\'s ingredient by id', async () => {
     const created = await repo.create('user-1', chicken)
     expect(await repo.findById(created.id, 'user-2')).toBeNull()
