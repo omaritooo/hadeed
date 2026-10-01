@@ -85,6 +85,14 @@ describe('classifyMovementPattern', () => {
     expect(shoulderPress('Log Lift')).toBe('vertical_push')
   })
 
+  // Pike and handstand push-ups press overhead, so they must not be swept up by the generic
+  // "push-up" match and offered bench presses as substitutes.
+  it('treats pike and handstand push-ups as a vertical push', () => {
+    expect(classifyMovementPattern({ name: 'Pike Push-Up', force: 'push', mechanic: 'compound', primaryMuscles: ['shoulders'] })).toBe('vertical_push')
+    expect(classifyMovementPattern({ name: 'Handstand Push-Ups', force: 'push', mechanic: 'compound', primaryMuscles: ['shoulders'] })).toBe('vertical_push')
+    expect(classifyMovementPattern({ name: 'Pushups', force: 'push', mechanic: 'compound', primaryMuscles: ['chest'] })).toBe('horizontal_push')
+  })
+
   // The press rule is scoped to shoulders, so presses driven by another muscle keep their own
   // pattern rather than being swept up as overhead work.
   it('leaves non-shoulder presses classified by their own muscle', () => {

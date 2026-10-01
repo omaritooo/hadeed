@@ -77,6 +77,7 @@ const AMBIGUOUS_TIER_OVERRIDES: Record<string, 1 | 2> = {
   'Sumo Squat': 1,
   'Hex Press': 1,
   'Chest-Supported Dumbbell Row': 1,
+  'Helms Row': 1,
   'Front Foot Elevated Split Squat': 1,
   'Curtsy Lunge': 1,
   'Single-Leg Romanian Deadlift': 1,

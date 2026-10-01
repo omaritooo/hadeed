@@ -82,7 +82,9 @@ export const classifyMovementPattern = (exercise: ClassifiableExercise): Movemen
   if (nameHas(name, 'pulldown', 'pull-up', 'pullup', 'pull up', 'chin-up', 'chinup')) return 'vertical_pull'
   if (nameHas(name, 'row', 'bench pull')) return 'horizontal_pull'
 
-  if (nameHas(name, 'incline', 'overhead press', 'shoulder press', 'military press', 'viking press')) return 'vertical_push'
+  // Pike and handstand push-ups press overhead, so they're matched before the generic "push-up"
+  // keyword below turns them into horizontal pushes.
+  if (nameHas(name, 'incline', 'overhead press', 'shoulder press', 'military press', 'viking press', 'pike push', 'handstand push')) return 'vertical_push'
   if (nameHas(name, 'bench press', 'chest press', 'push-up', 'push up', 'pushup', 'flye', 'fly')) return 'horizontal_push'
 
   // Any shoulder-driven press or jerk left over is overhead work. The named list above can't

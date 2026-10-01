@@ -58,10 +58,10 @@ Built with Nuxt 4, a Turso (libSQL) database, and a typed repository/service bac
 
 ### Exercise catalog
 
-- **973 exercises** — 882 seeded from the free-exercise-db dataset plus 91 curated
+- **1,001 exercises** — 882 seeded from the free-exercise-db dataset plus 119 curated
   gap-fill movements that dataset has no counterpart for, normalized onto a muscles table
   so muscle-targeting and split-generation queries are plain joins.
-- **108 search aliases** mapping what people actually type onto the catalog row that
+- **157 search aliases** mapping what people actually type onto the catalog row that
   describes the movement — the source data has no plain "Bench Press" or "Squat" row, only
   qualified variants, and names a pec deck "Butterfly".
 - **Automatic classification** — exercises are tagged with a movement pattern (horizontal
